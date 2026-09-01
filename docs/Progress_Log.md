@@ -7,9 +7,24 @@
 - 修复 Ray 2.52 测试夹具对已删除 `ray._private.utils.hex_to_binary` 的依赖。
 - 新增 `llumnix.backends.vllm.v1_kv.KVCacheAffinityIndex`：消费 vLLM V1 KV 事件，按实例维护 block ownership，并提供 prefix affinity 与候选实例排序。
 - 新增 V1 KV 亲和单元测试；当前测试结果：12 passed（包含既有全局调度测试）。
+- 提交 `4b61873` 修复 KV block hash：由 Python 内置 `hash` 改为稳定的
+  BLAKE2b-64 摘要，保证跨进程/跨主机收到相同 token prefix 时亲和计算一致。
+- 提交 `f1beadf` 与 `4b61873` 已推送到 `tianshu-huiyang/main`。
+
+## 2026-09-01：V1 connector 配置层
+
+- 新增 `llumnix.backends.vllm.v1_kv_transfer.configure_v1_kv_transfer`，将
+  Llumnix 的 `migration_backend=kvtransfer` 映射到 vLLM 0.11 的
+  `KVTransferConfig`，并默认打开 ZMQ KV events；支持通过
+  `LLUMNIX_KV_ROLE/RANK/PARALLEL_SIZE/IP/PORT` 注入多实例连接参数。
+- `migration_backend` 不是 `kvtransfer` 时不修改 vLLM 原生配置，保持既有
+  单实例行为；V1 不再在 CLI 层无条件清除显式的 connector 选择。
+- 扩展 `migration_backend_transfer_type` 的合法值，允许
+  `SharedStorageConnector`、`P2pNcclConnector`、`NixlConnector` 等 vLLM V1
+  connector 名称。connector 仅完成配置注入，尚未宣称跨机传输已验证。
+- 新增 3 个配置映射单测，结果：`4 passed`（含 V1 KV 亲和测试）。
 - 已确认 CoreX/IX-ML/Driver 仍为 4.4.0，未修改驱动。
 
 ## 当前边界
 
 KV 亲和索引已经可以独立消费 V1 事件，但尚未把物理 GPU block 的导出、跨主机传输和目标实例导入接入 vLLM V1 scheduler。下一阶段将实现 V1 KV connector/transfer executor，并在本机与 `10.31.10.210` 分层验证；在此之前不宣称跨实例迁移完成。
-

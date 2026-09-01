@@ -41,12 +41,16 @@ def get_args(cfg, launch_mode: LaunchMode, parser: LlumnixArgumentParser, cli_ar
     if not getattr(vllm, "__version__", "").startswith("0.11"):
         check_engine_args(engine_args, instance_args)
     else:
-        manager_args.enable_migration = False
-        logger.warning(
-            "vLLM %s detected: using Llumnix V1 serving adapter; "
-            "KV-cache migration is disabled during the port.",
-            vllm.__version__,
-        )
+        # V1 migration is connector-based. Keep the manager migration loop
+        # disabled for the legacy coordinator; ``kvtransfer`` is configured
+        # later when the V1 backend is constructed.
+        if instance_args.migration_backend != "kvtransfer":
+            manager_args.enable_migration = False
+            logger.warning(
+                "vLLM %s detected: legacy KV-cache migration is disabled; "
+                "set migration_backend=kvtransfer to use V1 connectors.",
+                vllm.__version__,
+            )
 
     logger.info("entrypoints_args: {}".format(entrypoints_args))
     logger.info("manager_args: {}".format(manager_args))

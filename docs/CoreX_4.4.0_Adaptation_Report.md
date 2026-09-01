@@ -4,6 +4,14 @@
 
 持续进度记录见 [Progress_Log.md](./Progress_Log.md)。本阶段提交包含 Python 3.12 包元数据修复、Ray 2.52 测试兼容和 V1 KV 事件亲和索引基础。
 
+最新的 V1 迁移进展已加入 connector 配置层：当显式设置
+`migration_backend=kvtransfer` 时，Llumnix 会在创建 `AsyncLLM` 前映射为
+vLLM V1 的 `KVTransferConfig` 和 `KVEventsConfig`。支持
+`SharedStorageConnector`（适合先做单机/共享目录验证）以及
+`P2pNcclConnector` 等原生 connector；两机的 CoreX NCCL 可用性尚未验证，
+因此默认不会自行启用跨机 P2P。原有 gloo/nccl/rayrpc 迁移协调器仍只适用于
+旧 vLLM 后端，V1 不会调用它们。
+
 ## 结论
 
 CoreX 驱动、PyTorch、Ray 和 Llumnix 的非 vLLM 控制面已在本机验证可用，且整个过程未修改驱动或系统级 CoreX 安装。

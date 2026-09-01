@@ -471,8 +471,11 @@ class InstanceArgs:
                             help='timeout(s) for initializing migration backend')
         parser.add_argument('--migration-backend-transfer-type',
                             type=str,
-                            choices=['cuda_ipc','rdma'],
-                            help='transfer type for migration backend grpc and kvTransfer')
+                            choices=['cuda_ipc', 'rdma', 'SharedStorageConnector',
+                                     'P2pNcclConnector', 'NixlConnector',
+                                     'LMCacheConnectorV1', 'OffloadingConnector'],
+                            help='transfer type for legacy backends or vLLM V1 '
+                                 'KV connector name')
         parser.add_argument('--grpc-migration-backend-server-address',
                             type=str,
                             help='address of grpc server for migration backend')

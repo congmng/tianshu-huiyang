@@ -86,6 +86,10 @@ def init_backend_engine(instance_id: str,
         import vllm
         version = getattr(vllm, "__version__", "")
         if version.startswith("0.11"):
+            # Translate Llumnix's opt-in ``kvtransfer`` backend to vLLM V1's
+            # connector config before AsyncLLM snapshots engine arguments.
+            from llumnix.backends.vllm.v1_kv_transfer import configure_v1_kv_transfer
+            configure_v1_kv_transfer(engine_args, migration_config)
             from llumnix.backends.vllm.v1_engine import V1EngineAdapter
             backend_engine = V1EngineAdapter(engine_args)
         else:
