@@ -30,7 +30,7 @@ Llumnix 当前仓库的 vLLM 后端**不能直接运行**在所给软件栈的 `
 前会移除，保证公开 request ID 不变。
 
 这部分当前由提交 `02b8857` 提供，已推送至
-`https://github.com/congmng/tianshu-huiyang`；本机 23 个相关测试通过。
+`https://github.com/congmng/tianshu-huiyang`；本机相关测试通过。
 
 跨主机算法层已在 `10.31.10.62` 与 `10.31.10.210` 之间验证：前者发布 vLLM
 `BlockStored` ZMQ event，后者在同为 Python 3.12/vLLM 0.11.2 的 CoreX 环境中
