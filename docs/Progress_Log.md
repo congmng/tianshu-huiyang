@@ -29,6 +29,18 @@
 
 KV 亲和索引已经可以独立消费 V1 事件，但尚未把物理 GPU block 的导出、跨主机传输和目标实例导入接入 vLLM V1 scheduler。下一阶段将实现 V1 KV connector/transfer executor，并在本机与 `10.31.10.210` 分层验证；在此之前不宣称跨实例迁移完成。
 
+## 2026-09-01：跨主机事件与 hash 一致性验证
+
+- 本机 `10.31.10.62` 使用 vLLM `EventPublisherFactory` 在
+  `tcp://*:18077` 发布 `BlockStored`；第二台 `u210`
+  (`10.31.10.210`) 使用其 Python 3.12.13 / vLLM 0.11.2 环境成功订阅并解码，
+  收到 `BlockStored cross-host-test`。验证通过 `ens1f0`，未改远端文件或系统配置。
+- 两机以 `PYTHONHASHSEED=0`、`sha256_cbor` 对 token blocks
+  `[1,2,3,4]`、`[5,6,7,8]` 计算出的 32-byte hashes 完全一致：
+  `c9d58ba6...ef071cb`、`24125b23...54ab2d6`。
+- 该验证证明跨机 KV ownership 事件和亲和 hash 算法链路可用；尚未证明
+  `P2pNcclConnector` 的 GPU tensor 传输，后者需要两端启动实际 V1 worker 后再测。
+
 ## 2026-09-01：真实事件订阅与亲和调度接入
 
 - `V1EngineAdapter` 新增 ZMQ `KVEventSubscriber`，按实例消费 vLLM

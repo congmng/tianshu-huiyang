@@ -32,6 +32,12 @@ Llumnix 当前仓库的 vLLM 后端**不能直接运行**在所给软件栈的 `
 这部分当前由提交 `02b8857` 提供，已推送至
 `https://github.com/congmng/tianshu-huiyang`；本机 23 个相关测试通过。
 
+跨主机算法层已在 `10.31.10.62` 与 `10.31.10.210` 之间验证：前者发布 vLLM
+`BlockStored` ZMQ event，后者在同为 Python 3.12/vLLM 0.11.2 的 CoreX 环境中
+成功订阅解码。两端在固定 `PYTHONHASHSEED=0` 下计算同一 token prefix 的
+`sha256_cbor` block hashes 也完全一致。这证明事件汇聚和 cache-affinity 计算
+可跨主机进行；尚未作为 P2P NCCL GPU KV tensor 迁移成功的证明。
+
 ## vLLM V1 迁移进展（2026-09-01）
 
 针对本机软件栈的 `vllm 0.11.2+corex.4.4.0`，已加入第一阶段 V1 迁移代码：
