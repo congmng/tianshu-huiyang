@@ -94,6 +94,23 @@ def test_p2p_request_id_rejects_non_address():
         decorate_p2p_request_id("request-1", "invalid")
 
 
+def test_p2p_environment_validation(monkeypatch):
+    from llumnix.backends.vllm.v1_kv_transfer import validate_p2p_environment
+    from vllm.config import KVTransferConfig
+    import pytest
+
+    args = SimpleNamespace(kv_transfer_config=KVTransferConfig(
+        kv_connector="P2pNcclConnector", kv_role="kv_producer", kv_parallel_size=1
+    ))
+    with pytest.raises(ValueError, match="kv_parallel_size=2"):
+        validate_p2p_environment(args)
+    args.kv_transfer_config.kv_parallel_size = 2
+    with pytest.raises(ValueError, match="DECODE_ADDRESS"):
+        validate_p2p_environment(args)
+    monkeypatch.setenv("LLUMNIX_KV_DECODE_ADDRESS", "10.31.10.62:17000")
+    validate_p2p_environment(args)
+
+
 def test_strip_p2p_request_id():
     from llumnix.backends.vllm.v1_kv_transfer import strip_p2p_request_id
 

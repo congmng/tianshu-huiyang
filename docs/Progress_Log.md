@@ -27,7 +27,9 @@
 
 ## 当前边界
 
-KV 亲和索引已经可以独立消费 V1 事件，但尚未把物理 GPU block 的导出、跨主机传输和目标实例导入接入 vLLM V1 scheduler。下一阶段将实现 V1 KV connector/transfer executor，并在本机与 `10.31.10.210` 分层验证；在此之前不宣称跨实例迁移完成。
+V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
+`P2pNcclConnector` 负责物理 GPU block 的导出/传输/导入，但在 CoreX 两机上
+尚未完成实际 worker tensor transfer 验证，因此当前不宣称跨实例迁移全部完成。
 
 ## 2026-09-01：跨主机事件与 hash 一致性验证
 
@@ -40,6 +42,16 @@ KV 亲和索引已经可以独立消费 V1 事件，但尚未把物理 GPU block
   `c9d58ba6...ef071cb`、`24125b23...54ab2d6`。
 - 该验证证明跨机 KV ownership 事件和亲和 hash 算法链路可用；尚未证明
   `P2pNcclConnector` 的 GPU tensor 传输，后者需要两端启动实际 V1 worker 后再测。
+
+## 2026-09-01：P2P 启动保护与普通请求自动亲和
+
+- 普通 Manager `/generate` 请求现在会从 live V1 Llumlet tokenizer 计算
+  `sha256_cbor` prefix block hashes，再交给 GlobalScheduler；调用方无需手工
+  传入 token IDs。tokenizer/多模态不适用时自动回退原调度策略。
+- `P2pNcclConnector` 增加早期配置校验：要求 `kv_parallel_size=2`，producer
+  要求 `LLUMNIX_KV_DECODE_ADDRESS=host:port`；否则在创建 GPU engine 前返回
+  明确错误。公开 request ID 与 connector 内部地址后缀继续分离。
+- 本机测试结果：`20 passed`，compileall 与 diff-check 通过。
 
 ## 2026-09-01：真实事件订阅与亲和调度接入
 

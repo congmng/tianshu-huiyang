@@ -43,6 +43,26 @@ def p2p_connector_enabled(engine_args: Any) -> bool:
     return config is not None and getattr(config, "kv_connector", None) == "P2pNcclConnector"
 
 
+def validate_p2p_environment(engine_args: Any) -> None:
+    """Fail early with actionable guidance for a P2P deployment.
+
+    P2pNcclConnector requires exactly two transfer peers and a concrete
+    endpoint for producer request IDs. It is unsafe to silently start a
+    single-instance service with a half-configured connector.
+    """
+    config = getattr(engine_args, "kv_transfer_config", None)
+    if config is None or getattr(config, "kv_connector", None) != "P2pNcclConnector":
+        return
+    if int(getattr(config, "kv_parallel_size", 0)) != 2:
+        raise ValueError("P2pNcclConnector requires kv_parallel_size=2")
+    if getattr(config, "kv_role", None) in ("kv_producer", "kv_both"):
+        address = os.getenv("LLUMNIX_KV_DECODE_ADDRESS")
+        if not address:
+            raise ValueError(
+                "P2pNcclConnector producer requires LLUMNIX_KV_DECODE_ADDRESS=host:port"
+            )
+
+
 def configure_v1_kv_transfer(
     engine_args: Any,
     migration_config: Any,
