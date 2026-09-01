@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Iterable, Mapping, Sequence
+import hashlib
 
 
 @dataclass(frozen=True)
@@ -69,8 +70,19 @@ class KVCacheAffinityIndex:
         """
         if block_size <= 0:
             return ()
-        return tuple(hash(tuple(token_ids[i:i + block_size]))
-                     for i in range(0, len(token_ids) - block_size + 1, block_size))
+        # Python's built-in hash is salted per process and cannot be used to
+        # match events received from another host. Use a stable 64-bit digest
+        # for deterministic cross-process affinity calculations.
+        return tuple(
+            int.from_bytes(
+                hashlib.blake2b(
+                    bytes(str(tuple(token_ids[i:i + block_size])), "ascii"),
+                    digest_size=8,
+                ).digest(),
+                "big",
+            )
+            for i in range(0, len(token_ids) - block_size + 1, block_size)
+        )
 
     def affinity(self, instance_id: str, block_hashes: Iterable[int]) -> float:
         requested = {int(value) for value in block_hashes}
@@ -87,4 +99,3 @@ class KVCacheAffinityIndex:
     def snapshot(self) -> Mapping[str, frozenset[int]]:
         return {instance_id: self.block_hashes(instance_id)
                 for instance_id in self._blocks}
-
