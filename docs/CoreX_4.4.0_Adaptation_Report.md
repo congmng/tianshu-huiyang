@@ -18,7 +18,19 @@ CoreX 驱动、PyTorch、Ray 和 Llumnix 的非 vLLM 控制面已在本机验证
 
 Llumnix 当前仓库的 vLLM 后端**不能直接运行**在所给软件栈的 `vllm 0.11.2+corex.4.4.0` 上。原因是该后端为 vLLM `0.6.3.post1` 的内部 API 实现；vLLM 0.11.2 已迁移到 V1 架构并移除了多个被直接引用的私有模块。完整启动 Llumnix API Server、vLLM Engine 和 KV Cache 迁移，需要针对 vLLM V1 的后端重构，不能仅通过改依赖版本完成。
 
-因此当前状态是：**CoreX 4.4.0 运行时、Llumnix 调度控制面及 vLLM V1 单实例请求链路已可运行；KV-cache 迁移数据面仍未适配。**
+因此当前状态是：**CoreX 4.4.0 运行时、Llumnix 调度控制面及 vLLM V1 单实例请求链路已可运行；V1 connector 已接入配置、事件和调度，但跨实例物理 KV-cache 传输仍需专门端到端验证。**
+
+## 最新适配增量（2026-09-01）
+
+`V1EngineAdapter` 现在订阅 vLLM V1 的 ZMQ `KVEventBatch`，并把 block 所有权
+同步到 `KVCacheAffinityIndex`；`InstanceInfo` 透传这些 hashes，调度器在负载差
+不超过 0.10 时优先已有 prefix 的实例。普通 `/generate` 会从一个 live V1
+实例 tokenizer 计算与 EngineCore 一致的 `sha256_cbor` block hashes，因此不需要
+客户端自行构造 hash。P2P connector 的内部地址后缀仅用于 vLLM connector，输出
+前会移除，保证公开 request ID 不变。
+
+这部分当前由提交 `02b8857` 提供，已推送至
+`https://github.com/congmng/tianshu-huiyang`；本机 23 个相关测试通过。
 
 ## vLLM V1 迁移进展（2026-09-01）
 

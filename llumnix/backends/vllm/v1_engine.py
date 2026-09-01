@@ -57,6 +57,25 @@ class V1EngineAdapter:
         """Return this instance's cache-hit ratio for a requested prefix."""
         return self.kv_affinity.affinity(self.instance_id, block_hashes)
 
+    def get_prompt_block_hashes(self, prompt: str):
+        """Tokenize a text prompt and produce EngineCore-compatible hashes.
+
+        This is called by Manager before dispatch, so ordinary HTTP requests
+        can benefit from cache affinity without exposing an extra client API.
+        It is intentionally best-effort: unsupported multimodal/prompt-embed
+        inputs return no hashes and use the existing dispatch policy.
+        """
+        tokenizer = self.engine.tokenizer
+        if tokenizer is None or not isinstance(prompt, str):
+            return ()
+        token_ids = tokenizer.encode(prompt, add_special_tokens=False)
+        cache_config = self.engine.vllm_config.cache_config
+        return self.kv_affinity.prefix_hashes(
+            token_ids,
+            cache_config.block_size,
+            cache_config.prefix_caching_hash_algo,
+        )
+
     def generate(self, prompt, sampling_params: SamplingParams, request_id: str,
                  decode_address: str | None = None):
         if p2p_connector_enabled(self.engine_args):

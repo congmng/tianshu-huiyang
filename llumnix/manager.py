@@ -232,6 +232,17 @@ class Manager:
                     int(block_size),
                     kwargs.pop("llumnix_kv_hash_algo", "sha256_cbor"),
                 )
+        if block_hashes is None and args and isinstance(args[0], str):
+            # Query one live V1 engine for tokenizer/config compatible hashes.
+            # This is best-effort and must not delay serving if an instance is
+            # starting, remote, or running a legacy backend.
+            for instance in self.instances.values():
+                try:
+                    block_hashes = await instance.get_prompt_block_hashes.remote(args[0])
+                    if block_hashes:
+                        break
+                except (ray.exceptions.RayActorError, AttributeError):
+                    continue
         instance_id, request_expected_steps = self.global_scheduler.dispatch(block_hashes)
         try:
             set_timestamp(server_info, "manager_generate_timestamp", time.time())

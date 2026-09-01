@@ -164,12 +164,11 @@ class KVCacheAffinityIndex:
             # vLLM derives the initial hash from PYTHONHASHSEED. The V1
             # connector configuration sets this to a fixed value so that the
             # API process and EngineCore agree across hosts.
-            # EngineCore initializes NONE_HASH once per process. Avoid
-            # re-seeding it here when it has already been initialized so the
-            # generated values match vLLM's scheduler exactly.
-            import vllm.v1.core.kv_cache_utils as kv_utils
-            if not hasattr(kv_utils, "NONE_HASH"):
-                init_none_hash(hash_fn)
+            # EngineCore runs in a child process, so its module-level seed is
+            # separate from this API/Manager process. Reinitialize from the
+            # fixed PYTHONHASHSEED on each call to produce the same first-block
+            # seed in both processes.
+            init_none_hash(hash_fn)
             parent = None
             hashes = []
             for offset in range(0, full_tokens, block_size):

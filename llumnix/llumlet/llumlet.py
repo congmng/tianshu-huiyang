@@ -308,6 +308,12 @@ class Llumlet:
     def get_all_request_ids(self) -> List[str]:
         return self.backend_engine.get_all_request_ids()
 
+    def get_prompt_block_hashes(self, prompt: str):
+        """Best-effort V1 prefix hashes used by Manager before dispatch."""
+        if not self.is_vllm_v1:
+            return ()
+        return self.backend_engine.get_prompt_block_hashes(prompt)
+
     def generate(
         self,
         request_id: str,
