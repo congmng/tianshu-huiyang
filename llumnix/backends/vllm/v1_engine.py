@@ -10,39 +10,86 @@ from collections import deque
 import asyncio
 import math
 import time
+import os
 
 from vllm import SamplingParams
 from vllm.v1.engine.async_llm import AsyncLLM
 
 from llumnix.backends.backend_interface import EngineState
+from llumnix.backends.vllm.v1_kv import KVCacheAffinityIndex, KVEventSubscriber
+from llumnix.backends.vllm.v1_kv_transfer import (
+    decorate_p2p_request_id,
+    p2p_connector_enabled,
+    strip_p2p_request_id,
+)
 
 
 class V1EngineAdapter:
-    def __init__(self, engine_args):
+    def __init__(self, engine_args, instance_id: str = "local"):
         self.engine_args = engine_args
         self.engine = AsyncLLM.from_engine_args(engine_args)
+        self.instance_id = instance_id
+        self.kv_affinity = KVCacheAffinityIndex()
+        self.kv_event_subscriber = None
+        events_config = getattr(engine_args, "kv_events_config", None)
+        if events_config is not None and getattr(events_config, "enable_kv_cache_events", False):
+            endpoint = getattr(events_config, "endpoint", "")
+            topic = getattr(events_config, "topic", "")
+            if endpoint:
+                self.kv_event_subscriber = KVEventSubscriber(
+                    endpoint, self._apply_kv_events, topic=topic
+                )
         self.requests = {}
+        self._request_id_aliases = {}
         self.waiting = deque()
         self.running = deque()
         self.state = EngineState.RUNNING
 
-    def generate(self, prompt, sampling_params: SamplingParams, request_id: str):
+    def _apply_kv_events(self, events) -> None:
+        """Update the instance-local affinity index from decoded V1 events."""
+        self.kv_affinity.apply(self.instance_id, events)
+
+    @staticmethod
+    def public_request_id(request_id: str) -> str:
+        return strip_p2p_request_id(request_id)
+
+    def get_kv_affinity(self, block_hashes):
+        """Return this instance's cache-hit ratio for a requested prefix."""
+        return self.kv_affinity.affinity(self.instance_id, block_hashes)
+
+    def generate(self, prompt, sampling_params: SamplingParams, request_id: str,
+                 decode_address: str | None = None):
+        if p2p_connector_enabled(self.engine_args):
+            role = getattr(self.engine_args.kv_transfer_config, "kv_role", None)
+            if role in ("kv_producer", "kv_both"):
+                request_id = decorate_p2p_request_id(
+                    request_id, decode_address or os.getenv("LLUMNIX_KV_DECODE_ADDRESS")
+                )
         return self.engine.generate(prompt, sampling_params, request_id)
 
     def add_request(self, request_id, server_info, expected_steps, prompt,
                     sampling_params, *args, **kwargs):
+        decode_address = kwargs.pop("llumnix_kv_decode_address", None)
+        internal_request_id = request_id
+        if p2p_connector_enabled(self.engine_args):
+            role = getattr(self.engine_args.kv_transfer_config, "kv_role", None)
+            if role in ("kv_producer", "kv_both") and decode_address:
+                internal_request_id = decorate_p2p_request_id(request_id, decode_address)
+        self._request_id_aliases[request_id] = internal_request_id
         self.requests[request_id] = (server_info, time.time())
         self.running.append(request_id)
-        return self.generate(prompt, sampling_params, request_id)
+        return self.engine.generate(prompt, sampling_params, internal_request_id)
 
     def get_all_request_ids(self):
         return list(self.requests)
 
     def abort_request(self, request_id):
         ids = (request_id,) if isinstance(request_id, str) else tuple(request_id)
+        internal_ids = tuple(self._request_id_aliases.get(rid, rid) for rid in ids)
         for rid in ids:
             self.requests.pop(rid, None)
-        return asyncio.create_task(self.abort(ids))
+            self._request_id_aliases.pop(rid, None)
+        return asyncio.create_task(self.abort(internal_ids))
 
     def get_running_queue(self) -> Deque:
         return self.running
@@ -58,6 +105,7 @@ class V1EngineAdapter:
         info.num_used_gpu_blocks = 0
         info.num_free_gpu_blocks = 0
         info.gpu_cache_usage = 0.0
+        info.kv_cache_block_hashes = self.kv_affinity.block_hashes(self.instance_id)
 
     # The V1 engine owns scheduling and does not expose Llumnix's legacy
     # request/block-manager mutation hooks.  Keep these methods explicit so
@@ -89,6 +137,8 @@ class V1EngineAdapter:
         if self.state == EngineState.STOPPED:
             return
         self.state = EngineState.STOPPED
+        if self.kv_event_subscriber is not None:
+            self.kv_event_subscriber.close()
         self.engine.shutdown()
 
     @property

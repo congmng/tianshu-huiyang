@@ -3,6 +3,7 @@ import math
 import time
 import asyncio
 from typing import Dict
+import os
 
 import ray
 
@@ -79,6 +80,18 @@ class LlumnixClientVLLM:
         results_generator = AsyncStream(request_id, cancel=self.abort_request)
         self.request_streams[request_id] = results_generator
         server_info_copy = copy.deepcopy(self.server_info)
+
+        # Optional cache-aware routing inputs are accepted by the Llumnix
+        # client without changing the public HTTP schema. Applications that
+        # tokenize prompts upstream can pass token IDs and block size through
+        # kwargs; Manager computes V1-compatible hashes before dispatch.
+
+        # P2pNcclConnector needs the producer's return address embedded in the
+        # request id. The API process is the decode endpoint for local P/D
+        # deployments; callers can override it for a remote endpoint.
+        decode_address = os.getenv("LLUMNIX_KV_DECODE_ADDRESS")
+        if decode_address:
+            kwargs.setdefault("llumnix_kv_decode_address", decode_address)
 
         # If manager is unavailable, request will be directly added to the llumlet held by api server.
         try:

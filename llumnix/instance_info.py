@@ -58,6 +58,11 @@ class InstanceInfo:
     num_blocks_all_waiting_requests: int = 0
     num_blocks_last_running_request: int = 0
 
+    # Optional vLLM V1 prefix-cache ownership reported by the instance.  It is
+    # intentionally empty for legacy backends and for engines without KV
+    # events, preserving their existing dispatch behaviour.
+    kv_cache_block_hashes: frozenset = field(default_factory=frozenset, repr=False)
+
     # on-demand init infos
     dispatch_load_metric: float = -np.inf
     migration_load_metric: float = np.inf

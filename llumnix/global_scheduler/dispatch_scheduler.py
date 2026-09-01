@@ -34,11 +34,39 @@ class DispatchScheduler:
         self.total_num_requests = 0
         self.instance_num_requests: Dict[str, int] = {}
 
-    def dispatch(self) -> str:
+    def dispatch(self, block_hashes=None) -> str:
         self.total_num_requests += 1
-        dispatch_instance_id = self.dispatch_policy.dispatch(self.instance_num_requests,
-                                                             self.instance_info.values(),
-                                                             self.topk_random_dispatch)
+        available = list(self.instance_info.values())
+        if block_hashes:
+            # KV affinity is a stable tie-breaker: only use it among instances
+            # whose dispatch load is within this tolerance of the best load.
+            # This prevents a cache hit from overriding a materially healthier
+            # instance. Missing V1 events naturally fall back to normal policy.
+            eligible = [i for i in available if i.kv_cache_block_hashes]
+            if eligible:
+                best_load = min(i.dispatch_load_metric for i in available)
+                near_best = [i for i in available if i.dispatch_load_metric <= best_load + 0.10]
+                if near_best:
+                    affinity = lambda i: len(set(block_hashes) & set(i.kv_cache_block_hashes))
+                    hit = max(near_best, key=lambda i: (affinity(i), -i.dispatch_load_metric, i.instance_id))
+                    if affinity(hit) > 0:
+                        dispatch_instance_id = hit.instance_id
+                    else:
+                        dispatch_instance_id = self.dispatch_policy.dispatch(
+                            self.instance_num_requests, near_best, self.topk_random_dispatch
+                        )
+                else:
+                    dispatch_instance_id = self.dispatch_policy.dispatch(
+                        self.instance_num_requests, available, self.topk_random_dispatch
+                    )
+            else:
+                dispatch_instance_id = self.dispatch_policy.dispatch(
+                    self.instance_num_requests, available, self.topk_random_dispatch
+                )
+        else:
+            dispatch_instance_id = self.dispatch_policy.dispatch(self.instance_num_requests,
+                                                                 available,
+                                                                 self.topk_random_dispatch)
         self.instance_num_requests[dispatch_instance_id] += 1
         if self.total_num_requests % DISPATCH_LOG_FREQUENCY == 0:
             logger.info("dispatch scheduler total_dispatched_requests: {}".format(self.total_num_requests))

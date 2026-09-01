@@ -113,6 +113,30 @@ def test_dispatch_load():
         instance_id = dispatch_scheduler.dispatch()
         assert min_instance_id == instance_id
 
+
+def test_dispatch_prefers_kv_affinity_for_near_equal_load():
+    scheduler = init_dispatch_scheduler('load')
+    a = InstanceInfo(instance_id="a", dispatch_load_metric=0.10,
+                     kv_cache_block_hashes=frozenset({b"a"}))
+    b = InstanceInfo(instance_id="b", dispatch_load_metric=0.15,
+                     kv_cache_block_hashes=frozenset({b"match"}))
+    scheduler.instance_info = {"a": a, "b": b}
+    scheduler.available_dispatch_instance_set = {"a", "b"}
+    scheduler.instance_num_requests = {"a": 0, "b": 0}
+    assert scheduler.dispatch([b"match"]) == "b"
+
+
+def test_dispatch_does_not_override_material_load_gap_for_kv_affinity():
+    scheduler = init_dispatch_scheduler('load')
+    a = InstanceInfo(instance_id="a", dispatch_load_metric=0.10,
+                     kv_cache_block_hashes=frozenset({b"a"}))
+    b = InstanceInfo(instance_id="b", dispatch_load_metric=0.25,
+                     kv_cache_block_hashes=frozenset({b"match"}))
+    scheduler.instance_info = {"a": a, "b": b}
+    scheduler.available_dispatch_instance_set = {"a", "b"}
+    scheduler.instance_num_requests = {"a": 0, "b": 0}
+    assert scheduler.dispatch([b"match"]) == "a"
+
 def test_dispatch_queue():
     num_tests = 100
     instance_num = 4

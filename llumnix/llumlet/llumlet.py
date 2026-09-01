@@ -77,6 +77,9 @@ class Llumlet:
                 enable_defrag=instance_args.enable_defrag,
             )
             migration_config: MigrationConfig = instance_args.create_migration_config()
+            # Used only by the V1 connector adapter to derive producer/
+            # consumer defaults for P/D deployments.
+            migration_config.instance_type = instance_args.instance_type
             self.backend_engine: BackendInterface = init_backend_engine(
                 instance_id,
                 placement_group,
@@ -324,11 +327,20 @@ class Llumlet:
         """Bridge V1 AsyncLLM output into the existing Llumnix queue."""
         try:
             async for output in request:
+                # P2pNcclConnector appends routing metadata to producer
+                # request IDs. Restore the public ID before sending output to
+                # the API queue so clients and Manager bookkeeping remain
+                # stable.
+                if self.is_vllm_v1:
+                    output.request_id = self.backend_engine.public_request_id(
+                        output.request_id
+                    )
                 await self._put_v1_outputs([output], server_info)
         except Exception:
             logger.error("V1 request %s failed: %s", request_id, traceback.format_exc())
         finally:
             self.backend_engine.requests.pop(request_id, None)
+            self.backend_engine._request_id_aliases.pop(request_id, None)
             try:
                 self.backend_engine.running.remove(request_id)
             except ValueError:

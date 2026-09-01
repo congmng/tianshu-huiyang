@@ -52,9 +52,9 @@ class GlobalScheduler:
             if instance_info.instance_id in self.instance_id_set:
                 self.instance_info[instance_info.instance_id] = instance_info
 
-    def dispatch(self) -> str:
+    def dispatch(self, block_hashes=None) -> str:
         self.dispatch_scheduler.update_instance_infos(self.instance_info)
-        instance_id = self.dispatch_scheduler.dispatch()
+        instance_id = self.dispatch_scheduler.dispatch(block_hashes)
         request_expected_steps = 1 if self.global_scheduler_config.enable_pd_disagg else math.inf
         return instance_id, request_expected_steps
 

@@ -216,7 +216,23 @@ class Manager:
             )
             await asyncio.sleep(NO_INSTANCE_RETRY_GENERATE_INTERVAL)
 
-        instance_id, request_expected_steps = self.global_scheduler.dispatch()
+        # V1 prompt token hashes are intentionally optional: normal requests
+        # retain the established load/queue policies, while callers that have
+        # a prefix hash sequence can opt into cache-aware placement.
+        block_hashes = kwargs.pop("llumnix_kv_block_hashes", None)
+        # API clients may supply token IDs instead of precomputed hashes. The
+        # V1 index computes hashes with the same algorithm as EngineCore.
+        if block_hashes is None:
+            token_ids = kwargs.pop("llumnix_kv_token_ids", None)
+            block_size = kwargs.pop("llumnix_kv_block_size", None)
+            if token_ids is not None and block_size:
+                from llumnix.backends.vllm.v1_kv import KVCacheAffinityIndex
+                block_hashes = KVCacheAffinityIndex().prefix_hashes(
+                    token_ids,
+                    int(block_size),
+                    kwargs.pop("llumnix_kv_hash_algo", "sha256_cbor"),
+                )
+        instance_id, request_expected_steps = self.global_scheduler.dispatch(block_hashes)
         try:
             set_timestamp(server_info, "manager_generate_timestamp", time.time())
             await self.instances[instance_id].generate.remote(
