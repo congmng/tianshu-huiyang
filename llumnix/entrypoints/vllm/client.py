@@ -6,7 +6,31 @@ from typing import Dict
 
 import ray
 
-from vllm.engine.async_llm_engine import AsyncStream
+try:
+    from vllm.engine.async_llm_engine import AsyncStream
+except ImportError:
+    class AsyncStream:  # vLLM 0.11 compatibility for Llumnix queue fan-in.
+        def __init__(self, request_id, cancel=None):
+            self.request_id = request_id
+            self.cancel = cancel
+            self._queue = asyncio.Queue()
+            self._finished = False
+
+        def put(self, item):
+            if not self._finished:
+                self._queue.put_nowait(item)
+
+        def finish(self):
+            if not self._finished:
+                self._finished = True
+                self._queue.put_nowait(None)
+
+        async def generator(self):
+            while True:
+                item = await self._queue.get()
+                if item is None:
+                    return
+                yield item
 from vllm import SamplingParams
 
 from llumnix.logging.logger import init_logger
@@ -34,6 +58,7 @@ class LlumnixClientVLLM:
 
         self.request_streams: Dict[str, AsyncStream] = {}
         self.instance_num_requests: Dict[str, int] = {}
+        self._fallback_request_instance: Dict[str, str] = {}
         for ins_id in self.instances.keys():
             self.instance_num_requests[ins_id] = 0
         self.num_finished_requests = 0
@@ -104,6 +129,7 @@ class LlumnixClientVLLM:
                     self.instance_num_requests, key=self.instance_num_requests.get
                 )
                 self.instance_num_requests[instance_id] += 1
+                self._fallback_request_instance[request_id] = instance_id
                 expected_steps = (
                     math.inf
                 )  # ignore enable_pd_disagg when skip manager dispatch
@@ -184,6 +210,13 @@ class LlumnixClientVLLM:
                 if request_output.finished:
                     self.request_streams[request_id].finish()
                     del self.request_streams[request_id]
+                    # Keep fallback dispatch accounting bounded. Manager
+                    # dispatch does not use this local counter.
+                    instance_id = self._fallback_request_instance.pop(request_id, None)
+                    if instance_id in self.instance_num_requests:
+                        self.instance_num_requests[instance_id] = max(
+                            0, self.instance_num_requests[instance_id] - 1
+                        )
 
     async def get_all_instances_info(self):
         """从manager获取所有instance信息"""

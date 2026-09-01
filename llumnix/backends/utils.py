@@ -79,13 +79,23 @@ def init_backend_engine(instance_id: str,
                         engine_args,
                         profiling_result_file_path: str = None) -> BackendInterface:
     if backend_type == BackendType.VLLM:
-        # pylint: disable=import-outside-toplevel
-        from llumnix.backends.vllm.llm_engine import BackendVLLM
-        backend_engine = BackendVLLM(instance_id,
-                                        placement_group,
-                                        request_output_queue_type,
-                                        migration_config,
-                                        engine_args)
+        # vLLM 0.11 uses V1 and no longer exposes the private 0.6.x engine,
+        # scheduler, or executor APIs used by BackendVLLM.  Select the V1
+        # request-serving adapter on such installations.  Its KV migration
+        # methods are intentionally unavailable until separately ported.
+        import vllm
+        version = getattr(vllm, "__version__", "")
+        if version.startswith("0.11"):
+            from llumnix.backends.vllm.v1_engine import V1EngineAdapter
+            backend_engine = V1EngineAdapter(engine_args)
+        else:
+            # pylint: disable=import-outside-toplevel
+            from llumnix.backends.vllm.llm_engine import BackendVLLM
+            backend_engine = BackendVLLM(instance_id,
+                                            placement_group,
+                                            request_output_queue_type,
+                                            migration_config,
+                                            engine_args)
     elif backend_type == BackendType.BLADELLM:
         # pylint: disable=import-outside-toplevel
         from llumnix.backends.bladellm.llm_engine import BackendBladeLLM

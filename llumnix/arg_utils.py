@@ -36,6 +36,10 @@ class LlumnixArgumentParser(argparse.ArgumentParser):
         self.cur_namespace = namespace
 
     def add_argument(self, *args, **kwargs):
+        # vLLM 0.11 marks deprecated flags with a kwarg understood by its
+        # own parser subclass. Llumnix subclasses stdlib argparse, so discard
+        # the annotation while retaining the option itself.
+        kwargs.pop("deprecated", None)
         if self.cur_namespace == 'llumnix' and "--help" not in args:
             assert 'default' not in kwargs or kwargs['default'] is None, \
                 f"Do not set the default value for '{args[0]}' in CLI, or set default value to None. " \
@@ -43,6 +47,23 @@ class LlumnixArgumentParser(argparse.ArgumentParser):
             if kwargs.get('action') == 'store_true':
                 kwargs['default'] = None
         super().add_argument(*args, **kwargs)
+
+    def add_subparsers(self, *args, **kwargs):
+        # vLLM's argument registration invokes ``add_argument`` on argument
+        # groups directly, bypassing the parser override above. Use a group
+        # that applies the same compatibility filter.
+        return super().add_subparsers(*args, **kwargs)
+
+    def add_argument_group(self, *args, **kwargs):
+        group = _VLLMCompatGroup(self, *args, **kwargs)
+        self._action_groups.append(group)
+        return group
+
+
+class _VLLMCompatGroup(argparse._ArgumentGroup):
+    def add_argument(self, *args, **kwargs):
+        kwargs.pop("deprecated", None)
+        return super().add_argument(*args, **kwargs)
 
 
 @dataclass

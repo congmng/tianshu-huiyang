@@ -18,7 +18,17 @@ import os
 import subprocess
 import ray
 from ray._raylet import PlacementGroupID
-from ray._private.utils import hex_to_binary
+try:
+    from ray._private.utils import hex_to_binary
+except ImportError:
+    # Ray 2.52 removed this private helper. PlacementGroupID accepts the
+    # canonical bytes representation directly, so keep the test harness
+    # compatible with both Ray generations without changing runtime code.
+    def hex_to_binary(value):
+        if isinstance(value, bytes):
+            return value
+        value = value[2:] if str(value).startswith("0x") else str(value)
+        return bytes.fromhex(value)
 from ray.util.placement_group import PlacementGroup
 from ray.util.state import list_actors, list_placement_groups
 import pytest

@@ -125,10 +125,11 @@ class DispatchLoadComputation(LoadComputationStrategy):
     def compute_instance_load(self, instance_info: InstanceInfo) -> float:
         instance_load = -np.inf
         if self.load_metric == "usage_ratio":
-            instance_load = (
-                instance_info.num_used_gpu_blocks
-                + instance_info.num_blocks_all_waiting_requests
-            ) / instance_info.num_total_gpu_blocks
+            if instance_info.num_total_gpu_blocks > 0:
+                instance_load = (
+                    instance_info.num_used_gpu_blocks
+                    + instance_info.num_blocks_all_waiting_requests
+                ) / instance_info.num_total_gpu_blocks
         elif self.load_metric == "remaining_steps":
             num_requests = (
                 instance_info.num_running_requests + instance_info.num_waiting_requests
@@ -162,10 +163,16 @@ class DispatchLoadComputation(LoadComputationStrategy):
             compute_load = num_requests / 256
             compute_weight = 1 / throughput
 
-            memory_use_ratio = (
-                instance_info.num_used_gpu_blocks
-                + instance_info.num_blocks_all_waiting_requests
-            ) / instance_info.num_total_gpu_blocks
+            # The V1 adapter does not expose legacy physical block counts.
+            # An absent counter must not make Manager's polling task divide by
+            # zero and evict an otherwise healthy inference instance.
+            if instance_info.num_total_gpu_blocks > 0:
+                memory_use_ratio = (
+                    instance_info.num_used_gpu_blocks
+                    + instance_info.num_blocks_all_waiting_requests
+                ) / instance_info.num_total_gpu_blocks
+            else:
+                memory_use_ratio = 0.0
             memory_load = memory_use_ratio
             memory_weight = 1 / (1 + np.exp(-5 * (memory_use_ratio - 0.4)))
 
@@ -214,10 +221,11 @@ class MigrationLoadComputation(LoadComputationStrategy):
     def compute_instance_load(self, instance_info: InstanceInfo) -> float:
         instance_load = -np.inf
         if self.load_metric == "usage_ratio":
-            instance_load = (
-                instance_info.num_used_gpu_blocks
-                + instance_info.num_blocks_first_waiting_request
-            ) / instance_info.num_total_gpu_blocks
+            if instance_info.num_total_gpu_blocks > 0:
+                instance_load = (
+                    instance_info.num_used_gpu_blocks
+                    + instance_info.num_blocks_first_waiting_request
+                ) / instance_info.num_total_gpu_blocks
         elif self.load_metric == "remaining_steps":
             if not self.enable_defrag:
                 num_requests = instance_info.num_running_requests

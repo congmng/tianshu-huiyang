@@ -1,5 +1,8 @@
-vllm == 0.6.3.post1
-ray >= 2.45.0
+# Llumnix's V1 adapter targets the vLLM 0.11 API shipped by the CoreX 4.4.0
+# stack.  The legacy 0.6 backend remains in-tree for historical deployments,
+# but is selected only when an older vLLM is explicitly installed.
+vllm >= 0.11.2, < 0.12
+ray >= 2.52.1
 pyarrow  # Required for Ray data.
 aiohttp
 scipy

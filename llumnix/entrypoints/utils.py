@@ -47,10 +47,20 @@ def get_ip_address():
 
 
 def is_gpu_available() -> bool:
+    # CoreX deployments expose Iluvatar devices through ``ixsmi`` rather than
+    # NVIDIA's ``nvidia-smi``. Prefer the vendor probe, then fall back to the
+    # already-installed PyTorch runtime so API startup is not skipped merely
+    # because the host has no NVIDIA utility.
+    for probe in ("ixsmi", "nvidia-smi"):
+        try:
+            subprocess.check_output([probe], stderr=subprocess.STDOUT)
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            continue
     try:
-        subprocess.check_output(["nvidia-smi"])
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        import torch
+        return bool(torch.cuda.is_available() and torch.cuda.device_count() > 0)
+    except (ImportError, RuntimeError):
         return False
 
 

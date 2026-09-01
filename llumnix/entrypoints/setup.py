@@ -50,11 +50,28 @@ def launch_ray_cluster(port: int) -> subprocess.CompletedProcess:
     if head_node_ip is None:
         logger.error("Environment variable 'HEAD_NODE_IP' should be set for ray cluster launch.")
         sys.exit(1)
+    # Ray's command-line launcher does not infer CoreX devices from
+    # CUDA_VISIBLE_DEVICES.  Without this explicit resource declaration the
+    # head node exposes zero GPUs, so the placement group for a V1 Llumlet
+    # remains pending even though the process itself can see the accelerator.
+    visible_devices = [
+        device.strip()
+        for device in os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")
+        if device.strip()
+    ]
+    gpu_args = ["--num-gpus", str(len(visible_devices))] if visible_devices else []
     ray_start_command = None
     if 'HEAD_NODE' in os.environ:
-        ray_start_command = f"ray start --head --node-ip-address={node_ip_address} --port={port}"
+        ray_start_command = (
+            f"ray start --head --node-ip-address={node_ip_address} --port={port} "
+            f"--num-gpus={len(visible_devices)}"
+            if visible_devices else
+            f"ray start --head --node-ip-address={node_ip_address} --port={port}"
+        )
         try:
-            result = subprocess.run(['ray', 'start', '--head', f'--port={port}'], check=True, text=True, capture_output=True)
+            result = subprocess.run(
+                ['ray', 'start', '--head', f'--port={port}', *gpu_args],
+                check=True, text=True, capture_output=True)
         except subprocess.CalledProcessError as e:
             logger.error("'{}' failed with: \n{}".format(ray_start_command, e.stderr))
             sys.exit(1)
@@ -79,10 +96,14 @@ def connect_to_ray_cluster(head_node_ip: str = None,
                            port: int = None,
                            namespace: str ="llumnix",
                            log_to_driver: bool=True) -> None:
+    ray_kwargs = {}
+    # Resource counts may only be supplied when Ray creates an in-process
+    # local cluster.  This path connects to a `ray start` cluster, whose GPU
+    # resource total is declared by launch_ray_cluster instead.
     if head_node_ip is not None and port is not None:
-        ray.init(address=f"{head_node_ip}:{port}", ignore_reinit_error=True, namespace=namespace, log_to_driver=log_to_driver)
+        ray.init(address=f"{head_node_ip}:{port}", ignore_reinit_error=True, namespace=namespace, log_to_driver=log_to_driver, **ray_kwargs)
     else:
-        ray.init(ignore_reinit_error=True, namespace=namespace, log_to_driver=log_to_driver)
+        ray.init(ignore_reinit_error=True, namespace=namespace, log_to_driver=log_to_driver, **ray_kwargs)
 
 def setup_ray_cluster(entrypoints_args) -> None:
     if entrypoints_args.launch_ray_cluster:

@@ -86,6 +86,18 @@ class Llumlet:
                 engine_args,
                 instance_args.profiling_result_file_path,
             )
+            self.is_vllm_v1 = (
+                backend_type == BackendType.VLLM
+                and self.backend_engine.__class__.__name__ == "V1EngineAdapter"
+            )
+            if self.is_vllm_v1:
+                # V1 owns its scheduler/engine loop.  The legacy Llumnix
+                # migration coordinator depends on the removed vLLM 0.6 block
+                # manager and therefore must not be started accidentally.
+                logger.warning(
+                    "Llumnix is using the vLLM V1 serving adapter; KV-cache "
+                    "migration is disabled until its V1 port is complete."
+                )
             self.migration_coordinator = MigrationCoordinator(
                 self.backend_engine,
                 migration_config.migration_last_stage_max_blocks,
@@ -123,7 +135,11 @@ class Llumlet:
                 backend_type.SIM_VLLM,
             ], f"unimplemented backend {backend_type}"
             if backend_type == BackendType.VLLM:
-                num_gpus = 0.5
+                # V1 AsyncLLM owns the worker process and consumes the full
+                # placement-group GPU allocation. Legacy 0.6 used a 0.5 GPU
+                # Llumlet plus a separate Ray executor.
+                import vllm
+                num_gpus = 1 if getattr(vllm, "__version__", "").startswith("0.11") else 0.5
             elif backend_type == backend_type.BLADELLM:
                 world_size = get_engine_world_size(engine_args, backend_type)
                 num_gpus = world_size
@@ -174,6 +190,15 @@ class Llumlet:
                 ray.kill(self_actor)
 
     async def migrate_out(self, dst_instance_name: str) -> List[str]:
+        if self.is_vllm_v1:
+            # Never let an externally triggered migration call reach the
+            # legacy coordinator: it mutates vLLM 0.6 block-manager state
+            # that does not exist in V1.
+            logger.warning(
+                "Ignoring migration request for V1 Llumlet %s; KV-cache "
+                "migration has not been ported.", self.instance_id
+            )
+            return []
         migrate_out_requests = self.migration_scheduler.get_migrate_out_requests()
 
         if len(migrate_out_requests) == 0:
@@ -259,10 +284,17 @@ class Llumlet:
 
     # TODO(KuilongCui): only the metrics-related information needs to be synchronously loaded for the manager
     def get_instance_info(self) -> InstanceInfo:
-        instance_info: InstanceInfo = self.backend_engine.engine.instance_info
+        if self.is_vllm_v1:
+            instance_info = InstanceInfo(instance_id=self.instance_id)
+            self.backend_engine.update_instance_info(instance_info)
+        else:
+            instance_info: InstanceInfo = self.backend_engine.engine.instance_info
         instance_info.instance_type = self.instance_args.instance_type
         self.instance_load_calculator.compute_instance_load(instance_info)
         return instance_info
+
+    def is_v1_adapter(self) -> bool:
+        return self.is_vllm_v1
 
     def is_ready(self) -> bool:
         return True
@@ -282,9 +314,30 @@ class Llumlet:
         **kwargs,
     ) -> None:
         set_timestamp(server_info, "llumlet_generate_timestamp", time.time())
-        self.backend_engine.add_request(
+        request = self.backend_engine.add_request(
             request_id, server_info, expected_steps, *args, **kwargs
         )
+        if self.is_vllm_v1:
+            asyncio.create_task(self._forward_v1_outputs(request_id, server_info, request))
+
+    async def _forward_v1_outputs(self, request_id, server_info, request) -> None:
+        """Bridge V1 AsyncLLM output into the existing Llumnix queue."""
+        try:
+            async for output in request:
+                await self._put_v1_outputs([output], server_info)
+        except Exception:
+            logger.error("V1 request %s failed: %s", request_id, traceback.format_exc())
+        finally:
+            self.backend_engine.requests.pop(request_id, None)
+            try:
+                self.backend_engine.running.remove(request_id)
+            except ValueError:
+                pass
+
+    async def _put_v1_outputs(self, outputs, server_info) -> None:
+        from llumnix.queue.utils import init_request_output_queue_client
+        client = init_request_output_queue_client(server_info.request_output_queue_type)
+        await client.put_nowait(outputs, server_info)
 
     def abort(self, request_id: Union[str, Iterable[str]]) -> None:
         if isinstance(request_id, str):
@@ -293,6 +346,12 @@ class Llumlet:
         return self.backend_engine.abort_request(request_ids)
 
     def clear_migration_states(self, is_migrate_in: bool) -> None:
+        if self.is_vllm_v1:
+            logger.warning(
+                "Ignoring legacy migration-state cleanup for V1 Llumlet %s.",
+                self.instance_id,
+            )
+            return
         logger.info(
             "Instance {} clear_migration_states, is_migrate_in: {}".format(
                 self.instance_id, is_migrate_in
@@ -324,6 +383,10 @@ class Llumlet:
                     self.backend_engine.add_waiting_request(backend_request)
 
     def execute_migration_method(self, method, *args, **kwargs):
+        if self.is_vllm_v1:
+            raise NotImplementedError(
+                "KV-cache migration is unavailable for the vLLM V1 adapter"
+            )
         executor = getattr(self.migration_coordinator, method)
         return executor(*args, **kwargs)
 

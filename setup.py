@@ -38,7 +38,11 @@ def readme():
 setup(
     name="llumnix",
     version="0.0.2",
-    python_requires=">=3.9.0, <3.11",
+    # The CoreX 4.4.0 software stack is distributed for Python 3.12.  Keep
+    # the lower bound used by the upstream project while making the package
+    # metadata agree with the supported runtime instead of rejecting a valid
+    # installation before importing any code.
+    python_requires=">=3.9.0, <3.13",
     description="Efficient and easy multi-instance LLM serving",
     long_description=readme(),
     long_description_content_type="text/markdown",
@@ -55,6 +59,8 @@ setup(
         "Programming Language :: Python",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "License :: OSI Approved :: Apache Software License",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],

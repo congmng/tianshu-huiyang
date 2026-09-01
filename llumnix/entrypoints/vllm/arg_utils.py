@@ -34,7 +34,19 @@ def get_args(cfg, launch_mode: LaunchMode, parser: LlumnixArgumentParser, cli_ar
     EntrypointsArgs.check_args(entrypoints_args, parser)
     ManagerArgs.check_args(manager_args, parser)
     InstanceArgs.check_args(instance_args, manager_args, launch_mode, parser)
-    check_engine_args(engine_args, instance_args)
+    # vLLM 0.11 V1 removed ``worker_use_ray`` and the old per-worker engine
+    # path.  The V1 adapter owns its worker lifecycle, so only apply legacy
+    # validation to old vLLM installations.
+    import vllm
+    if not getattr(vllm, "__version__", "").startswith("0.11"):
+        check_engine_args(engine_args, instance_args)
+    else:
+        manager_args.enable_migration = False
+        logger.warning(
+            "vLLM %s detected: using Llumnix V1 serving adapter; "
+            "KV-cache migration is disabled during the port.",
+            vllm.__version__,
+        )
 
     logger.info("entrypoints_args: {}".format(entrypoints_args))
     logger.info("manager_args: {}".format(manager_args))

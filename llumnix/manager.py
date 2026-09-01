@@ -97,13 +97,29 @@ class Manager:
         self.engine_args = engine_args
         self.launch_args = launch_args
 
+        # vLLM 0.11's V1 engine has no compatibility with Llumnix's legacy
+        # block-manager migration coordinator.  Disable migration at the
+        # manager boundary as well as CLI parsing, covering programmatic and
+        # global deployments that construct Manager directly.
+        self.is_vllm_v1 = False
+        if launch_args is not None and launch_args.backend_type == BackendType.VLLM:
+            try:
+                import vllm
+                self.is_vllm_v1 = getattr(vllm, "__version__", "").startswith("0.11")
+            except ImportError:
+                pass
+
         # launch args
         if launch_args is not None:
             self.launch_mode: LaunchMode = launch_args.launch_mode
             self.backend_type: BackendType = launch_args.backend_type
 
         # migration args
-        self.enable_migration = manager_args.enable_migration
+        self.enable_migration = manager_args.enable_migration and not self.is_vllm_v1
+        if self.is_vllm_v1 and manager_args.enable_migration:
+            logger.warning(
+                "vLLM V1 detected in Manager; disabling legacy KV-cache migration"
+            )
         self.pair_migration_frequency = manager_args.pair_migration_frequency
         self.enable_pd_disagg = manager_args.enable_pd_disagg
 

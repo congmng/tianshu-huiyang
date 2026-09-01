@@ -12,17 +12,36 @@
 # limitations under the License.
 
 from functools import wraps
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING, Any
 import torch
 
 from vllm.config import ModelConfig, ParallelConfig
 from vllm.engine.arg_utils import AsyncEngineArgs, EngineArgs
 from vllm.sampling_params import SamplingType
-from vllm.model_executor.layers.sampler import SamplingMetadata, SamplingTensors, SampleResultArgsType, SampleReturnType, \
-                                                SampleResultsDictType, SampleMetadataType, MultinomialSamplesType, \
-                                                flashinfer_top_k_top_p_sampling, _top_k_top_p_multinomial_with_flashinfer, \
-                                                VLLM_INVALID_TOKEN_ID, _multinomial, _modify_greedy_probs_inplace, get_pythonized_sample_results
-from vllm.config import EngineConfig
+try:
+    from vllm.config import EngineConfig
+except ImportError:
+    # vLLM 0.11 renamed this aggregate config to VllmConfig.
+    from vllm.config import VllmConfig as EngineConfig
+
+# These sampler internals only belong to the legacy 0.6 backend.  Importing
+# them at module import time made even V1 argument parsing fail on vLLM 0.11.
+# Keep the legacy implementation importable only where it is actually used.
+try:
+    from vllm.model_executor.layers.sampler import (  # type: ignore
+        SamplingMetadata, SamplingTensors, SampleResultArgsType,
+        SampleReturnType, SampleResultsDictType, SampleMetadataType,
+        MultinomialSamplesType, flashinfer_top_k_top_p_sampling,
+        _top_k_top_p_multinomial_with_flashinfer, VLLM_INVALID_TOKEN_ID,
+        _multinomial, _modify_greedy_probs_inplace,
+        get_pythonized_sample_results,
+    )
+    _LEGACY_SAMPLER_AVAILABLE = True
+except ModuleNotFoundError:
+    SamplingMetadata = SamplingTensors = Any
+    SampleResultArgsType = SampleReturnType = Any
+    SampleResultsDictType = SampleMetadataType = MultinomialSamplesType = Any
+    _LEGACY_SAMPLER_AVAILABLE = False
 
 from llumnix.logging.logger import init_logger
 from llumnix.arg_utils import InstanceArgs
@@ -88,6 +107,8 @@ def _sample_with_torch(
     include_gpu_probs_tensor: bool,
     modify_greedy_probs: bool,
 ) -> SampleReturnType:
+    if not _LEGACY_SAMPLER_AVAILABLE:
+        raise RuntimeError("_sample_with_torch is only available with the legacy vLLM sampler")
     '''Torch-oriented _sample() implementation.
 
     Single-step scheduling:
