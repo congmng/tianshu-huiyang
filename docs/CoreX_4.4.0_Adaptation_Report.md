@@ -179,7 +179,7 @@ cat /usr/local/corex-4.4.0/release-corex.txt
 
 它是已有 CoreX 4.4.0 Python 环境的 clone，随后只在该副本中安装了同目录软件栈提供的 `ray-2.52.1+corex.4.4.0`。原环境 `/data1/congmng/conda-envs/ds-corex44`、系统 Python、驱动和 `/usr/local/corex-4.4.0` 都没有被修改。
 
-由于当前 Llumnix 的 `setup.py` 限制 Python 为 `>=3.9,<3.11`，而已完整可用的本机 CoreX 环境是 Python 3.12，验证通过项目目录运行源码（不以 package metadata 形式安装）。软件栈也提供 Python 3.10 wheels；不过它们的 vLLM 版本同样是 0.11.2，因此不能解决下述 API 断层。
+当前 `setup.py` 已声明 Python `>=3.9,<3.13` 并包含 Python 3.12 classifier；因此 CoreX Python 3.12 环境可以按 wheel 方式安装。历史上曾有 `<3.11` 的限制，现已移除。软件栈也提供 Python 3.10 wheels；不过它们的 vLLM 版本同样是 0.11.2，因此不能解决下述 API 断层。
 
 运行 smoke 测试：
 
