@@ -156,3 +156,14 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   安装。针对性测试 `test_v1_kv_transfer.py`：`19 passed`，compileall 通过。
 - 修复提交：`0696bf1`（后续缓存配置同步补丁待推送）。模型级跨机 handoff
   仍需用同一 request ID 的干净双端实验最终确认，当前不宣称端到端已完成。
+
+## 2026-09-02：真实模型 P2P 数据面继续定位
+
+- 使用同一内部 request ID 的两机 Qwen3-14B 探针验证：producer 已执行
+  `save_kv_layer`，并与 `10.31.10.210:19052` 成功完成
+  `ncclCommInitRank`；说明 V1 attention hook 和 request-ID 路由已生效。
+- consumer 在 CoreX NCCL rank-1 初始化阶段报告 native
+  `double free or corruption (out)` 并退出。已在 shim 中禁用 vLLM P2P helper
+  的 cuMem allocator 模式（`NCCL_CUMEM_ENABLE=0`），且将设置前移到 connector
+  模块导入时；针对性单元测试仍为 `19 passed`。模型级 handoff 尚未宣称成功，
+  需要继续确认 CoreX/远端运行时的 communicator ABI 与 allocator 兼容性。

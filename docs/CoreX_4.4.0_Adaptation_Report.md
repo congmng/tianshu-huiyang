@@ -211,6 +211,17 @@ NCCL 数据面日志。`CoreXP2pNcclConnector` 的进程内 shim 现启用该 wr
 使用同一内部 request ID 的模型级 tensor handoff 仍在验证中，在完成前不将其
 描述为完整 P/D 端到端成功。
 
+### 模型级 communicator 诊断（2026-09-02）
+
+使用相同的 P/D 内部 request ID 后，producer 已实际调用
+`save_kv_layer`，并成功与远端建立 rank-0 NCCL communicator。远端 consumer
+在 rank-1 `ncclCommInitRank` 期间出现 CoreX 原生
+`double free or corruption (out)`，尚未进入 KV 注入或公开输出阶段。已将
+`NCCL_CUMEM_ENABLE=0` 的进程内兼容处理前移到 CoreX connector 导入阶段，且
+保留在 vLLM P2P context 周围；该 workaround 不修改系统驱动/共享库。当前
+证据证明 scheduler、attention hook、跨主机握手和 producer 保存路径均工作，
+但 CoreX communicator 的模型级 consumer 稳定性仍未通过验证。
+
 当前仓库明确锁定的是 vLLM 0.6.3：
 
 ```text
