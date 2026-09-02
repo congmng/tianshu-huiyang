@@ -228,3 +228,5 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 测试夹具改为随机本机 Ray 控制端口并显式 `ray.init(address=...)`，清除外部
   `RAY_ADDRESS` 继承，避免连接共享集群；V1 KV/affinity 定向回归在隔离夹具下
   为 `30 passed, 1 warning`。
+- 修正生产 Ray head 启动分支，显式传递 `--node-ip-address`，避免多网卡 CoreX
+  节点选错接口；随机端口入口测试 `test_launch_ray_cluster` 通过。

@@ -70,7 +70,11 @@ def launch_ray_cluster(port: int) -> subprocess.CompletedProcess:
         )
         try:
             result = subprocess.run(
-                ['ray', 'start', '--head', f'--port={port}', *gpu_args],
+                [
+                    'ray', 'start', '--head',
+                    f'--node-ip-address={node_ip_address}',
+                    f'--port={port}', *gpu_args,
+                ],
                 check=True, text=True, capture_output=True)
         except subprocess.CalledProcessError as e:
             logger.error("'{}' failed with: \n{}".format(ray_start_command, e.stderr))

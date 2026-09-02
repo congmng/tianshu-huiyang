@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import os
+import socket
 import pytest
 import ray
 
@@ -29,7 +30,10 @@ def test_launch_ray_cluster():
     ip_address = get_ip_address()
     os.environ['HEAD_NODE'] = '1'
     os.environ['HEAD_NODE_IP'] = ip_address
-    result = launch_ray_cluster(6379)
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    result = launch_ray_cluster(port)
     assert result.returncode == 0
 
 def test_init_manager(ray_env):
