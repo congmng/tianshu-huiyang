@@ -453,3 +453,8 @@ handoff 实现；旧 vLLM 0.6 的任意时刻 block-manager 迁移接口仍不�
 通过内网续传获得完整 Qwen3-14B 权重（8 个分片索引一致）。同时新增
 `--no-launch-ray-cluster`，解决配置默认自动 `ray stop` 与已有 head 冲突的问题。
 该参数是跨机部署的必要安全开关，使用时 API 仅连接集群、不重启 Ray。
+
+注：在一次真实跨机启动尝试中，Ray head 因默认根分区临时目录接近满载而退出，
+远端 worker 随后无法连接 GCS；该现象发生在 Llumnix/模型 actor 创建之前，不构成
+V1 调度代码失败证据。后续跨机部署应将 Ray head 的 `--temp-dir` 和 object-store
+目录固定到 `/data1`，并用轻量 Ray actor 心跳验证集群稳定后再加载模型。
