@@ -91,12 +91,16 @@ class V1EngineAdapter:
 
     def generate(self, prompt, sampling_params: SamplingParams, request_id: str,
                  decode_address: str | None = None):
+        public_request_id = request_id
         if p2p_connector_enabled(self.engine_args):
             role = getattr(self.engine_args.kv_transfer_config, "kv_role", None)
             if role in ("kv_producer", "kv_both"):
                 request_id = decorate_p2p_request_id(
                     request_id, decode_address or os.getenv("LLUMNIX_KV_DECODE_ADDRESS")
                 )
+        self._request_id_aliases[public_request_id] = request_id
+        self.requests[public_request_id] = (None, time.time())
+        self.running.append(public_request_id)
         return self.engine.generate(prompt, sampling_params, request_id)
 
     def add_request(self, request_id, server_info, expected_steps, prompt,
@@ -198,7 +202,16 @@ class V1EngineAdapter:
         raise AttributeError(name)
 
     async def abort(self, request_id: Union[str, Iterable[str]]):
-        await self.engine.abort(request_id)
+        ids = (request_id,) if isinstance(request_id, str) else tuple(request_id)
+        internal_ids = tuple(self._request_id_aliases.get(rid, rid) for rid in ids)
+        await self.engine.abort(internal_ids)
+        for rid in ids:
+            self.requests.pop(rid, None)
+            self._request_id_aliases.pop(rid, None)
+            try:
+                self.running.remove(rid)
+            except ValueError:
+                pass
 
     def shutdown(self):
         if self.state == EngineState.STOPPED:
