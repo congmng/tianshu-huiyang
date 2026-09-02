@@ -181,6 +181,34 @@ def test_corex_zmq_staging_shutdown_releases_listener():
     engine.shutdown()
 
 
+def test_corex_zmq_staging_round_trip_cpu_tensor():
+    import time
+    import torch
+    from llumnix.backends.vllm.corex_p2p_connector import CoreXZmqP2pEngine
+
+    producer = CoreXZmqP2pEngine(
+        local_rank=0,
+        config=SimpleNamespace(kv_ip="127.0.0.1", kv_port=39101),
+    )
+    consumer = CoreXZmqP2pEngine(
+        local_rank=0,
+        config=SimpleNamespace(kv_ip="127.0.0.1", kv_port=39102),
+    )
+    try:
+        expected = torch.arange(12, dtype=torch.float16).reshape(3, 4)
+        assert producer.send_tensor(
+            "round-trip#layer", expected, "127.0.0.1:39102"
+        )
+        deadline = time.monotonic() + 2
+        while "round-trip#layer" not in consumer.recv_store:
+            assert time.monotonic() < deadline
+            time.sleep(0.01)
+        torch.testing.assert_close(consumer.recv_store["round-trip#layer"], expected)
+    finally:
+        producer.shutdown()
+        consumer.shutdown()
+
+
 def test_corex_compat_rewrites_explicit_vllm_p2p_config(monkeypatch):
     from llumnix.backends.vllm import v1_kv_transfer
     from vllm.config import KVTransferConfig

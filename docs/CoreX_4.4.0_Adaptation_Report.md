@@ -1,24 +1,34 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
-验证时间：2026-09-01
+验证时间：2026-09-01 至 2026-09-02
 
-持续进度记录见 [Progress_Log.md](./Progress_Log.md)。本阶段提交包含 Python 3.12 包元数据修复、Ray 2.52 测试兼容和 V1 KV 事件亲和索引基础。
+持续进度记录见 [Progress_Log.md](./Progress_Log.md)。本阶段提交包含 Python 3.12
+包元数据修复、Ray 2.52 测试兼容、V1 KV 事件亲和索引与两机模型级 P/D handoff。
 
 最新的 V1 迁移进展已加入 connector 配置层：当显式设置
 `migration_backend=kvtransfer` 时，Llumnix 会在创建 `AsyncLLM` 前映射为
 vLLM V1 的 `KVTransferConfig` 和 `KVEventsConfig`。支持
 `SharedStorageConnector`（适合先做单机/共享目录验证）以及
-`P2pNcclConnector` 等原生 connector；两机的 CoreX NCCL 可用性尚未验证，
-因此默认不会自行启用跨机 P2P。原有 gloo/nccl/rayrpc 迁移协调器仍只适用于
-旧 vLLM 后端，V1 不会调用它们。
+`P2pNcclConnector` 等原生 connector。CoreX 默认选择安全的 `zmq_cpu`
+staging P2P transport；原生 NCCL 路径保留为显式性能实验模式。原有
+gloo/nccl/rayrpc block-manager 迁移协调器仍只适用于旧 vLLM 后端，V1 以
+connector 驱动的 P/D KV handoff 取代它们。
 
 ## 结论
 
-CoreX 驱动、PyTorch、Ray 和 Llumnix 的非 vLLM 控制面已在本机验证可用，且整个过程未修改驱动或系统级 CoreX 安装。
+CoreX 驱动、PyTorch、Ray 和 Llumnix 控制面已验证可用，整个过程未修改驱动或
+系统级 CoreX 安装。
 
-Llumnix 当前仓库的 vLLM 后端**不能直接运行**在所给软件栈的 `vllm 0.11.2+corex.4.4.0` 上。原因是该后端为 vLLM `0.6.3.post1` 的内部 API 实现；vLLM 0.11.2 已迁移到 V1 架构并移除了多个被直接引用的私有模块。完整启动 Llumnix API Server、vLLM Engine 和 KV Cache 迁移，需要针对 vLLM V1 的后端重构，不能仅通过改依赖版本完成。
+Llumnix 的旧 vLLM `0.6.3.post1` 私有 block-manager 后端不能直接运行于
+`vllm 0.11.2+corex.4.4.0`；项目已为此提供 V1 adapter，而非用空兼容层掩盖
+旧接口。当前正式验证范围为：**Python 3.12/CoreX 4.4 的 V1 单实例 API、
+Ray/Llumlet 队列桥接、KV event/hash affinity、GlobalScheduler 缓存亲和调度，
+以及两机 Qwen3-14B P/D KV handoff 均可运行。**
 
-因此当前状态是：**CoreX 4.4.0 运行时、Llumnix 调度控制面及 vLLM V1 单实例请求链路已可运行；V1 connector 已接入配置、事件和调度，但跨实例物理 KV-cache 传输仍需专门端到端验证。**
+旧式任意时刻 block-manager request migration 没有被声明为 V1 功能；在 V1 架构
+中，其可安全替代路径是 connector 驱动的 prefill/decode KV handoff。原生 NCCL
+rank-1 communicator 在该 CoreX 栈仍会 native abort，因此生产默认 transport 为
+已验证的 ZMQ CPU staging，NCCL 为非默认诊断/优化选项。
 
 ## 最新适配增量（2026-09-01）
 

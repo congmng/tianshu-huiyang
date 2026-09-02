@@ -185,3 +185,5 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 补齐 `zmq_cpu` staging transport 的 listener/socket/context shutdown 和幂等
   回收，避免长运行服务重启时残留端口；新增回收测试后 V1 KV transfer 为
   `21 passed`。
+- 新增纯 CPU 的 staging wire-protocol round-trip 测试，覆盖 tensor 的
+  shape/dtype/payload 传输与双端关闭；V1 KV transfer 测试增至 `22 passed`。
