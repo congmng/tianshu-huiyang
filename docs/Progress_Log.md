@@ -83,6 +83,9 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   且均正常启动模型/connector，但未出现 communicator、send/recv 或 consumer
   输出。因此模型级 handoff 仍未通过；该结果与已通过的底层 NCCL tensor P2P
   验证严格区分。
+- CoreX shim 增加了低侵入诊断：每个调度 step 记录 connector metadata 请求数，
+  以及 producer `save_kv_layer`/consumer `start_load_kv` 的调用。该日志只用于
+  定位 V1 调度元数据触发条件，不改变上游传输实现。
 
 ## 2026-09-01：跨主机事件与 hash 一致性验证
 

@@ -15,6 +15,9 @@ from vllm.distributed.device_communicators.pynccl_wrapper import NCCLLibrary
 from vllm.distributed.kv_transfer.kv_connector.v1.p2p.p2p_nccl_connector import (
     P2pNcclConnector,
 )
+from vllm.logger import init_logger
+
+logger = init_logger(__name__)
 
 
 def _drop_unavailable_optional_nccl_symbols() -> None:
@@ -72,3 +75,26 @@ class CoreXP2pNcclConnector(P2pNcclConnector):
                 f"Request id {request_id} does not contain hostname and port"
             )
         return host, int(port)
+
+    def build_connector_meta(self, scheduler_output):
+        meta = super().build_connector_meta(scheduler_output)
+        logger.info(
+            "CoreX P2P metadata role=%s requests=%d ids=%s",
+            "producer" if self.is_producer else "consumer",
+            len(getattr(meta, "requests", ())),
+            [request.request_id for request in getattr(meta, "requests", ())],
+        )
+        return meta
+
+    def save_kv_layer(self, layer_name, kv_layer, attn_metadata, **kwargs):
+        logger.info("CoreX P2P save layer=%s shape=%s", layer_name, tuple(kv_layer.shape))
+        return super().save_kv_layer(layer_name, kv_layer, attn_metadata, **kwargs)
+
+    def start_load_kv(self, forward_context, **kwargs):
+        metadata = self._get_connector_metadata()
+        logger.info(
+            "CoreX P2P load role=%s metadata_requests=%d",
+            "producer" if self.is_producer else "consumer",
+            len(getattr(metadata, "requests", ())),
+        )
+        return super().start_load_kv(forward_context, **kwargs)
