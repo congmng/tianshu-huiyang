@@ -54,6 +54,10 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   加偏移），避免跨主机连接发生双重端口偏移。
 - 该阶段尚未完成模型级跨机 P/D 验证；仍需在两台机器用相同权重验证 KV
   复用、生成一致性、producer 失败/超时清理和 HTTP 端到端输出。
+- 若实例尚未报告完整的两端 `kv_endpoint`，Manager 会安全回退到 prefill 单请求，
+  避免部署收敛期间请求悬挂；相关回归测试当前为 32 passed。一次旧
+  `test_manager.py` 运行因已连接 Ray 集群的 raylet 被 OOM/终止而在 teardown
+  失败，不作为本次代码功能失败结论。
 
 ## 2026-09-01：跨主机事件与 hash 一致性验证
 

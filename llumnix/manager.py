@@ -251,11 +251,11 @@ class Manager:
         if pd_v1:
             prefill_ids = [
                 iid for iid, info in self.global_scheduler.instance_info.items()
-                if getattr(info, "instance_type", None) == InstanceType.PREFILL
+                if getattr(info, "instance_type", None) in (InstanceType.PREFILL, "prefill")
             ]
             decode_ids = [
                 iid for iid, info in self.global_scheduler.instance_info.items()
-                if getattr(info, "instance_type", None) == InstanceType.DECODE
+                if getattr(info, "instance_type", None) in (InstanceType.DECODE, "decode")
             ]
             # A complete V1 P/D request is two independent AsyncLLM streams:
             # producer sends the prompt KV and consumer owns the public output.
@@ -274,29 +274,33 @@ class Manager:
                 prefill_endpoint = getattr(prefill_info, "kv_endpoint", None)
                 decode_endpoint = getattr(decode_info, "kv_endpoint", None)
                 if not prefill_endpoint or not decode_endpoint:
-                    raise RuntimeError(
-                        "V1 P/D requires routable kv_endpoint on both instances"
+                    logger.warning(
+                        "V1 P/D endpoints unavailable; falling back to a single request"
                     )
-                producer_kwargs = dict(kwargs)
-                producer_kwargs.update(
-                    llumnix_kv_decode_address=decode_endpoint,
-                    llumnix_suppress_output=True,
-                )
-                await self.instances[prefill_id].generate.remote(
-                    request_id, server_info, request_expected_steps, *args,
-                    **producer_kwargs
-                )
-                consumer_kwargs = dict(kwargs)
-                consumer_kwargs.update(
-                    llumnix_kv_prefill_address=prefill_endpoint,
-                    llumnix_public_request_id=request_id,
-                )
-                await self.instances[decode_id].generate.remote(
-                    request_id, server_info, float("inf"), *args,
-                    **consumer_kwargs
-                )
-                instance_id = decode_id
-                self.request_instances[request_id] = {prefill_id, decode_id}
+                    await self.instances[instance_id].generate.remote(
+                        request_id, server_info, request_expected_steps, *args, **kwargs
+                    )
+                else:
+                    producer_kwargs = dict(kwargs)
+                    producer_kwargs.update(
+                        llumnix_kv_decode_address=decode_endpoint,
+                        llumnix_suppress_output=True,
+                    )
+                    await self.instances[prefill_id].generate.remote(
+                        request_id, server_info, request_expected_steps, *args,
+                        **producer_kwargs
+                    )
+                    consumer_kwargs = dict(kwargs)
+                    consumer_kwargs.update(
+                        llumnix_kv_prefill_address=prefill_endpoint,
+                        llumnix_public_request_id=request_id,
+                    )
+                    await self.instances[decode_id].generate.remote(
+                        request_id, server_info, float("inf"), *args,
+                        **consumer_kwargs
+                    )
+                    instance_id = decode_id
+                    self.request_instances[request_id] = {prefill_id, decode_id}
             else:
                 await self.instances[instance_id].generate.remote(
                     request_id, server_info, request_expected_steps, *args, **kwargs
