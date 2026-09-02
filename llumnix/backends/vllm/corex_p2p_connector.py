@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 import os
+from contextlib import contextmanager
 
 from vllm.distributed.device_communicators.pynccl_wrapper import NCCLLibrary
 from vllm.distributed.kv_transfer.kv_connector.v1.p2p.p2p_nccl_connector import (
@@ -45,6 +46,34 @@ def _enable_v1_kv_attention_hooks() -> None:
         pass
 
 
+def _disable_corex_cumem_for_p2p() -> None:
+    """Avoid CoreX NCCL's unstable cuMem path during communicator setup.
+
+    vLLM's generic P2P helper unconditionally sets ``NCCL_CUMEM_ENABLE=1``
+    while calling ``ncclCommInitRank``.  CoreX 4.4's NCCL-compatible 2.24
+    library can abort the consumer process with ``double free or corruption``
+    in that mode.  The regular allocator path is supported by CoreX and is
+    sufficient for this connector.  Patch only the imported Python context
+    manager; no environment or shared library outside this worker is changed.
+    """
+    try:
+        from vllm.distributed.kv_transfer.kv_connector.v1.p2p import (
+            p2p_nccl_engine,
+        )
+
+        original = p2p_nccl_engine.set_p2p_nccl_context
+
+        @contextmanager
+        def corex_context(num_channels):
+            with original(num_channels):
+                os.environ["NCCL_CUMEM_ENABLE"] = "0"
+                yield
+
+        p2p_nccl_engine.set_p2p_nccl_context = corex_context
+    except (ImportError, AttributeError):
+        pass
+
+
 def _drop_unavailable_optional_nccl_symbols() -> None:
     optional = {"ncclCommWindowRegister", "ncclCommWindowDeregister"}
     # Mutate only the in-process descriptor used by vLLM's ctypes wrapper.
@@ -73,6 +102,7 @@ def _drop_unavailable_optional_nccl_symbols() -> None:
 
 _drop_unavailable_optional_nccl_symbols()
 _enable_v1_kv_attention_hooks()
+_disable_corex_cumem_for_p2p()
 
 
 class CoreXP2pNcclConnector(P2pNcclConnector):
