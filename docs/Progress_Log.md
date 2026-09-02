@@ -261,3 +261,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   回归为 `52 passed, 7 warnings`。
 - 新增 V1 API FastAPI lifespan shutdown 回归，确认服务退出调用 adapter shutdown；
   API/KV transfer/affinity 定向回归为 `38 passed, 1 warning`，compileall 通过。
+- 使用 Git bundle 将当前 `f084a52` 同步至 `10.31.10.210`，只读核验远端栈为
+  Python `3.12.13` / vLLM `0.11.2` / PyTorch `2.7.1`；与本机双机 KV-affinity
+  和 P/D 验证的正式版本一致，未改动远端系统或驱动。

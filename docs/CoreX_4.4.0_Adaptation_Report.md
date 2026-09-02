@@ -48,6 +48,11 @@ rank-1 communicator 在该 CoreX 栈仍会 native abort，因此生产默认 tra
 `sha256_cbor` block hashes 也完全一致。这证明事件汇聚和 cache-affinity 计算
 可跨主机进行；尚未作为 P2P NCCL GPU KV tensor 迁移成功的证明。
 
+当前代码也已通过 Git bundle 同步到 `10.31.10.210` 的 `f084a52`；远端只读核验
+为 Python `3.12.13`、vLLM `0.11.2`、PyTorch `2.7.1`，与本机正式 V1 验证栈一致。
+这使已完成的双机 affinity/P/D 验证可复现于当前源码，而不需要修改远端驱动或
+CoreX 系统安装。
+
 最新 P2P 数据面验证已完成：CoreX 4.4.0 附带的 NCCL 2.24.3 不含 vLLM ctypes
 wrapper 会探测的可选 symmetric-memory window 符号。项目新增的
 `CoreXP2pNcclConnector` 仅在当前进程中过滤这两个未使用的可选符号，不改驱动、
