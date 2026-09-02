@@ -1,5 +1,19 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-02：跨机 Ray head 生命周期复核
+
+- 以两端相同的 Ray 2.52.1/CoreX Python 3.12 环境重新建立 head：本机
+  `10.31.10.62:6396`、2 CPU/1 GPU、1 GiB object store、session/spill 均落在
+  `/data1/congmng/llumnix/.ray-live3`。启动后 `gcs_server` 与 `raylet` 均存活，
+  GCS 监听 `*:6396`，因此不能把此前问题归因于高端口防火墙。
+- 远端 `10.31.10.210` 以匹配版本和显式 node IP 加入时，先报告 GCS 连接失败；
+  随后本机 head 进程消失、远端 TCP 连接变为 `Connection refused`。head 的
+  `gcs_server.err`、`raylet.err` 未出现 Llumnix、模型、GPU 或网络拒绝错误。
+- 该复现把完整跨机 Manager/Llumlet 部署阻塞定位为 Ray/CoreX 跨节点 runtime 的
+  head 生命周期。已经完成的双机 hash/event/affinity 算法验证、单机 V1 serving
+  和 ZMQ CPU-staging handoff 不受影响；在 runtime 稳定前不将其表述为跨机
+  Llumnix API 验收通过。
+
 ## 2026-09-02：双机 affinity 可复现探针
 
 - 新增 `tools/cross_host_kv_affinity_probe.py`，离线复现两台 Python 3.12/CoreX

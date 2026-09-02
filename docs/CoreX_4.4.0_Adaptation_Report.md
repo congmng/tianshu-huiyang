@@ -9,6 +9,15 @@
 这验证了 hash、事件索引和候选排序的跨主机算法一致性；不替代真实 GPU KV
 tensor handoff 验收。
 
+## 跨机 Ray runtime 复核（2026-09-02）
+
+在 `/data1` 临时目录、受限 2 CPU/1 GPU 和 1 GiB object store 下，本机 head
+启动后 `gcs_server`/`raylet` 均存活，GCS 明确监听 `*:6396`。远端以相同
+Ray 2.52.1/CoreX Python 3.12 运行时加入时，GCS 连接失败后 head 消失，连接转为
+refused；head 日志没有 Llumnix、模型、GPU 或防火墙拒绝证据。因此当前跨机全局
+Manager 部署的剩余阻塞是 Ray/CoreX 跨节点 head 生命周期，不能归因为端口未开放。
+在这个底层问题解决前，不把新的主 API 尝试计入跨机 Llumnix 功能验收。
+
 ## 本轮基础复核（2026-09-02）
 
 对照论文第五章第三点 HLA（异构负载感知跨域请求调度），本机以 Qwen3-14B
