@@ -270,10 +270,12 @@ Manager 的 V1 P/D 双请求启动路径在任一侧失败时，会同时向 pro
 发送取消请求，并逐侧记录清理异常；因此不会留下等待 KV 的 consumer 或孤立的
 producer 发送任务。相关回归测试保持 42 项通过。
 
-当前仓库明确锁定的是 vLLM 0.6.3：
+以下是历史兼容性记录（不是当前 CoreX 安装要求）：仓库早期版本曾锁定 vLLM
+0.6.3：
 
 ```text
-requirements/requirements_vllm.txt: vllm == 0.6.3.post1
+历史版本 requirements/requirements_vllm.txt: vllm == 0.6.3.post1
+当前版本 requirements/requirements_vllm.txt: vllm >= 0.11.2, < 0.12
 ```
 
 CoreX 4.4.0 软件栈中提供的是 vLLM 0.11.2。导入旧后端的实测失败如下：
@@ -286,14 +288,12 @@ CoreX 4.4.0 软件栈中提供的是 vLLM 0.11.2。导入旧后端的实测失�
 
 受影响的代码不仅是导入名，还包括从旧 scheduler、block manager、worker、sequence 和 engine 生命周期继承并覆写的实现。因此，不应将这几个 import 用空兼容层屏蔽；那样会让 API Server 启动却无法保证推理正确性或 KV Cache 迁移安全性。
 
-## 后续完整适配范围
+## 尚未纳入当前 V1 兼容范围的旧接口
 
-要使 Llumnix 在该 CoreX 栈上提供真正的多实例 vLLM 服务，需要完成：
+以下旧接口仍保留在源码中供历史 vLLM 使用，不作为当前 Python 3.12/CoreX V1
+部署要求：
 
-1. 将 `llumnix/backends/vllm/{llm_engine,executor,worker,scheduler,sequence}.py` 迁移到 vLLM 0.11.2 V1 公开/当前内部接口。
-2. 重新实现或验证 KV Cache block 导出、预分配和传输；这是 Llumnix 的关键功能，不能只保留请求分发。
-3. 更新 `entrypoints/vllm/{client,arg_utils,api_server}.py` 的 AsyncStream、采样输出和 EngineArgs 对接。
-4. 用一个本地文本生成模型完成单实例生成、两实例调度、迁移、故障恢复的端到端验证。
-5. 如要正式支持现有 Python 3.12 CoreX 栈，评估并更新 `setup.py` 的 Python 上限；该修改应与 vLLM V1 迁移一起完成，而不是单独放宽声明。
-
-在完成上述工作前，建议把本报告中的结果视为运行时与控制面适配验证，而不是“Llumnix 多实例 vLLM 服务已可用”的结论。
+- `llumnix/backends/vllm/{llm_engine,executor,worker,scheduler,sequence}.py` 的
+  旧 block-manager 实现仅在 vLLM 0.6 环境选择。
+- V1 的安全迁移语义由 connector 驱动的 P/D KV handoff 提供，不模拟旧接口的
+  任意时刻 block-manager request migration。
