@@ -224,6 +224,11 @@ async def get_instance_list() -> Response:
             total_gpu_blocks_count=instance_info.num_total_gpu_blocks,
             used_gpu_blocks_count=instance_info.num_used_gpu_blocks,
             waiting_gpu_blocks_count=instance_info.num_blocks_all_waiting_requests,
+            gpu_memory_total_bytes=instance_info.gpu_memory_total_bytes,
+            gpu_memory_free_bytes=instance_info.gpu_memory_free_bytes,
+            compute_capacity=instance_info.compute_capacity,
+            dispatch_load_metric=instance_info.dispatch_load_metric,
+            kv_cache_affinity_blocks=len(instance_info.kv_cache_block_hashes),
         )
         inference_infos.append(inference_info)
 

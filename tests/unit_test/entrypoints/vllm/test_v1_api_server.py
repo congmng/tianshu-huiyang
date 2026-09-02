@@ -196,6 +196,34 @@ def test_main_api_validates_requests_and_preserves_public_request_id(monkeypatch
     assert client.calls[0][2] == "public-id"
 
 
+def test_main_api_instance_list_exposes_v1_heterogeneous_state(monkeypatch):
+    import llumnix.entrypoints.vllm.api_server as main_api
+    from llumnix.instance_info import InstanceInfo
+
+    info = InstanceInfo(
+        instance_id="corex-v1", num_running_requests=2, num_waiting_requests=1,
+        gpu_memory_total_bytes=32 * 1024**3,
+        gpu_memory_free_bytes=20 * 1024**3,
+        compute_capacity=1.5,
+        dispatch_load_metric=0.25,
+        kv_cache_block_hashes=frozenset({b"a", b"b"}),
+    )
+
+    class _InstanceClient:
+        async def get_all_instances_info(self):
+            return [info]
+
+    monkeypatch.setattr(main_api, "llumnix_client", _InstanceClient())
+    response = asyncio.run(main_api.get_instance_list())
+    payload = json.loads(response.body)
+    instance = payload["data"][0]
+    assert instance["gpu_memory_total_bytes"] == 32 * 1024**3
+    assert instance["gpu_memory_free_bytes"] == 20 * 1024**3
+    assert instance["compute_capacity"] == 1.5
+    assert instance["dispatch_load_metric"] == 0.25
+    assert instance["kv_cache_affinity_blocks"] == 2
+
+
 def test_v1_api_health_and_generate_without_model():
     engine = _Engine()
     app = build_app(engine)

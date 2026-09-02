@@ -357,6 +357,8 @@ GlobalScheduler 闭环回归进一步验证：在异构负载差距处于 0.10 �
 这使 KV-cache affinity、实时显存/算力负载和跨实例请求分发形成完整决策链。
 该闭环在两台机器的同一提交 `f1f636e` 上复核：本机和 `10.31.10.210` 均完成
 48 项 V1/KV/入口/调度定向回归及 `compileall`，结果全部通过。
+主 API `/instance_list` 现同步暴露 V1/CoreX 的总/空闲显存、算力容量、调度负载
+和已缓存 KV block 数，旧 block 计数字段保持兼容；无模型接口回归已覆盖这些字段。
 该变更已在 `10.31.10.210` 的 Python 3.12/CoreX 环境复核：同步同一源码后
 V1/KV/HTTP 定向回归为 45 passed，完整参数帮助可正常加载。
 无模型 mock 回归覆盖 `/health`、非流式 `/generate` 和 streaming wire format，

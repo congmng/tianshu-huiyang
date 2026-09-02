@@ -18,6 +18,13 @@ class InferenceInstanceInfo(BaseModel):
     total_gpu_blocks_count: int
     used_gpu_blocks_count: int
     waiting_gpu_blocks_count: int
+    # V1/CoreX heterogeneous-load signals. Defaults preserve the legacy API
+    # response shape for callers constructing this model directly.
+    gpu_memory_total_bytes: int = 0
+    gpu_memory_free_bytes: int = 0
+    compute_capacity: float = 1.0
+    dispatch_load_metric: float = 0.0
+    kv_cache_affinity_blocks: int = 0
 
 
 class BenchmarkRequest(BaseModel):
