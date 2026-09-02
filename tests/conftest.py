@@ -34,6 +34,40 @@ from ray.util.placement_group import PlacementGroup
 from ray.util.state import list_actors, list_placement_groups
 import pytest
 
+
+def _uses_vllm_v1() -> bool:
+    """Return whether the installed vLLM has the V1-only API layout."""
+    try:
+        import vllm
+        major, minor, *_ = getattr(vllm, "__version__", "0.0").split(".")
+        return (int(major), int(minor)) >= (0, 11)
+    except (ImportError, TypeError, ValueError):
+        return False
+
+
+def pytest_ignore_collect(collection_path, config):
+    """Skip tests coupled to the removed vLLM 0.6 block-manager API.
+
+    The source modules remain available for legacy installations, while the
+    CoreX 4.4/Python 3.12 environment uses vLLM V1 and has dedicated tests.
+    Ignoring these files during collection avoids turning expected API removal
+    into an unrelated collection failure.
+    """
+    if not _uses_vllm_v1():
+        return False
+    path = str(collection_path).replace("\\", "/")
+    if "/tests/unit_test/backends/vllm/" not in path:
+        return False
+    legacy = {
+        "test_llm_engine.py",
+        "test_migration.py",
+        "test_migration_backend.py",
+        "test_scheduler.py",
+        "test_simulator.py",
+        "test_worker.py",
+    }
+    return path.rsplit("/", 1)[-1] in legacy
+
 from llumnix.utils import random_uuid
 
 

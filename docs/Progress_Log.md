@@ -219,3 +219,9 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 随后修正周期任务：每个清理间隔都从各 Llumlet 重新拉取活动 request-id，原子
   重建 `request_instance`/`request_instances`；新增 P/D 双端完成回收单测，相关
   回归为 `44 passed, 7 warnings`。
+
+- Python 3.12 安装门禁验证：`pip wheel . --no-deps --no-build-isolation` 成功，
+  wheel 元数据声明 `<3.13`、Python 3.12 classifier 与 vLLM V1 依赖范围。
+  V1 测试收集会跳过仅依赖 vLLM 0.6 block-manager API 的历史测试；专用 V1/调度
+  回归为 `44 passed, 7 warnings`。一次全量 unit-test 运行受已有 Ray 集群的
+  raylet/dashboard 异常退出影响，未归因于代码断言失败。
