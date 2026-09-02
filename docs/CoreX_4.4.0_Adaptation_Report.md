@@ -99,6 +99,17 @@ CUDA_VISIBLE_DEVICES=0 HEAD_NODE=1 HEAD_NODE_IP=127.0.0.1 \
 
 Qwen3-14B 已通过 ModelScope 直连完成断点下载（8 个 safetensors 分片、`model.safetensors.index.json` 均存在，目录约 29 GiB）。在 `CUDA_VISIBLE_DEVICES=0` 下使用本机 `vllm 0.11.2+corex.4.4.0` 的 V1 引擎完成真实生成：`float16`、`gpu_memory_utilization=0.96`、`max_model_len=512`，模型权重占用 27.52 GiB，预留约 1.21 GiB KV cache（7,888 tokens），生成测试通过。默认 0.90 显存比例无法为 14B 单卡模型预留 KV cache，已将 smoke 脚本默认比例改为 0.96，并保留环境变量覆盖入口。
 
+两机模型级 P2P 探针已进一步验证启动层：本机 `10.31.10.62` 与远端
+`10.31.10.210` 均以 Python 3.12/vLLM 0.11.2/CoreX 4.4.0、各一张 GPU 成功加载
+同一 Qwen3-14B，并创建 `CoreXP2pNcclConnector`、监听各自 `19052` endpoint。
+探针使用超过一个 KV block 的 241-token prompt、同步 `PUT` 传输模式以及同一个
+携带 prefill/decode endpoint 的内部 request ID。为适配该 ID，CoreX connector
+shim 修复了上游贪婪正则会把第二个 endpoint marker 误解析进 hostname 的问题。
+截至本报告更新，vLLM 调度器仍未在该模型探针中产生 `ncclCommInitRank`、KV
+send/recv 或 consumer 输出，因此这只证明模型与 connector 的双机启动兼容，**不
+证明模型级 KV handoff 已完成**。底层独立 NCCL tensor P2P 成功与模型级 P/D 成功
+继续分别记录，不可混同。
+
 ## 本机与驱动核验
 
 | 项目 | 实测值 |

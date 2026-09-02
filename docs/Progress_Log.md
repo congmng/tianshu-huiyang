@@ -79,6 +79,10 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   正则会把第二个 marker 吞入 hostname。CoreX shim 现按 marker/suffix 精确解析
   producer 与 consumer 地址；相关测试 23 passed。下一次模型探针将验证该修正
   是否触发真实 `ncclCommInitRank` 和 consumer 输出。
+- 修正后使用 241-token prompt 与同步 `PUT` 模式重测：两端共享内部 request ID
+  且均正常启动模型/connector，但未出现 communicator、send/recv 或 consumer
+  输出。因此模型级 handoff 仍未通过；该结果与已通过的底层 NCCL tensor P2P
+  验证严格区分。
 
 ## 2026-09-01：跨主机事件与 hash 一致性验证
 
