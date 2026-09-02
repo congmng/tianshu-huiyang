@@ -9,6 +9,8 @@ library is modified.
 
 from __future__ import annotations
 
+import re
+
 from vllm.distributed.device_communicators.pynccl_wrapper import NCCLLibrary
 from vllm.distributed.kv_transfer.kv_connector.v1.p2p.p2p_nccl_connector import (
     P2pNcclConnector,
@@ -46,3 +48,27 @@ _drop_unavailable_optional_nccl_symbols()
 
 class CoreXP2pNcclConnector(P2pNcclConnector):
     """P2pNcclConnector with optional CoreX NCCL symbols filtered."""
+
+    @staticmethod
+    def parse_request_id(request_id: str, is_prefill=True) -> tuple[str, int]:
+        """Parse one endpoint from a shared P/D request ID.
+
+        Upstream vLLM 0.11 uses a greedy ``.*`` expression. Llumnix's P/D
+        orchestration carries both endpoint markers in one ID, so greediness
+        would include the second marker in the hostname. Stop at the next
+        marker/suffix explicitly.
+        """
+        marker = "___decode_addr_" if is_prefill else "___prefill_addr_"
+        start = request_id.find(marker)
+        if start < 0:
+            raise ValueError(
+                f"Request id {request_id} does not contain hostname and port"
+            )
+        value = request_id[start + len(marker):]
+        value = value.split("___", 1)[0]
+        host, separator, port = value.rpartition(":")
+        if not host or not separator or not port.isdigit():
+            raise ValueError(
+                f"Request id {request_id} does not contain hostname and port"
+            )
+        return host, int(port)

@@ -75,6 +75,10 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   “模型级 KV handoff 已完成”；探针脚本保留为 `tools/v1_p2p_model_probe.py`，
   默认使用超过一个 KV block 的 prompt，后续继续定位 vLLM P2P 调度元数据条件。
 - 探针结束后已清理两端 engine 进程，GPU 恢复空闲；没有修改驱动或系统安装。
+- 进一步定位到共享双 endpoint request ID 的解析问题：上游 connector 的贪婪
+  正则会把第二个 marker 吞入 hostname。CoreX shim 现按 marker/suffix 精确解析
+  producer 与 consumer 地址；相关测试 23 passed。下一次模型探针将验证该修正
+  是否触发真实 `ncclCommInitRank` 和 consumer 输出。
 
 ## 2026-09-01：跨主机事件与 hash 一致性验证
 

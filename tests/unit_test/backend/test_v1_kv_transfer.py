@@ -239,6 +239,21 @@ def test_pd_request_id_is_shared_by_producer_and_consumer():
     )
 
 
+def test_corex_connector_parses_each_endpoint_from_shared_request_id():
+    from llumnix.backends.vllm.corex_p2p_connector import CoreXP2pNcclConnector
+    from llumnix.backends.vllm.v1_kv_transfer import decorate_p2p_pd_request_id
+
+    request_id = decorate_p2p_pd_request_id(
+        "request-1", "10.0.0.8:17000", "10.0.0.9:17001"
+    )
+    assert CoreXP2pNcclConnector.parse_request_id(request_id, True) == (
+        "10.0.0.8", 17000
+    )
+    assert CoreXP2pNcclConnector.parse_request_id(request_id, False) == (
+        "10.0.0.9", 17001
+    )
+
+
 def test_v1_adapter_advertises_p2p_base_port(monkeypatch):
     from llumnix.backends.vllm.v1_engine import V1EngineAdapter
 
