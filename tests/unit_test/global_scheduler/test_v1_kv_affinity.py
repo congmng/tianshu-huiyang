@@ -81,3 +81,53 @@ def test_vllm_zmq_events_reach_affinity_index():
     finally:
         subscriber.close()
         publisher.shutdown()
+
+
+def test_vllm_zmq_replay_rebuilds_affinity_index():
+    import socket
+    import threading
+    import time
+    from vllm.config import KVEventsConfig
+    from vllm.distributed.kv_events import (
+        BlockStored as VllmBlockStored,
+        EventPublisherFactory,
+        KVEventBatch,
+    )
+    from llumnix.backends.vllm.v1_kv import KVEventSubscriber
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        pub_port = probe.getsockname()[1]
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        replay_port = probe.getsockname()[1]
+    endpoint = f"tcp://*:{pub_port}"
+    replay_endpoint = f"tcp://*:{replay_port}"
+    publisher = EventPublisherFactory.create(KVEventsConfig(
+        enable_kv_cache_events=True,
+        publisher="zmq",
+        endpoint=endpoint,
+        replay_endpoint=replay_endpoint,
+    ))
+    block_hash = b"vllm-replay-block-hash"
+    publisher.publish(KVEventBatch(
+        ts=time.time(),
+        events=[VllmBlockStored([block_hash], None, [1, 2], 2, None, "GPU")],
+    ))
+    # The publisher thread owns the replay buffer; wait until it processes
+    # this pre-subscriber event before constructing the subscriber.
+    time.sleep(0.2)
+    index = KVCacheAffinityIndex()
+    replayed = threading.Event()
+
+    def apply(events):
+        index.apply("instance-a", events)
+        replayed.set()
+
+    subscriber = KVEventSubscriber(endpoint, apply, replay_endpoint=replay_endpoint)
+    try:
+        assert replayed.wait(3.0)
+        assert index.affinity("instance-a", [block_hash]) == 1.0
+    finally:
+        subscriber.close()
+        publisher.shutdown()

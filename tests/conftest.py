@@ -125,9 +125,13 @@ def ray_env():
 
 def backup_error_log(func_name):
     curr_time = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-    dst_dir = os.path.expanduser(
-        f"/home/lhy/data/error_log/{curr_time}_{random_uuid()}"
+    # The historical developer-local location is unavailable on CoreX
+    # validation nodes. Keep failure diagnostics functional and allow CI/users
+    # to choose a writable destination without masking the original assertion.
+    error_log_root = os.environ.get(
+        "LLUMNIX_TEST_ERROR_LOG_DIR", os.path.join(tempfile.gettempdir(), "llumnix-error-log")
     )
+    dst_dir = os.path.join(error_log_root, f"{curr_time}_{random_uuid()}")
     os.makedirs(dst_dir, exist_ok=True)
 
     src_dir = os.getcwd()

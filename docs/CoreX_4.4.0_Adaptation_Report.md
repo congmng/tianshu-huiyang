@@ -38,6 +38,14 @@ Llumnix 当前仓库的 vLLM 后端**不能直接运行**在所给软件栈的 `
 `sha256_cbor` block hashes 也完全一致。这证明事件汇聚和 cache-affinity 计算
 可跨主机进行；尚未作为 P2P NCCL GPU KV tensor 迁移成功的证明。
 
+最新 P2P 数据面验证已完成：CoreX 4.4.0 附带的 NCCL 2.24.3 不含 vLLM ctypes
+wrapper 会探测的可选 symmetric-memory window 符号。项目新增的
+`CoreXP2pNcclConnector` 仅在当前进程中过滤这两个未使用的可选符号，不改驱动、
+SDK 或 `libnccl.so`。两台机器各自启动 vLLM 自带 `P2pNcclEngine` 后，rank 0/1
+communicator 在 `ens1f0` 上成功初始化，GPU tensor `[1,2,3,4]` 已从本机发送并在
+`10.31.10.210` 完整接收。这是实际 NCCL send/recv 数据面证据；完整模型级
+P/D 仍需在两端部署相同权重后做端到端验证。
+
 ## vLLM V1 迁移进展（2026-09-01）
 
 针对本机软件栈的 `vllm 0.11.2+corex.4.4.0`，已加入第一阶段 V1 迁移代码：

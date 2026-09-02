@@ -25,7 +25,13 @@ class KVEventSubscriber:
     on a daemon thread, keeping event handling off the engine event loop.
     """
 
-    def __init__(self, endpoint: str, callback: Callable[[object], None], topic: str = ""):
+    def __init__(
+        self,
+        endpoint: str,
+        callback: Callable[[object], None],
+        topic: str = "",
+        replay_endpoint: str | None = None,
+    ):
         if not endpoint:
             raise ValueError("KV event subscriber endpoint must not be empty")
         self._endpoint = self._connect_endpoint(endpoint)
@@ -46,6 +52,14 @@ class KVEventSubscriber:
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, name="llumnix-kv-events", daemon=True)
         self._thread.start()
+        if replay_endpoint:
+            self._replay_thread = threading.Thread(
+                target=self._replay, args=(self._connect_endpoint(replay_endpoint),),
+                name="llumnix-kv-replay", daemon=True,
+            )
+            self._replay_thread.start()
+        else:
+            self._replay_thread = None
 
     @staticmethod
     def _connect_endpoint(endpoint: str) -> str:
@@ -80,9 +94,45 @@ class KVEventSubscriber:
                 # replay endpoint can be used by a future durable consumer.
                 continue
 
+    def _replay(self, endpoint: str) -> None:
+        """Request buffered events emitted before this subscriber connected.
+
+        vLLM's replay ROUTER accepts a starting sequence number and emits
+        ``sequence,payload`` pairs followed by a negative sequence sentinel.
+        Duplicate events with PUB delivery are harmless because the index is
+        ownership-idempotent.
+        """
+        # vLLM's replay service is a ROUTER and expects the DEALER framing
+        # ``identity, empty-delimiter, sequence``.  REQ adds its own stateful
+        # envelope and is rejected by the publisher's three-frame check.
+        socket = self._ctx.socket(zmq.DEALER)
+        socket.setsockopt_string(zmq.IDENTITY, f"llumnix-replay-{id(self)}")
+        try:
+            socket.connect(endpoint)
+            socket.send_multipart([b"", (0).to_bytes(8, "big")])
+            while not self._stop.is_set() and socket.poll(1000):
+                frames = socket.recv_multipart()
+                # ROUTER replies arrive at DEALER as empty-delimiter,
+                # sequence, payload.
+                if len(frames) < 2:
+                    break
+                sequence_frame = frames[-2] if len(frames) >= 3 else frames[0]
+                payload = frames[-1]
+                sequence = int.from_bytes(sequence_frame, "big", signed=True)
+                if sequence < 0:
+                    break
+                batch = self._decoder.decode(payload)
+                self._callback(batch.events if hasattr(batch, "events") else batch)
+        except (zmq.ZMQError, msgspec.DecodeError, ValueError):
+            return
+        finally:
+            socket.close(linger=0)
+
     def close(self) -> None:
         self._stop.set()
         self._thread.join(timeout=1.0)
+        if self._replay_thread is not None:
+            self._replay_thread.join(timeout=1.0)
         self._socket.close(linger=0)
 
 

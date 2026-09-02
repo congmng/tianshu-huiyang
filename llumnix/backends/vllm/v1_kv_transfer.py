@@ -10,11 +10,26 @@ from __future__ import annotations
 
 import os
 import hashlib
+import ctypes
 from typing import Any
 
 
 P2P_REQUEST_ID_PREFIX = "___decode_addr_"
 P2P_REQUEST_ID_SUFFIX = "___"
+P2P_CONNECTORS = {"P2pNcclConnector", "CoreXP2pNcclConnector"}
+
+
+def corex_nccl_needs_compat() -> bool:
+    """Return whether the loaded NCCL lacks vLLM's optional window API."""
+    try:
+        from vllm.distributed.device_communicators.pynccl_wrapper import (
+            find_nccl_library,
+        )
+
+        library = ctypes.CDLL(find_nccl_library())
+        return not hasattr(library, "ncclCommWindowRegister")
+    except (ImportError, OSError):
+        return False
 
 
 def strip_p2p_request_id(request_id: str) -> str:
@@ -40,7 +55,7 @@ def decorate_p2p_request_id(request_id: str, decode_address: str | None) -> str:
 
 def p2p_connector_enabled(engine_args: Any) -> bool:
     config = getattr(engine_args, "kv_transfer_config", None)
-    return config is not None and getattr(config, "kv_connector", None) == "P2pNcclConnector"
+    return config is not None and getattr(config, "kv_connector", None) in P2P_CONNECTORS
 
 
 def validate_p2p_environment(engine_args: Any) -> None:
@@ -51,7 +66,7 @@ def validate_p2p_environment(engine_args: Any) -> None:
     single-instance service with a half-configured connector.
     """
     config = getattr(engine_args, "kv_transfer_config", None)
-    if config is None or getattr(config, "kv_connector", None) != "P2pNcclConnector":
+    if config is None or getattr(config, "kv_connector", None) not in P2P_CONNECTORS:
         return
     if int(getattr(config, "kv_parallel_size", 0)) != 2:
         raise ValueError("P2pNcclConnector requires kv_parallel_size=2")
@@ -96,6 +111,14 @@ def configure_v1_kv_transfer(
         connector = getattr(migration_config, "migration_backend_transfer_type", "")
         if not connector or connector == "rdma":
             connector = "SharedStorageConnector"
+        connector_module_path = None
+        if connector == "P2pNcclConnector" and corex_nccl_needs_compat():
+            # CoreX 4.4's NCCL 2.24 does not export the optional symmetric
+            # memory window symbols that vLLM's generic wrapper probes. The
+            # local connector shim removes only those descriptors; all normal
+            # send/recv APIs continue to use the vendor library unchanged.
+            connector = "CoreXP2pNcclConnector"
+            connector_module_path = "llumnix.backends.vllm.corex_p2p_connector"
         default_role = {
             "prefill": "kv_producer",
             "decode": "kv_consumer",
@@ -105,7 +128,7 @@ def configure_v1_kv_transfer(
             "LLUMNIX_KV_RANK",
             "0" if role == "kv_producer" else "1" if role == "kv_consumer" else "0",
         )
-        default_parallel_size = "2" if connector == "P2pNcclConnector" else "1"
+        default_parallel_size = "2" if connector in P2P_CONNECTORS else "1"
         parallel_size = int(os.getenv("LLUMNIX_KV_PARALLEL_SIZE", default_parallel_size))
         ip = os.getenv("LLUMNIX_KV_IP", "127.0.0.1")
         port = int(os.getenv("LLUMNIX_KV_PORT", "14579"))
@@ -123,6 +146,7 @@ def configure_v1_kv_transfer(
             kv_ip=ip,
             kv_port=port,
             kv_connector_extra_config=extra,
+            kv_connector_module_path=connector_module_path,
         )
         engine_args.kv_transfer_config = current
 
@@ -139,9 +163,19 @@ def configure_v1_kv_transfer(
                 "big",
             ) % 1000
             endpoint = f"tcp://*:{15557 + suffix}"
+        replay_endpoint = os.getenv("LLUMNIX_KV_EVENTS_REPLAY_ENDPOINT")
+        if replay_endpoint is None:
+            # Keep the replay listener beside its per-instance PUB endpoint.
+            # vLLM's publisher retains event batches, so a restarted adapter
+            # can rebuild ownership before accepting cache-aware dispatches.
+            if endpoint.startswith("tcp://"):
+                replay_endpoint = endpoint.rsplit(":", 1)[0] + ":" + str(
+                    int(endpoint.rsplit(":", 1)[1]) + 1000
+                )
         engine_args.kv_events_config = KVEventsConfig(
             enable_kv_cache_events=True,
             publisher="zmq",
             endpoint=endpoint,
+            replay_endpoint=replay_endpoint,
         )
     return True

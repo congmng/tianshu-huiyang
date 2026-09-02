@@ -15,6 +15,7 @@ from typing import Dict, List
 import asyncio
 import time
 import os
+import copy
 
 import ray
 from ray.util.placement_group import PlacementGroup
@@ -86,6 +87,11 @@ def init_backend_engine(instance_id: str,
         import vllm
         version = getattr(vllm, "__version__", "")
         if version.startswith("0.11"):
+            # AsyncEngineArgs is mutable and may be shared by several Ray
+            # Llumlets during global launch. Clone it before injecting the
+            # instance-specific connector rank/ports so one instance cannot
+            # inherit another instance's KV endpoint.
+            engine_args = copy.deepcopy(engine_args)
             # Translate Llumnix's opt-in ``kvtransfer`` backend to vLLM V1's
             # connector config before AsyncLLM snapshots engine arguments.
             from llumnix.backends.vllm.v1_kv_transfer import configure_v1_kv_transfer

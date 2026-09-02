@@ -30,7 +30,7 @@ def test_kvtransfer_config_maps_llumnix_options(monkeypatch):
     )
     assert configure_v1_kv_transfer(args, cfg) is True
     transfer = args.kv_transfer_config
-    assert transfer.kv_connector == "P2pNcclConnector"
+    assert transfer.kv_connector in {"P2pNcclConnector", "CoreXP2pNcclConnector"}
     assert transfer.kv_role == "kv_producer"
     assert transfer.kv_rank == 0
     assert transfer.kv_parallel_size == 2
@@ -60,6 +60,26 @@ def test_kvtransfer_makes_cross_host_prefix_hashes_reproducible(monkeypatch):
     assert args.prefix_caching_hash_algo == "sha256_cbor"
     assert args.enable_prefix_caching is True
     assert __import__("os").environ["PYTHONHASHSEED"] == "0"
+
+
+def test_kvtransfer_uses_instance_scoped_event_and_replay_endpoints(monkeypatch):
+    from llumnix.backends.vllm.v1_kv_transfer import configure_v1_kv_transfer
+
+    monkeypatch.delenv("LLUMNIX_KV_EVENTS_ENDPOINT", raising=False)
+    monkeypatch.delenv("LLUMNIX_KV_EVENTS_REPLAY_ENDPOINT", raising=False)
+    cfg = SimpleNamespace(
+        migration_backend="kvtransfer",
+        migration_backend_transfer_type="SharedStorageConnector",
+        kvtransfer_migration_backend_naming_url="",
+    )
+    first = SimpleNamespace(kv_transfer_config=None, kv_events_config=None)
+    second = SimpleNamespace(kv_transfer_config=None, kv_events_config=None)
+    configure_v1_kv_transfer(first, cfg, instance_id="instance-a")
+    configure_v1_kv_transfer(second, cfg, instance_id="instance-b")
+    assert first.kv_events_config.endpoint != second.kv_events_config.endpoint
+    first_port = int(first.kv_events_config.endpoint.rsplit(":", 1)[1])
+    replay_port = int(first.kv_events_config.replay_endpoint.rsplit(":", 1)[1])
+    assert replay_port == first_port + 1000
 
 
 def test_existing_vllm_configs_are_preserved():
@@ -109,6 +129,35 @@ def test_p2p_environment_validation(monkeypatch):
         validate_p2p_environment(args)
     monkeypatch.setenv("LLUMNIX_KV_DECODE_ADDRESS", "10.31.10.62:17000")
     validate_p2p_environment(args)
+
+
+def test_corex_p2p_compat_keeps_p2p_defaults(monkeypatch):
+    from llumnix.backends.vllm import v1_kv_transfer
+
+    monkeypatch.setattr(v1_kv_transfer, "corex_nccl_needs_compat", lambda: True)
+    args = SimpleNamespace(
+        kv_transfer_config=None,
+        kv_events_config=None,
+        prefix_caching_hash_algo="sha256",
+        enable_prefix_caching=False,
+    )
+    cfg = SimpleNamespace(
+        migration_backend="kvtransfer",
+        migration_backend_transfer_type="P2pNcclConnector",
+        kvtransfer_migration_backend_naming_url="",
+    )
+    v1_kv_transfer.configure_v1_kv_transfer(args, cfg, instance_id="instance-a")
+    assert args.kv_transfer_config.kv_connector == "CoreXP2pNcclConnector"
+    assert args.kv_transfer_config.kv_connector_module_path == (
+        "llumnix.backends.vllm.corex_p2p_connector"
+    )
+    assert args.kv_transfer_config.kv_parallel_size == 2
+
+
+def test_corex_nccl_compat_detection_is_boolean():
+    from llumnix.backends.vllm.v1_kv_transfer import corex_nccl_needs_compat
+
+    assert isinstance(corex_nccl_needs_compat(), bool)
 
 
 def test_strip_p2p_request_id():

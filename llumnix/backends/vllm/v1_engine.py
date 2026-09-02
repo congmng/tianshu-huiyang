@@ -35,9 +35,13 @@ class V1EngineAdapter:
         if events_config is not None and getattr(events_config, "enable_kv_cache_events", False):
             endpoint = getattr(events_config, "endpoint", "")
             topic = getattr(events_config, "topic", "")
+            replay_endpoint = getattr(events_config, "replay_endpoint", None)
             if endpoint:
                 self.kv_event_subscriber = KVEventSubscriber(
-                    endpoint, self._apply_kv_events, topic=topic
+                    endpoint,
+                    self._apply_kv_events,
+                    topic=topic,
+                    replay_endpoint=replay_endpoint,
                 )
         self.requests = {}
         self._request_id_aliases = {}
@@ -68,11 +72,19 @@ class V1EngineAdapter:
         tokenizer = self.engine.tokenizer
         if tokenizer is None or not isinstance(prompt, str):
             return ()
-        token_ids = tokenizer.encode(prompt, add_special_tokens=False)
+        # Keep tokenization aligned with vLLM's InputPreprocessor, which only
+        # overrides ``add_special_tokens`` for model-specific cases (e.g.
+        # Whisper). Passing False unconditionally would miss cache blocks for
+        # text models whose tokenizer adds a BOS token by default.
+        token_ids = tokenizer.encode(prompt)
         cache_config = self.engine.vllm_config.cache_config
+        block_size = (
+            cache_config.block_size
+            * self.engine.vllm_config.parallel_config.decode_context_parallel_size
+        )
         return self.kv_affinity.prefix_hashes(
             token_ids,
-            cache_config.block_size,
+            block_size,
             cache_config.prefix_caching_hash_algo,
         )
 

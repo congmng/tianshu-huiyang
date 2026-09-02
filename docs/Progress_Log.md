@@ -53,6 +53,21 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   明确错误。公开 request ID 与 connector 内部地址后缀继续分离。
 - 本机测试结果：`20 passed`，compileall 与 diff-check 通过。
 
+## 2026-09-02：CoreX NCCL P2P 数据面验证
+
+- 发现 CoreX 4.4.0 的 `libnccl.so.2` 为 2.24.3，不导出 vLLM ctypes wrapper
+  探测的可选 `ncclCommWindowRegister/Deregister`。新增
+  `corex_p2p_connector.py` shim，仅从进程内函数描述表中移除缺失的可选符号，
+  不修改 `/usr/local/corex-4.4.0` 或驱动；普通 NCCL InitRank/send/recv 保持原实现。
+- `kvtransfer` 在检测到该 ABI 时自动选择 `CoreXP2pNcclConnector`，仍要求
+  `kv_parallel_size=2` 和 producer 的 `LLUMNIX_KV_DECODE_ADDRESS`。
+- 两机真实探针成功：`10.31.10.62` 与 `10.31.10.210` 各启动一个
+  `P2pNcclEngine`，通过 `ens1f0` 初始化 rank 0/1 communicator，并传输 GPU
+  tensor `[1.0, 2.0, 3.0, 4.0]`，接收端逐值一致。
+- 测试夹具的失败日志路径改为可写临时目录（可由
+  `LLUMNIX_TEST_ERROR_LOG_DIR` 覆盖），避免 CoreX 节点的 `/home/lhy` 权限错误
+  遮蔽真实测试失败。当前本机相关测试：`23 passed`。
+
 ## 2026-09-01：真实事件订阅与亲和调度接入
 
 - `V1EngineAdapter` 新增 ZMQ `KVEventSubscriber`，按实例消费 vLLM
