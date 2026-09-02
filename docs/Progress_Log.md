@@ -1,5 +1,16 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-02：双机 affinity 可复现探针
+
+- 新增 `tools/cross_host_kv_affinity_probe.py`，离线复现两台 Python 3.12/CoreX
+  环境共同使用 `sha256_cbor` 计算 prefix block hash、导入 BlockStored 事件并
+  按 affinity 排序的完整算法链路。探针不下载模型、不启动 Ray、不修改驱动。
+- 本机与 `10.31.10.210` 输出完全一致：两个 hash 为
+  `c9d58ba6...ef071cb`、`24125b23...54ab2d6`，候选 affinity 分别为 0.5/1.0，
+  排序均为 `candidate-b,candidate-a`。
+- 该证据进一步确认论文第三点的跨域请求下发决策在两台正式运行时可复现；GPU
+  tensor 迁移和完整跨机 Llumnix 多实例服务仍需独立验收。
+
 ## 2026-09-02：论文第五章第三点基础功能复核
 
 - 对照论文第五章“异构负载感知的跨域请求调度”（计算/显存统一虚拟负载、

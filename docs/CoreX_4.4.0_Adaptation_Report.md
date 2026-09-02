@@ -1,5 +1,14 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 双机 affinity 算法复现（2026-09-02）
+
+新增离线探针 `tools/cross_host_kv_affinity_probe.py`，在本机和
+`10.31.10.210` 的 Python 3.12/CoreX 环境分别运行。两端对 `[1..8]`、block size
+4 计算出完全一致的 `sha256_cbor` 哈希，并对模拟的 BlockStored 事件得到
+`candidate-a=0.5`、`candidate-b=1.0`，确定性排序为 `candidate-b,candidate-a`。
+这验证了 hash、事件索引和候选排序的跨主机算法一致性；不替代真实 GPU KV
+tensor handoff 验收。
+
 ## 本轮基础复核（2026-09-02）
 
 对照论文第五章第三点 HLA（异构负载感知跨域请求调度），本机以 Qwen3-14B
