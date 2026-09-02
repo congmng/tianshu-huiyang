@@ -249,3 +249,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 补充正常完成请求的 adapter bookkeeping 释放，并修复 `abort_request` 的 alias
   双重解析；ZMQ staging 单测改用动态空闲端口。API/KV transfer 回归为
   `31 passed, 1 warning`，compileall 通过。
+- `scipy`/`pandas` 改为 profiling 分析功能的延迟依赖，缺失时返回明确 RuntimeError；
+  核心 V1 serving 不受影响。新增可选依赖回归后 API/KV/profiling 测试为
+  `33 passed, 1 warning`。

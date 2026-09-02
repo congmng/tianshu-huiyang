@@ -310,6 +310,9 @@ request-id 的 alias；因此启用 P2P 后，断连或显式 abort 能准确取
 请求，而不会只删除 HTTP 层 bookkeeping。
 正常完成的非流式/流式请求也会释放 adapter 的本地 request/alias/running 状态；
 staging 测试端口改为动态分配，重复运行或双机并行验证不会因固定端口残留而误报。
+环境审计显示 CoreX 发行环境可能未安装 `scipy`/`pandas`；profiling 模块现将这
+两项仅用于模拟器拟合和 CSV 分析的依赖延迟加载。核心 V1 serving、KV affinity
+和 P/D handoff 不再因导入 profiling 失败；真正使用分析功能时会给出明确安装提示。
 
 以下是历史兼容性记录（不是当前 CoreX 安装要求）：仓库早期版本曾锁定 vLLM
 0.6.3：

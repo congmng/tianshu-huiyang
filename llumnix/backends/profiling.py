@@ -17,10 +17,8 @@ import dataclasses
 
 from collections import namedtuple
 from typing import List, Dict, Any
-from scipy.optimize import curve_fit
 
 import cloudpickle
-import pandas as pd
 import numpy as np
 
 from llumnix.backends.backend_interface import BackendType
@@ -31,6 +29,24 @@ from llumnix.llumlet.request import RequestInferenceType
 SimParallelConfig = namedtuple("SimParallelConfig", ("tp", "pp"))
 # vllm blocks gpu cache configuration
 SimCacheConfig = namedtuple("SimCacheConfig", ("gpu_memory_utilization", "block_size", "max_num_batched_tokens"))
+
+
+def _require_profiling_dependency(package: str, feature: str):
+    """Load analysis-only dependencies without blocking CoreX V1 serving."""
+    try:
+        if package == "scipy":
+            from scipy.optimize import curve_fit
+            return curve_fit
+        if package == "pandas":
+            import pandas as pd
+            return pd
+    except ImportError as exc:
+        raise RuntimeError(
+            f"{feature} requires optional dependency '{package}'. "
+            "Install Llumnix's profiling dependencies before using simulator "
+            "fitting or CSV analysis. CoreX V1 serving does not require it."
+        ) from exc
+    raise ValueError(f"unknown profiling dependency: {package}")
 
 def _pad_to_alignment(x, multiple_of):
     return x + ((-1*x) % multiple_of)
@@ -103,6 +119,7 @@ class ProfilingResult:
         self.para_dict[parallel_config].add_cache_result(cache_config, num_blocks)
 
     def fit_from_database(self, parallel_config: SimParallelConfig):
+        curve_fit = _require_profiling_dependency("scipy", "Profiling curve fitting")
         # fit prefill
         tot_seq_len_list, stage_latency_list = self.para_dict[parallel_config].get_prefill_dict_kv()
         latency_list = [stage_latency[0] for stage_latency in stage_latency_list]
@@ -161,6 +178,7 @@ class ProfilingDatabase:
         return stage_latencies, inference_type, batch_size, tot_seq_len
 
     def update_from_instance_log(self, file_name: str, model: str, parallel_config: SimParallelConfig):
+        pd = _require_profiling_dependency("pandas", "Profiling CSV import")
         df = pd.read_csv(file_name)
         df = df[df['bs'] > 0]
         # read lines
