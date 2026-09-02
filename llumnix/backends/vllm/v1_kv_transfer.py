@@ -21,6 +21,14 @@ P2P_PREFILL_ID_PREFIX = "___prefill_addr_"
 P2P_CONNECTORS = {"P2pNcclConnector", "CoreXP2pNcclConnector"}
 
 
+def valid_p2p_endpoint(address: str | None) -> bool:
+    """Return whether an endpoint is a concrete routable ``host:port``."""
+    if not isinstance(address, str) or not address:
+        return False
+    host, separator, port = address.rpartition(":")
+    return bool(host and separator and port.isdigit() and 0 < int(port) < 65536)
+
+
 def corex_nccl_needs_compat() -> bool:
     """Return whether the loaded NCCL lacks vLLM's optional window API."""
     try:
@@ -52,8 +60,7 @@ def decorate_p2p_request_id(request_id: str, decode_address: str | None) -> str:
     """Attach P2pNcclConnector's required decode return address once."""
     if not decode_address or P2P_REQUEST_ID_PREFIX in request_id:
         return request_id
-    host, separator, port = decode_address.rpartition(":")
-    if not host or not separator or not port.isdigit():
+    if not valid_p2p_endpoint(decode_address):
         raise ValueError(
             "LLUMNIX_KV_DECODE_ADDRESS must be a concrete host:port for "
             "P2pNcclConnector"
@@ -67,8 +74,7 @@ def decorate_p2p_consumer_request_id(
     """Attach P2pNcclConnector's required prefill address for a consumer."""
     if not prefill_address or P2P_PREFILL_ID_PREFIX in request_id:
         return request_id
-    host, separator, port = prefill_address.rpartition(":")
-    if not host or not separator or not port.isdigit():
+    if not valid_p2p_endpoint(prefill_address):
         raise ValueError(
             "prefill P2P endpoint must be a concrete host:port"
         )

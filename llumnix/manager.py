@@ -273,7 +273,8 @@ class Manager:
                 decode_info = self.global_scheduler.instance_info[decode_id]
                 prefill_endpoint = getattr(prefill_info, "kv_endpoint", None)
                 decode_endpoint = getattr(decode_info, "kv_endpoint", None)
-                if not prefill_endpoint or not decode_endpoint:
+                from llumnix.backends.vllm.v1_kv_transfer import valid_p2p_endpoint
+                if not valid_p2p_endpoint(prefill_endpoint) or not valid_p2p_endpoint(decode_endpoint):
                     logger.warning(
                         "V1 P/D endpoints unavailable; falling back to a single request"
                     )

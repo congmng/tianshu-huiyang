@@ -69,6 +69,10 @@ producer 的输出被抑制并限制为 handoff 所需的一步，consumer 用�
 启动的 producer。endpoint 尚未就绪时安全回退到原有单请求路径。该实现尚缺两机
 同权重模型级验证，不能据此宣称端到端 KV 复用已完成。
 
+Manager 现在还会验证两端 endpoint 必须是有效的 `host:port`（端口范围
+1--65535）；配置错误会在 P/D 编排前安全回退单请求，避免半启动的 producer 或
+consumer 进入不可恢复等待。
+
 ## vLLM V1 迁移进展（2026-09-01）
 
 针对本机软件栈的 `vllm 0.11.2+corex.4.4.0`，已加入第一阶段 V1 迁移代码：

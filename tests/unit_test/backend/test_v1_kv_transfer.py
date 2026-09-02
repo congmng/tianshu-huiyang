@@ -121,6 +121,15 @@ def test_p2p_request_id_rejects_non_address():
         decorate_p2p_request_id("request-1", "invalid")
 
 
+def test_p2p_endpoint_validation_rejects_invalid_ports():
+    from llumnix.backends.vllm.v1_kv_transfer import valid_p2p_endpoint
+
+    assert valid_p2p_endpoint("10.0.0.1:17000")
+    assert not valid_p2p_endpoint("10.0.0.1:0")
+    assert not valid_p2p_endpoint("10.0.0.1:70000")
+    assert not valid_p2p_endpoint("not-an-endpoint")
+
+
 def test_p2p_environment_validation(monkeypatch):
     from llumnix.backends.vllm.v1_kv_transfer import validate_p2p_environment
     from vllm.config import KVTransferConfig
