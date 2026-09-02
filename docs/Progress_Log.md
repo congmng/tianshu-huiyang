@@ -28,6 +28,12 @@ V1 `InstanceInfo` 新增 GPU 总/空闲显存和归一化算力容量字段，V1
 算力容量计算计算压力，并融合显存占用率；旧引擎无新字段时仍回退到 block
 counter。异构容量排序与回退逻辑新增测试，相关定向回归为 44 passed。
 
+## 2026-09-02：V1 部署参数完整兼容
+
+独立 `v1_api_server` 改为复用 vLLM 0.11 `AsyncEngineArgs` 的完整 CLI 参数
+注册与校验。量化、tokenizer、调度和 KV-transfer 等原生选项不再被静默丢弃；
+新增 CLI/HTTP 回归共 16 passed，`compileall` 通过。
+
 两机同步到提交 `5893493` 后分别执行同一 44 项定向回归均通过。实机采样的
 `virtual_usage` 为本机 0.00468、远端 0.00522，差异由两端的实时空闲显存产生；
 同一 token prefix 的 `sha256_cbor` 哈希保持逐字节一致。

@@ -341,6 +341,10 @@ raylet/dashboard 故障污染适配回归；V1 KV/affinity 定向测试在该夹
 Qwen3-14B 实测启动后，`GET /health` 返回 200，`POST /generate` 返回 200 和
 正常生成文本；该参数仍可由部署显式调高或调低。
 该入口的 FastAPI 生命周期已改用 `lifespan`，在关闭时幂等释放 V1 adapter；新增
+入口现复用 vLLM 0.11 `AsyncEngineArgs` 的完整 CLI 参数注册和校验，不再静默
+丢弃量化、tokenizer、调度及 KV-transfer 选项；`--help` 已实测包含
+`--quantization`、`--kv-transfer-config`、`--tensor-parallel-size` 等原生参数，
+对应 CLI 回归通过。
 无模型 mock 回归覆盖 `/health`、非流式 `/generate` 和 streaming wire format，
 因此 HTTP 协议可在不加载大模型的情况下持续验证。
 流式响应的异步迭代器在客户端断连/提前关闭时也会自动 abort 对应 V1 request，

@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from vllm import SamplingParams
 
 from llumnix.entrypoints.vllm.v1_api_server import build_app
+from llumnix.entrypoints.vllm.v1_api_server import build_arg_parser
 
 
 class _Output:
@@ -41,6 +42,17 @@ class _FailingEngine(_Engine):
     def generate(self, prompt, params, request_id):
         self.calls.append((prompt, params, request_id))
         raise RuntimeError("engine startup failed")
+
+
+def test_v1_cli_registers_complete_vllm_surface():
+    parser = build_arg_parser()
+    options = {option for action in parser._actions for option in action.option_strings}
+    assert "--quantization" in options
+    assert "--kv-transfer-config" in options
+    assert "--tensor-parallel-size" in options
+    args = parser.parse_args(["--model", "dummy", "--max-num-seqs", "2"])
+    assert args.max_num_seqs == 2
+    assert args.dtype == "float16"
 
 
 def test_v1_adapter_direct_generate_abort_uses_internal_alias(monkeypatch):

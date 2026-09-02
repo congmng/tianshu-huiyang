@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from vllm import SamplingParams
 from vllm.engine.arg_utils import AsyncEngineArgs
+from vllm.utils.argparse_utils import FlexibleArgumentParser
 from llumnix.backends.vllm.v1_engine import V1EngineAdapter
 
 
@@ -95,34 +96,22 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
     return app
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", required=True)
+def build_arg_parser():
+    # Register all vLLM V1 options.  Keeping only a small hand-written subset
+    # silently discarded deployment settings such as quantization and KV IO.
+    parser = FlexibleArgumentParser(description=__doc__)
+    AsyncEngineArgs.add_cli_args(parser)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--tensor-parallel-size", type=int, default=1)
-    parser.add_argument("--gpu-memory-utilization", type=float, default=0.70)
-    parser.add_argument("--max-model-len", type=int, default=4096)
-    parser.add_argument(
-        "--max-num-seqs",
-        type=int,
-        default=4,
-        help="Maximum concurrent sequences; 4 avoids sampler warmup OOM on 32 GiB CoreX cards.",
-    )
-    args, unknown = parser.parse_known_args()
-    engine_args = AsyncEngineArgs(
-        model=args.model,
-        tensor_parallel_size=args.tensor_parallel_size,
-        dtype="float16",
-        gpu_memory_utilization=args.gpu_memory_utilization,
-        max_model_len=args.max_model_len,
-        max_num_seqs=args.max_num_seqs,
-        enforce_eager=True,
-    )
-    # Keep unknown options available for future V1 argument forwarding rather
-    # than silently claiming that legacy Llumnix options are supported.
-    if unknown:
-        print("Ignoring unsupported legacy/V1 options:", " ".join(unknown))
+    parser.set_defaults(dtype="float16", gpu_memory_utilization=0.70,
+                        max_model_len=4096, max_num_seqs=4, enforce_eager=True)
+    return parser
+
+
+def main() -> None:
+    parser = build_arg_parser()
+    args = parser.parse_args()
+    engine_args = AsyncEngineArgs.from_cli_args(args)
     engine = V1EngineAdapter(engine_args, instance_id=f"v1-api-{args.port}")
     uvicorn.run(build_app(engine), host=args.host, port=args.port)
 
