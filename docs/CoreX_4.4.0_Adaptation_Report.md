@@ -47,6 +47,8 @@ rank-1 communicator 在该 CoreX 栈仍会 native abort，因此生产默认 tra
 成功订阅解码。两端在固定 `PYTHONHASHSEED=0` 下计算同一 token prefix 的
 `sha256_cbor` block hashes 也完全一致。这证明事件汇聚和 cache-affinity 计算
 可跨主机进行；尚未作为 P2P NCCL GPU KV tensor 迁移成功的证明。
+（本段记录早期仅完成事件/哈希验证的阶段性状态；当前结论以文档后面的
+“两机模型级 P/D handoff：已验证（ZMQ CPU staging）”为准。）
 
 当前代码也已通过 Git bundle 同步到 `10.31.10.210` 的 `f084a52`；远端只读核验
 为 Python `3.12.13`、vLLM `0.11.2`、PyTorch `2.7.1`，与本机正式 V1 验证栈一致。
@@ -69,8 +71,8 @@ P/D 仍需在两端部署相同权重后做端到端验证。
 补充配置兼容：用户若直接传入 vLLM 原生的
 `KVTransferConfig(kv_connector="P2pNcclConnector")`，即使没有选择 Llumnix
 `migration_backend=kvtransfer`，也会重定向到本项目的 CoreX ABI shim；其余显式
-vLLM 配置不被改写。consumer 的 P2P 请求 ID 现可编码 prefill 地址，但 Manager
-尚未实现 producer/consumer 双请求编排，因而不能将该编码视为完整 P/D 服务支持。
+vLLM 配置不被改写。consumer 的 P2P 请求 ID 现可编码 prefill 地址。（本段为
+双请求编排完成前的历史记录；当前实现和验证见下段及后文。）
 
 V1 P/D 编排现已进入可执行的第一阶段：Manager 在 prefill/decode 实例均报告
 可路由 P2P endpoint 时，为同一个公开 request ID 启动两个 `AsyncLLM` 请求；
@@ -236,6 +238,8 @@ CoreX 版 vLLM 0.11.2 将 V1 attention 的 KV transfer wrapper 放在
 NCCL 数据面日志。`CoreXP2pNcclConnector` 的进程内 shim 现启用该 wrapper，并
 更新已经导入的 `vllm.envs` 缓存值；该修改仅影响显式选择 CoreX P2P connector
 的 worker，不修改驱动、系统安装或共享库。19 项 V1 KV 传输单元测试通过。
+本小节记录 native NCCL 排障时的阶段性结果；当前生产默认路径及其端到端证据
+见下方 `zmq_cpu` 小节。
 
 两机探针已分别证明模型加载、KV cache 分配、connector 初始化和 metadata 生成；
 使用同一内部 request ID 的模型级 tensor handoff 仍在验证中，在完成前不将其
