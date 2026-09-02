@@ -56,6 +56,9 @@ counter。异构容量排序与回退逻辑新增测试，相关定向回归为 
 补充控制器级测试：高请求压力下 `GlobalScheduler.check_scale()` 正确返回一个
 扩容实例，V1 异构负载确实进入自动扩缩容决策。
 
+将 `virtual_usage` 加入正式 `--scaling-load-metric` CLI 选项，允许部署直接启用
+CoreX 异构显存/算力扩缩容；参数注册回归通过。
+
 两机同步到提交 `5893493` 后分别执行同一 44 项定向回归均通过。实机采样的
 `virtual_usage` 为本机 0.00468、远端 0.00522，差异由两端的实时空闲显存产生；
 同一 token prefix 的 `sha256_cbor` 哈希保持逐字节一致。

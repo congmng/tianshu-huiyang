@@ -242,7 +242,7 @@ class ManagerArgs:
                             help='time interval(s) to update instance info and pair migration')
         parser.add_argument('--scaling-load-metric',
                             type=str,
-                            choices=['remaining_steps', 'usage_ratio'],
+                            choices=['remaining_steps', 'usage_ratio', 'virtual_usage'],
                             help='instance scaling load metric')
         parser.add_argument('--dispatch-policy',
                             type=str,

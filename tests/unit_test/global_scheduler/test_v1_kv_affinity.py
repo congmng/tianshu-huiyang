@@ -3,6 +3,7 @@ from llumnix.instance_info import DispatchLoadComputation, InstanceInfo
 from llumnix.internal_config import GlobalSchedulerConfig
 from llumnix.global_scheduler.global_scheduler import GlobalScheduler
 from llumnix.arg_utils import InstanceArgs
+from llumnix.arg_utils import LlumnixArgumentParser, ManagerArgs
 
 
 class BlockStored:
@@ -217,3 +218,10 @@ def test_global_scheduler_v1_load_drives_scale_up_signal():
     scale_up, scale_down = scheduler.check_scale()
     assert scale_up == 1
     assert scale_down == 0
+
+
+def test_v1_virtual_usage_is_exposed_as_scaling_cli_metric():
+    parser = LlumnixArgumentParser()
+    ManagerArgs.add_cli_args(parser)
+    action = next(a for a in parser._actions if a.dest == "scaling_load_metric")
+    assert "virtual_usage" in action.choices

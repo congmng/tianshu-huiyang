@@ -365,6 +365,8 @@ GlobalScheduler 闭环回归进一步验证：在异构负载差距处于 0.10 �
 控制器级回归已用 96 个活动请求、4 GiB 空闲显存的 V1 实例验证
 `GlobalScheduler.check_scale()` 返回 `scale_up=1`；扩缩容与 KV/API 核心定向回归
 共 53 项通过（两机均已复核）。
+`--scaling-load-metric` 现正式接受 `virtual_usage`，部署可直接选择基于 CoreX
+实时显存、算力容量和请求压力的异构扩缩容指标；CLI 回归已覆盖该选项。
 该变更已在 `10.31.10.210` 的 Python 3.12/CoreX 环境复核：同步同一源码后
 V1/KV/HTTP 定向回归为 45 passed，完整参数帮助可正常加载。
 无模型 mock 回归覆盖 `/health`、非流式 `/generate` 和 streaming wire format，
