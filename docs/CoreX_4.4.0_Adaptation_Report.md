@@ -59,6 +59,10 @@ CoreX 环境脚本现在在 Python 启动前设置 `PYTHONHASHSEED=0`（可显�
 环境脚本不再硬编码项目 clone：默认优先使用 `.conda-corex44`，当其不存在时
 自动选择远端已验证的 `/data1/congmng/conda-envs/ds-corex44`，也可通过
 `LLUMNIX_COREX_PYTHON_ENV` 显式指定。这使同一套双机验证脚本适用于两台主机。
+在当前 `6a1f5c2` 基线下，两机对 token blocks `[1,2,3,4]`、`[5,6,7,8]`
+计算的 `sha256_cbor` 结果逐字节一致：
+`c9d58ba695280d69b243e1e0df813136ca9196b286fb1a021e0b2e028ef071cb`、
+`24125b23e68883b5c2141db2959d48433fe6bde2f26bd914efad121d154ab2d6`。
 
 最新 P2P 数据面验证已完成：CoreX 4.4.0 附带的 NCCL 2.24.3 不含 vLLM ctypes
 wrapper 会探测的可选 symmetric-memory window 符号。项目新增的

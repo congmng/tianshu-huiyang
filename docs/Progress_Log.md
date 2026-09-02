@@ -282,3 +282,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   历史记录，当前正式结论仍为两机 `zmq_cpu` 模型级 handoff 已验证。
 - 随后将最新报告与代码同步到 `6a1f5c2`，远端 Python 3.12.13 编译及关键
   endpoint/hash 导入探针通过；两机部署基线与 GitHub `main` 一致。
+- 在本机与 `10.31.10.210` 使用当前基线、`PYTHONHASHSEED=0` 对相同 token blocks
+  `[1,2,3,4]`、`[5,6,7,8]` 重新计算 `sha256_cbor`，两端 hash 逐字节一致，
+  进一步确认 KV-cache affinity 算法在双机 Python 3.12/CoreX 栈上可复现。
