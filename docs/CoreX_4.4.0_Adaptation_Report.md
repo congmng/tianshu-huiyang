@@ -266,6 +266,10 @@ staging transport 对来自对端的 payload 做异常隔离，并对发送确�
 无对端发送和缺失 tensor 接收的故障路径均有测试覆盖；V1 KV transfer 定向测试
 为 25 项通过。
 
+Manager 的 V1 P/D 双请求启动路径在任一侧失败时，会同时向 producer 和 consumer
+发送取消请求，并逐侧记录清理异常；因此不会留下等待 KV 的 consumer 或孤立的
+producer 发送任务。相关回归测试保持 42 项通过。
+
 当前仓库明确锁定的是 vLLM 0.6.3：
 
 ```text

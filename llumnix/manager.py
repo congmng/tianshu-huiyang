@@ -311,16 +311,23 @@ class Manager:
                             **consumer_kwargs
                         )
                     except Exception:
-                        # Do not leave a producer stream sending KV after the
-                        # consumer failed to start.  Best-effort cancellation
-                        # is intentionally local and does not mask the error.
-                        try:
-                            await self.instances[prefill_id].abort.remote(request_id)
-                        except Exception:
-                            logger.warning(
-                                "failed to clean up V1 P/D producer request %s",
-                                request_id,
-                            )
+                        # A failure can happen after either stream was
+                        # accepted. Cancel both sides so an already-started
+                        # consumer cannot remain blocked waiting for KV and a
+                        # producer cannot continue sending orphaned layers.
+                        cleanup_ids = (prefill_id, decode_id)
+                        cleanup_results = await asyncio.gather(
+                            *(self.instances[iid].abort.remote(request_id)
+                              for iid in cleanup_ids),
+                            return_exceptions=True,
+                        )
+                        for iid, result in zip(cleanup_ids, cleanup_results):
+                            if isinstance(result, Exception):
+                                logger.warning(
+                                    "failed to clean up V1 P/D request %s on %s",
+                                    request_id,
+                                    iid,
+                                )
                         raise
                     instance_id = decode_id
                     self.request_instances[request_id] = {prefill_id, decode_id}
