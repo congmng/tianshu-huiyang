@@ -362,6 +362,9 @@ GlobalScheduler 闭环回归进一步验证：在异构负载差距处于 0.10 �
 扩缩容策略已移除对旧版 `instance_load_dispatch_scale` 等不存在字段的依赖，直接
 基于当前实例负载计算；V1 自动扩容在没有 block-manager 计数时按控制周期增补一个
 实例，待下一轮采集真实 CoreX 显存/算力状态，避免空实例 `-inf` 导致扩容失效。
+控制器级回归已用 96 个活动请求、4 GiB 空闲显存的 V1 实例验证
+`GlobalScheduler.check_scale()` 返回 `scale_up=1`；扩缩容与 KV/API 核心定向回归
+共 53 项通过（两机均已复核）。
 该变更已在 `10.31.10.210` 的 Python 3.12/CoreX 环境复核：同步同一源码后
 V1/KV/HTTP 定向回归为 45 passed，完整参数帮助可正常加载。
 无模型 mock 回归覆盖 `/health`、非流式 `/generate` 和 streaming wire format，

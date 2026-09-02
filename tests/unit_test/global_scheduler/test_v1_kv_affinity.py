@@ -199,3 +199,21 @@ def test_global_scheduler_uses_v1_heterogeneous_load_and_kv_affinity_together():
     # stored prefix selects ``cached`` rather than blindly using load alone.
     instance_id, _ = scheduler.dispatch([b"prefix"])
     assert instance_id == "cached"
+
+
+def test_global_scheduler_v1_load_drives_scale_up_signal():
+    scheduler = GlobalScheduler(GlobalSchedulerConfig(
+        0, "load", 1, "balanced", 1.0, "avg_load", "virtual_usage",
+        0.20, -1.0, False, False,
+    ))
+    info = InstanceInfo(
+        instance_id="busy-v1", num_running_requests=96,
+        gpu_memory_total_bytes=32 * 1024**3,
+        gpu_memory_free_bytes=4 * 1024**3,
+        compute_capacity=1.0,
+    )
+    scheduler.scale_up("busy-v1", [InstanceArgs(instance_type="no_constraints")])
+    scheduler.update_instance_infos([info])
+    scale_up, scale_down = scheduler.check_scale()
+    assert scale_up == 1
+    assert scale_down == 0
