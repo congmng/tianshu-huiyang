@@ -197,3 +197,5 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 独立 `v1_api_server` 入口改为通过 `V1EngineAdapter` 创建引擎，统一采用
   Llumnix 的请求生命周期、CoreX connector 和 request-ID 处理；多实例编排仍由
   Manager 负责。
+- staging transport 增加 malformed payload 防护、发送/接收超时和可诊断异常，
+  防止对端故障导致 listener 线程退出或请求永久阻塞；回归保持 `40 passed`。

@@ -162,6 +162,11 @@ class CoreXZmqP2pEngine:
         self.send_request_id_to_tensor_ids = defaultdict(set)
         self._sockets = {}
         self._closed = threading.Event()
+        self._recv_timeout_s = float(
+            config.get_from_extra_config("zmq_recv_timeout_s", 120.0)
+            if hasattr(config, "get_from_extra_config")
+            else 120.0
+        )
         self._listener = threading.Thread(target=self._listen, daemon=True)
         self._listener.start()
         logger.info("CoreX P2P using ZMQ CPU staging at %s", self.zmq_address)
@@ -190,12 +195,19 @@ class CoreXZmqP2pEngine:
                 self.router_socket.send_multipart([peer, b"0"])
             except zmq.ZMQError:
                 return
+            except Exception as exc:  # malformed peer payload must not kill listener
+                logger.warning("CoreX P2P rejected malformed ZMQ payload: %s", exc)
+                try:
+                    self.router_socket.send_multipart([peer, b"1"])
+                except (NameError, zmq.ZMQError):
+                    pass
 
     def _socket(self, remote_address):
         sock = self._sockets.get(remote_address)
         if sock is None:
             sock = self.context.socket(zmq.DEALER)
             sock.setsockopt(zmq.LINGER, 0)
+            sock.setsockopt(zmq.RCVTIMEO, int(self._recv_timeout_s * 1000))
             sock.connect(f"tcp://{remote_address}")
             self._sockets[remote_address] = sock
         return sock
@@ -215,7 +227,13 @@ class CoreXZmqP2pEngine:
         }
         sock = self._socket(remote_address)
         sock.send_multipart([msgpack.dumps(meta), cpu.numpy().tobytes()])
-        if sock.recv() != b"0":
+        try:
+            response = sock.recv()
+        except zmq.Again as exc:
+            raise TimeoutError(
+                f"timed out waiting for CoreX P2P peer {remote_address}"
+            ) from exc
+        if response != b"0":
             return False
         self.send_request_id_to_tensor_ids[tensor_id.split("#")[0]].add(tensor_id)
         return True
@@ -224,7 +242,10 @@ class CoreXZmqP2pEngine:
         del remote_address
         with self.recv_store_cv:
             while tensor_id not in self.recv_store:
-                self.recv_store_cv.wait()
+                if not self.recv_store_cv.wait(timeout=self._recv_timeout_s):
+                    raise TimeoutError(
+                        f"timed out waiting for CoreX P2P tensor {tensor_id}"
+                    )
             return self.recv_store[tensor_id].to(self.device, non_blocking=True)
 
     def wait_for_sent(self):
