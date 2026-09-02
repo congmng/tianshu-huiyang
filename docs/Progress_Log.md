@@ -187,3 +187,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   `21 passed`。
 - 新增纯 CPU 的 staging wire-protocol round-trip 测试，覆盖 tensor 的
   shape/dtype/payload 传输与双端关闭；V1 KV transfer 测试增至 `22 passed`。
+- 修复 staging consumer 使用默认 CUDA 设备的问题：接收 KV 现在绑定
+  EngineCore 的 `local_rank`，避免多 GPU/Ray placement group 下跨卡注入；相关
+  多 GPU 设备绑定测试加入后，完整相关回归为 `40 passed`。

@@ -251,6 +251,10 @@ staging engine 同时实现了 listener 线程、ROUTER/DEALER socket 和 ZMQ co
 的幂等 shutdown，并由 CoreX connector 的 V1 shutdown 生命周期调用，保证实例
 重启或故障恢复时不会遗留 KV 端口。新增回收测试与原有 V1 KV 测试合计 21 项通过。
 
+接收端 GPU tensor 注入现在严格使用 worker 的 `local_rank`（而非默认
+`cuda:0`），因此多卡 Ray placement group 中的 KV cache 不会跨卡写入；设备绑定
+回归覆盖后，当前相关测试总计 40 项通过。
+
 当前仓库明确锁定的是 vLLM 0.6.3：
 
 ```text

@@ -142,9 +142,10 @@ class CoreXZmqP2pEngine:
     """
 
     def __init__(self, local_rank, config, hostname="", port_offset=0, **_):
-        del local_rank, hostname
+        del hostname
         self.config = config
         self.rank = port_offset
+        self.device = torch.device(f"cuda:{local_rank}")
         host = getattr(config, "kv_ip", None)
         if not host:
             raise ValueError("CoreX ZMQ P2P requires kv_ip")
@@ -224,7 +225,7 @@ class CoreXZmqP2pEngine:
         with self.recv_store_cv:
             while tensor_id not in self.recv_store:
                 self.recv_store_cv.wait()
-            return self.recv_store[tensor_id].to("cuda")
+            return self.recv_store[tensor_id].to(self.device, non_blocking=True)
 
     def wait_for_sent(self):
         return None

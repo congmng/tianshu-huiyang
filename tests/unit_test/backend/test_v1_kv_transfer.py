@@ -181,6 +181,19 @@ def test_corex_zmq_staging_shutdown_releases_listener():
     engine.shutdown()
 
 
+def test_corex_zmq_staging_keeps_worker_local_rank():
+    from llumnix.backends.vllm.corex_p2p_connector import CoreXZmqP2pEngine
+
+    engine = CoreXZmqP2pEngine(
+        local_rank=3,
+        config=SimpleNamespace(kv_ip="127.0.0.1", kv_port=0),
+    )
+    try:
+        assert str(engine.device) == "cuda:3"
+    finally:
+        engine.shutdown()
+
+
 def test_corex_zmq_staging_round_trip_cpu_tensor():
     import time
     import torch
