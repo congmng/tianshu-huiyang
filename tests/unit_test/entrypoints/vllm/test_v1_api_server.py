@@ -202,6 +202,7 @@ def test_main_api_instance_list_exposes_v1_heterogeneous_state(monkeypatch):
 
     info = InstanceInfo(
         instance_id="corex-v1", num_running_requests=2, num_waiting_requests=1,
+        node_id="node-corex", node_ip="10.31.10.62",
         gpu_memory_total_bytes=32 * 1024**3,
         gpu_memory_free_bytes=20 * 1024**3,
         compute_capacity=1.5,
@@ -222,6 +223,8 @@ def test_main_api_instance_list_exposes_v1_heterogeneous_state(monkeypatch):
     assert instance["compute_capacity"] == 1.5
     assert instance["dispatch_load_metric"] == 0.25
     assert instance["kv_cache_affinity_blocks"] == 2
+    assert instance["node_id"] == "node-corex"
+    assert instance["node_ip"] == "10.31.10.62"
 
 
 def test_main_api_instance_list_serializes_idle_load_sentinel(monkeypatch):

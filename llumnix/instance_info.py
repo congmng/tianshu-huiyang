@@ -35,6 +35,10 @@ class InstanceType(str, Enum):
 class InstanceInfo:
     instance_id: str = ""
     instance_type: InstanceType = None
+    # Ray node identity is exposed for topology-aware cross-domain routing.
+    # Legacy backends leave it empty, preserving wire compatibility.
+    node_id: str = ""
+    node_ip: str = ""
 
     step_id: int = None
     timestamp: float = None

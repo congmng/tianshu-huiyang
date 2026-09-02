@@ -11,6 +11,8 @@ class APIResponse(BaseModel):
 
 class InferenceInstanceInfo(BaseModel):
     instance_id: str
+    node_id: str = ""
+    node_ip: str = ""
     gpu_count: int
     request_count: int
     running_request_count: int

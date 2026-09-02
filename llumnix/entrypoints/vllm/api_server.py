@@ -217,6 +217,8 @@ async def get_instance_list() -> Response:
     for instance_info in instance_infos:
         inference_info = InferenceInstanceInfo(
             instance_id=instance_info.instance_id,
+            node_id=getattr(instance_info, "node_id", ""),
+            node_ip=getattr(instance_info, "node_ip", ""),
             gpu_count=1,
             request_count=instance_info.num_running_requests
             + instance_info.num_waiting_requests,

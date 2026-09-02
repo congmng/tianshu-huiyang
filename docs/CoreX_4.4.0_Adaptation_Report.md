@@ -9,14 +9,26 @@
 这验证了 hash、事件索引和候选排序的跨主机算法一致性；不替代真实 GPU KV
 tensor handoff 验收。
 
+## 双机主 API 与拓扑可观测性（2026-09-02）
+
+将 Ray head 保持在 `ray start --block` 的持久会话中、清理两端旧会话后，
+`10.31.10.62:6403` 稳定显示 8 CPU/2 GPU；node-affinity actor 分别在 `u62` 与
+`u210` 运行。基于该集群启动两个 Qwen3-14B TP=1 V1 Llumlet，两端均完成模型
+加载和 KV cache 分配，主 API 的 `/health`、`/instance_list`、`/generate` 均
+实测通过，两个并发请求也均完成。
+
+`InstanceInfo` 与 `/instance_list` 现在发布 `node_id`/`node_ip`，因此部署可
+直接核验调度实例的跨主机位置及其显存、算力、虚拟负载、KV affinity 状态。访问
+内网 API 时需排除环境 HTTP 代理（例如 `curl --noproxy '*'`）；代理返回的 502
+不是服务健康状态。该验证证明双机 V1 Manager/Llumlet 的基础分发闭环；不把它
+等同于任意时刻 block-manager migration 的 V1 移植。
+
 ## 跨机 Ray runtime 复核（2026-09-02）
 
-在 `/data1` 临时目录、受限 2 CPU/1 GPU 和 1 GiB object store 下，本机 head
-启动后 `gcs_server`/`raylet` 均存活，GCS 明确监听 `*:6396`。远端以相同
-Ray 2.52.1/CoreX Python 3.12 运行时加入时，GCS 连接失败后 head 消失，连接转为
-refused；head 日志没有 Llumnix、模型、GPU 或防火墙拒绝证据。因此当前跨机全局
-Manager 部署的剩余阻塞是 Ray/CoreX 跨节点 head 生命周期，不能归因为端口未开放。
-在这个底层问题解决前，不把新的主 API 尝试计入跨机 Llumnix 功能验收。
+早期以短生命周期命令启动的 head 会在执行器回收后台进程后表现为 GCS refused。
+使用持久 `ray start --block` 会话并清理遗留 Ray 会话后，两机已稳定组网并完成
+主 API 验收。因此该现象不是端口防火墙或 Llumnix 代码错误；跨机部署应明确将
+head 作为持久服务管理，而不应依赖短生命周期 shell 后台进程。
 
 ## 本轮基础复核（2026-09-02）
 

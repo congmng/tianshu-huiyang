@@ -289,6 +289,11 @@ class Llumlet:
     def get_instance_info(self) -> InstanceInfo:
         if self.is_vllm_v1:
             instance_info = InstanceInfo(instance_id=self.instance_id)
+            instance_info.node_id = self.node_id
+            try:
+                instance_info.node_ip = ray.get_runtime_context().get_node_ip_address()
+            except (AttributeError, RuntimeError):
+                instance_info.node_ip = ""
             self.backend_engine.update_instance_info(instance_info)
             instance_info.kv_endpoint = self.backend_engine.get_kv_endpoint()
         else:

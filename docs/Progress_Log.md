@@ -1,5 +1,20 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-02：双机 Llumnix 主服务验证
+
+- 纠正前一轮的 Ray 生命周期判断：以持久 `ray start --block` 会话保存 head，并在
+  两端先清理遗留 Ray 会话后，`10.31.10.62:6403` 成功稳定汇聚为 8 CPU/2 GPU；
+  node-affinity actor 分别返回 `u62`、`u210`。此前 head 消失与命令执行器回收
+  非持久后台会话有关，不能归因于 CoreX 跨节点 Ray runtime。
+- 在该集群启动 `initial_instances=2` 的 Llumnix V1 主 API：两个 Qwen3-14B
+  TP=1 Llumlet 分别在本机和远端完成 27.52 GiB 权重加载、2.65 GiB KV cache
+  分配并注册到同一 Manager。`/health` 返回 200，`/instance_list` 返回两个
+  32 GiB 实例，`/generate` 成功产生中文文本；两个并发请求均完成。
+- 内网地址经环境 HTTP 代理会返回 502；使用 `curl --noproxy '*'` 可直连 API，
+  此为客户端代理设置而非 Llumnix 服务错误。
+- 实例状态新增 `node_id`/`node_ip`，并由 `/instance_list` 透出，提供跨域
+  实例拓扑的正式可观测字段；对应 V1 API/KV affinity 回归为 **24 passed**。
+
 ## 2026-09-02：跨机 Ray head 生命周期复核
 
 - 以两端相同的 Ray 2.52.1/CoreX Python 3.12 环境重新建立 head：本机
