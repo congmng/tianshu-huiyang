@@ -355,6 +355,8 @@ Qwen3-14B 实测启动后，`GET /health` 返回 200，`POST /generate` 返回 2
 GlobalScheduler 闭环回归进一步验证：在异构负载差距处于 0.10 安全窗口内时，
 具有请求 prefix KV 的实例会被选中；当负载明显更差时仍不会覆盖健康度优先级。
 这使 KV-cache affinity、实时显存/算力负载和跨实例请求分发形成完整决策链。
+该闭环在两台机器的同一提交 `f1f636e` 上复核：本机和 `10.31.10.210` 均完成
+48 项 V1/KV/入口/调度定向回归及 `compileall`，结果全部通过。
 该变更已在 `10.31.10.210` 的 Python 3.12/CoreX 环境复核：同步同一源码后
 V1/KV/HTTP 定向回归为 45 passed，完整参数帮助可正常加载。
 无模型 mock 回归覆盖 `/health`、非流式 `/generate` 和 streaming wire format，
