@@ -143,7 +143,16 @@ def init_llumnix_components(entrypoints_args: EntrypointsArgs,
                             engine_args,
                             launch_args: LaunchArgs,
                             ) -> Tuple[Manager, List[str], List[Llumlet], QueueServerBase]:
-    manager = init_manager(manager_args)
+    # Pass the complete deployment context.  Omitting these arguments caused
+    # programmatic/local launches to construct Manager without V1 detection,
+    # instance configuration, or launch mode metadata.
+    manager = init_manager(
+        manager_args,
+        instance_args=instance_args,
+        entrypoints_args=entrypoints_args,
+        engine_args=engine_args,
+        launch_args=launch_args,
+    )
 
     backend_type: BackendType = launch_args.backend_type
     request_output_queue_type: QueueType = QueueType(entrypoints_args.request_output_queue_type)

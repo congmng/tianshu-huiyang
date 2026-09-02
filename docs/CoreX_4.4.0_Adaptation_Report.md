@@ -345,6 +345,9 @@ Qwen3-14B 实测启动后，`GET /health` 返回 200，`POST /generate` 返回 2
 丢弃量化、tokenizer、调度及 KV-transfer 选项；`--help` 已实测包含
 `--quantization`、`--kv-transfer-config`、`--tensor-parallel-size` 等原生参数，
 对应 CLI 回归通过。
+此外，主 `api_server` 的本地初始化已修复为向 Manager 完整透传
+`entrypoints_args`、`instance_args`、`engine_args` 和 `launch_args`；这保证本地
+多实例部署也能执行 V1 检测、P/D 配置和 CoreX 参数选择。专用回归通过。
 该变更已在 `10.31.10.210` 的 Python 3.12/CoreX 环境复核：同步同一源码后
 V1/KV/HTTP 定向回归为 45 passed，完整参数帮助可正常加载。
 无模型 mock 回归覆盖 `/health`、非流式 `/generate` 和 streaming wire format，

@@ -16,9 +16,11 @@ import subprocess
 import pytest
 import ray
 
-from llumnix.arg_utils import ManagerArgs
-from llumnix.entrypoints.setup import launch_ray_cluster, init_manager
+from llumnix.arg_utils import ManagerArgs, EntrypointsArgs, InstanceArgs, LaunchArgs
+from llumnix.entrypoints.setup import launch_ray_cluster, init_manager, init_llumnix_components
 from llumnix.entrypoints.utils import get_ip_address, retry_manager_method_sync, retry_manager_method_async
+from llumnix.entrypoints.utils import LaunchMode
+from llumnix.backends.backend_interface import BackendType
 from llumnix.queue.utils import init_request_output_queue_server
 from llumnix.utils import get_manager_name
 
@@ -55,6 +57,43 @@ def test_init_zmq(ray_env):
     port = 1234
     request_output_queue = init_request_output_queue_server(ip, port, 'zmq')
     assert request_output_queue is not None
+
+
+def test_local_setup_forwards_complete_manager_context(monkeypatch):
+    captured = {}
+
+    class _RemoteCall:
+        def remote(self, *args):
+            return args
+
+    class _Remote:
+        init_instances = _RemoteCall()
+
+    manager = _Remote()
+    entrypoints = EntrypointsArgs(host="127.0.0.1", port=8000)
+    manager_args = ManagerArgs(initial_instances=0)
+    instance_args = InstanceArgs()
+    engine_args = object()
+    launch_args = LaunchArgs(LaunchMode.LOCAL, BackendType.VLLM)
+
+    def fake_init_manager(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return manager
+
+    monkeypatch.setattr("llumnix.entrypoints.setup.init_manager", fake_init_manager)
+    monkeypatch.setattr("llumnix.entrypoints.setup.retry_manager_method_sync",
+                        lambda *_args, **_kwargs: ([], []))
+    monkeypatch.setattr("llumnix.entrypoints.setup.init_request_output_queue_server",
+                        lambda *_args, **_kwargs: object())
+    init_llumnix_components(entrypoints, manager_args, instance_args, engine_args, launch_args)
+    assert captured["args"] == (manager_args,)
+    assert captured["kwargs"] == {
+        "instance_args": instance_args,
+        "entrypoints_args": entrypoints,
+        "engine_args": engine_args,
+        "launch_args": launch_args,
+    }
 
 def test_retry_manager_method_sync(ray_env):
     manager = init_manager(ManagerArgs())
