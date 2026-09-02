@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import json
 import time
+from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 import uvicorn
@@ -24,7 +25,12 @@ from llumnix.backends.vllm.v1_engine import V1EngineAdapter
 
 
 def build_app(engine: V1EngineAdapter) -> FastAPI:
-    app = FastAPI()
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        yield
+        engine.shutdown()
+
+    app = FastAPI(lifespan=lifespan)
 
     @app.get("/health")
     async def health() -> Response:
@@ -55,10 +61,6 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
         if final is None:
             return JSONResponse({"error": "engine returned no output"}, status_code=500)
         return JSONResponse({"text": [prompt + x.text for x in final.outputs]})
-
-    @app.on_event("shutdown")
-    async def shutdown() -> None:
-        engine.shutdown()
 
     return app
 

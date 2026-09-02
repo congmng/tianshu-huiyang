@@ -299,6 +299,9 @@ raylet/dashboard 故障污染适配回归；V1 KV/affinity 定向测试在该夹
 32 GiB CoreX 卡上按默认 128 dummy requests 进行 sampler 预热时 OOM。使用本机
 Qwen3-14B 实测启动后，`GET /health` 返回 200，`POST /generate` 返回 200 和
 正常生成文本；该参数仍可由部署显式调高或调低。
+该入口的 FastAPI 生命周期已改用 `lifespan`，在关闭时幂等释放 V1 adapter；新增
+无模型 mock 回归覆盖 `/health`、非流式 `/generate` 和 streaming wire format，
+因此 HTTP 协议可在不加载大模型的情况下持续验证。
 
 以下是历史兼容性记录（不是当前 CoreX 安装要求）：仓库早期版本曾锁定 vLLM
 0.6.3：

@@ -238,3 +238,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   HTTP 生命周期）；V1 HTTP 行为以 `v1_api_server` 实测为准。完整 unit-test
   仍可能在历史 Ray actor/placement 长轮询处停滞，已停止该次运行并保留专用
   V1 门禁结果。
+- 独立 V1 API 入口改用 FastAPI `lifespan` 释放 adapter，移除弃用的
+  `@app.on_event("shutdown")`；新增无模型 health/普通生成/streaming mock 测试，
+  定向测试 `2 passed`。
