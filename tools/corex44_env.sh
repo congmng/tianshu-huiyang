@@ -7,8 +7,18 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   exit 2
 fi
 
-_corex44_root="/data1/congmng/llumnix"
-export CONDA_PREFIX="${_corex44_root}/.conda-corex44"
+_corex44_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Prefer a project-local clone on the primary host. The second CoreX host
+# uses the verified shared environment; callers may override either choice.
+_corex44_default_env="${_corex44_root}/.conda-corex44"
+if [[ ! -x "${_corex44_default_env}/bin/python" && -x "/data1/congmng/conda-envs/ds-corex44/bin/python" ]]; then
+  _corex44_default_env="/data1/congmng/conda-envs/ds-corex44"
+fi
+export CONDA_PREFIX="${LLUMNIX_COREX_PYTHON_ENV:-${_corex44_default_env}}"
+if [[ ! -x "${CONDA_PREFIX}/bin/python" ]]; then
+  echo "CoreX Python environment not found: ${CONDA_PREFIX}" >&2
+  return 1
+fi
 export PATH="/usr/local/corex-4.4.0/bin:${CONDA_PREFIX}/bin:${PATH}"
 export LD_LIBRARY_PATH="/usr/local/corex-4.4.0/lib64:${CONDA_PREFIX}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 # Triton/Inductor compiles a small CUDA-driver helper at runtime for
@@ -28,4 +38,4 @@ export VLLM_ENFORCE_CUDA_GRAPH="${VLLM_ENFORCE_CUDA_GRAPH:-0}"
 # ownership keys; configure_v1_kv_transfer also preserves this invariant.
 export PYTHONHASHSEED="${PYTHONHASHSEED:-0}"
 
-unset _corex44_root
+unset _corex44_root _corex44_default_env

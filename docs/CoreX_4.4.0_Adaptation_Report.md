@@ -54,6 +54,9 @@ rank-1 communicator 在该 CoreX 栈仍会 native abort，因此生产默认 tra
 CoreX 系统安装。
 CoreX 环境脚本现在在 Python 启动前设置 `PYTHONHASHSEED=0`（可显式覆盖），
 避免 vLLM 在 affinity 哈希探针中报告不可复现；两台机器应使用同一值。
+环境脚本不再硬编码项目 clone：默认优先使用 `.conda-corex44`，当其不存在时
+自动选择远端已验证的 `/data1/congmng/conda-envs/ds-corex44`，也可通过
+`LLUMNIX_COREX_PYTHON_ENV` 显式指定。这使同一套双机验证脚本适用于两台主机。
 
 最新 P2P 数据面验证已完成：CoreX 4.4.0 附带的 NCCL 2.24.3 不含 vLLM ctypes
 wrapper 会探测的可选 symmetric-memory window 符号。项目新增的

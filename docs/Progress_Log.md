@@ -273,3 +273,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - `tools/corex44_env.sh` 前移设置 `PYTHONHASHSEED=0`，保证 Python 启动前即
   满足 vLLM `sha256_cbor` affinity hash 的跨主机可复现要求；远端探针曾发现
   未设置该变量的诊断提示，未修改远端系统环境。
+- `tools/corex44_env.sh` 改为自动发现项目 clone 或远端共享 CoreX Python 环境，
+  支持 `LLUMNIX_COREX_PYTHON_ENV` 覆盖；本机路径和远端环境路径均已验证可选中，
+  V1/KV/API 回归为 `40 passed, 1 warning`。
