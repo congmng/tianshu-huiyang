@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 本轮基础复核（2026-09-02）
+
+对照论文第五章第三点 HLA（异构负载感知跨域请求调度），本机以 Qwen3-14B
+单卡 V1 API 完成 `/health`（200）和中文 `/generate`（非空结果）验证；调度、
+GlobalScheduler、KV affinity 定向测试 22 项全部通过。该结果确认基础推理与
+虚拟负载/亲和决策链路可运行，不将单实例结果扩展为跨域迁移性能结论。
+
 验证时间：2026-09-01 至 2026-09-02
 
 持续进度记录见 [Progress_Log.md](./Progress_Log.md)。本阶段提交包含 Python 3.12
