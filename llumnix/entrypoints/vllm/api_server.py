@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 import uvicorn
 import subprocess
 import os
+import math
 
 from vllm.sampling_params import SamplingParams
 
@@ -227,7 +228,15 @@ async def get_instance_list() -> Response:
             gpu_memory_total_bytes=instance_info.gpu_memory_total_bytes,
             gpu_memory_free_bytes=instance_info.gpu_memory_free_bytes,
             compute_capacity=instance_info.compute_capacity,
-            dispatch_load_metric=instance_info.dispatch_load_metric,
+            # ``-inf`` is the internal sentinel for an idle instance (and is
+            # intentionally the best value for the load dispatcher). JSON
+            # does not permit non-finite floats, so expose it as ``null``
+            # without changing the scheduler's comparison semantics.
+            dispatch_load_metric=(
+                instance_info.dispatch_load_metric
+                if math.isfinite(instance_info.dispatch_load_metric)
+                else None
+            ),
             kv_cache_affinity_blocks=len(instance_info.kv_cache_block_hashes),
         )
         inference_infos.append(inference_info)

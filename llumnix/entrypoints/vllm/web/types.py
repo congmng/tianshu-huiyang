@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pydantic import BaseModel
-from typing import Any
+from typing import Any, Optional
 
 
 class APIResponse(BaseModel):
@@ -23,7 +23,9 @@ class InferenceInstanceInfo(BaseModel):
     gpu_memory_total_bytes: int = 0
     gpu_memory_free_bytes: int = 0
     compute_capacity: float = 1.0
-    dispatch_load_metric: float = 0.0
+    # ``None`` represents the scheduler's non-finite idle sentinel in the
+    # JSON API. It is deliberately distinct from an actual numeric load.
+    dispatch_load_metric: Optional[float] = 0.0
     kv_cache_affinity_blocks: int = 0
 
 

@@ -224,6 +224,20 @@ def test_main_api_instance_list_exposes_v1_heterogeneous_state(monkeypatch):
     assert instance["kv_cache_affinity_blocks"] == 2
 
 
+def test_main_api_instance_list_serializes_idle_load_sentinel(monkeypatch):
+    import llumnix.entrypoints.vllm.api_server as main_api
+    from llumnix.instance_info import InstanceInfo
+
+    class _InstanceClient:
+        async def get_all_instances_info(self):
+            return [InstanceInfo(instance_id="idle-v1")]
+
+    monkeypatch.setattr(main_api, "llumnix_client", _InstanceClient())
+    response = asyncio.run(main_api.get_instance_list())
+    assert response.status_code == 200
+    assert json.loads(response.body)["data"][0]["dispatch_load_metric"] is None
+
+
 def test_llumlet_aborts_engine_when_v1_output_stream_fails():
     from llumnix.llumlet.llumlet import Llumlet
 

@@ -4,6 +4,24 @@
 > 状态。当前状态以 2026-09-02 的“两机模型级 P/D KV handoff 验证通过”及
 > 其后续条目为准。
 
+## 2026-09-02：论文第三点本机双实例部署与可观测性修复
+
+- 使用本地完整 Qwen3-14B 在两张 BI-V150 上以 `TP=1` 启动两个独立 V1
+  Llumlet（Ray placement group，各占一张 32 GiB 卡），主 API 的
+  `initial_instances=2` 成功注册两个实例；每个实例实际加载约 27.52 GiB 权重，
+  `gpu_memory_utilization=0.96` 时均保留约 2.65 GiB KV cache（17,344 tokens）。
+- 主 API 的 `GET /health`、`GET /instance_list`、`POST /generate` 均返回 HTTP
+  200。`/instance_list` 正确显示两实例的 32 GiB 总显存、实时空闲显存、算力容量
+  和 KV-affinity block 数；空闲实例内部以 `-inf` 表示最小调度负载，现安全映射为
+  JSON `null`，避免 FastAPI 因非有限浮点数返回 500，同时不改变调度比较语义。
+- 添加 API 回归覆盖该 idle-sentinel 序列化场景；`test_v1_api_server.py` 与
+  `test_v1_kv_affinity.py` 定向回归为 **24 passed**。这验证了论文第三点中
+  “异构状态采集—统一虚拟负载—多实例分发”的实际部署入口；本机同构双卡不用于
+  宣称跨域迁移性能，跨机 P/D KV handoff 仍以此前已验证的 ZMQ CPU staging 路径为准。
+- 实测也确认 Qwen3-14B 单卡实例不能使用低于模型驻留需求的
+  `gpu_memory_utilization=0.45`：V1 会报告负的 KV cache 可用内存并拒绝启动。
+  这是显存预算约束，部署示例应为单卡实例保留至少模型权重所需预算。
+
 ## 2026-09-02：论文第三点基础部署冒烟验证
 
 论文第三个研究点为“基于异构负载感知的跨域请求调度技术”，核心包括异构
