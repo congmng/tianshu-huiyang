@@ -308,6 +308,8 @@ mock 回归覆盖。
 独立入口直接调用 adapter 的路径也会记录公开 request-id 到 connector 内部
 request-id 的 alias；因此启用 P2P 后，断连或显式 abort 能准确取消真实 EngineCore
 请求，而不会只删除 HTTP 层 bookkeeping。
+正常完成的非流式/流式请求也会释放 adapter 的本地 request/alias/running 状态；
+staging 测试端口改为动态分配，重复运行或双机并行验证不会因固定端口残留而误报。
 
 以下是历史兼容性记录（不是当前 CoreX 安装要求）：仓库早期版本曾锁定 vLLM
 0.6.3：

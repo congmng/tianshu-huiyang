@@ -156,11 +156,19 @@ class V1EngineAdapter:
 
     def abort_request(self, request_id):
         ids = (request_id,) if isinstance(request_id, str) else tuple(request_id)
-        internal_ids = tuple(self._request_id_aliases.get(rid, rid) for rid in ids)
-        for rid in ids:
-            self.requests.pop(rid, None)
-            self._request_id_aliases.pop(rid, None)
-        return asyncio.create_task(self.abort(internal_ids))
+        # ``abort`` resolves aliases before removing local state. Passing the
+        # public IDs here avoids resolving twice and preserves cleanup of the
+        # public running queue entry.
+        return asyncio.create_task(self.abort(ids))
+
+    def release_request(self, request_id):
+        """Drop local bookkeeping after EngineCore has finished normally."""
+        self.requests.pop(request_id, None)
+        self._request_id_aliases.pop(request_id, None)
+        try:
+            self.running.remove(request_id)
+        except ValueError:
+            pass
 
     def get_running_queue(self) -> Deque:
         return self.running

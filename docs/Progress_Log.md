@@ -246,3 +246,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 修复独立 API 直连 `V1EngineAdapter.generate` 未登记 request alias 的问题，
   现在 connector 内部 ID 可被 abort 正确解析；API/KV transfer 定向回归为
   `30 passed, 1 warning`。
+- 补充正常完成请求的 adapter bookkeeping 释放，并修复 `abort_request` 的 alias
+  双重解析；ZMQ staging 单测改用动态空闲端口。API/KV transfer 回归为
+  `31 passed, 1 warning`，compileall 通过。

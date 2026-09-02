@@ -57,6 +57,10 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
                 # retain a producer or consumer stream indefinitely.
                 if not completed:
                     await engine.abort(request_id)
+                else:
+                    release = getattr(engine, "release_request", None)
+                    if release is not None:
+                        release(request_id)
 
         if stream:
             return StreamingResponse(stream_results(), media_type="application/octet-stream")
@@ -68,7 +72,13 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
                 return Response(status_code=499)
             final = output
         if final is None:
+            release = getattr(engine, "release_request", None)
+            if release is not None:
+                release(request_id)
             return JSONResponse({"error": "engine returned no output"}, status_code=500)
+        release = getattr(engine, "release_request", None)
+        if release is not None:
+            release(request_id)
         return JSONResponse({"text": [prompt + x.text for x in final.outputs]})
 
     return app

@@ -1,4 +1,11 @@
 from types import SimpleNamespace
+import socket
+
+
+def _free_port():
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
 
 
 def test_kvtransfer_config_is_opt_in(monkeypatch):
@@ -227,9 +234,11 @@ def test_corex_zmq_staging_send_timeout_without_peer():
     import torch
     from llumnix.backends.vllm.corex_p2p_connector import CoreXZmqP2pEngine
 
+    port = _free_port()
+
     class Config:
         kv_ip = "127.0.0.1"
-        kv_port = 39103
+        kv_port = port
 
         @staticmethod
         def get_from_extra_config(name, default):
@@ -238,7 +247,7 @@ def test_corex_zmq_staging_send_timeout_without_peer():
     engine = CoreXZmqP2pEngine(0, Config())
     try:
         with pytest.raises(TimeoutError, match="timed out waiting"):
-            engine.send_tensor("missing#layer", torch.ones(1), "127.0.0.1:39104")
+            engine.send_tensor("missing#layer", torch.ones(1), f"127.0.0.1:{port + 1}")
     finally:
         engine.shutdown()
 
@@ -249,7 +258,7 @@ def test_corex_zmq_staging_receive_timeout_without_tensor():
 
     class Config:
         kv_ip = "127.0.0.1"
-        kv_port = 39105
+        kv_port = _free_port()
 
         @staticmethod
         def get_from_extra_config(name, default):
