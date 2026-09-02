@@ -263,6 +263,47 @@ def test_corex_zmq_staging_receive_timeout_without_tensor():
         engine.shutdown()
 
 
+def test_corex_zmq_staging_recovers_after_malformed_payload():
+    import msgpack
+    import torch
+    import zmq
+    from llumnix.backends.vllm.corex_p2p_connector import CoreXZmqP2pEngine
+
+    consumer = CoreXZmqP2pEngine(
+        local_rank=0,
+        config=SimpleNamespace(kv_ip="127.0.0.1", kv_port=39106),
+    )
+    producer = CoreXZmqP2pEngine(
+        local_rank=0,
+        config=SimpleNamespace(kv_ip="127.0.0.1", kv_port=39107),
+    )
+    socket = consumer.context.socket(zmq.DEALER)
+    socket.setsockopt(zmq.RCVTIMEO, 1000)
+    socket.connect("tcp://127.0.0.1:39106")
+    try:
+        socket.send_multipart([
+            msgpack.dumps({
+                "cmd": "PUT_CPU",
+                "tensor_id": "bad#layer",
+                "shape": (4,),
+                "dtype": "float16",
+            }),
+            b"too-short",
+        ])
+        assert socket.recv() == b"1"
+        expected = torch.arange(4, dtype=torch.float16)
+        assert producer.send_tensor("good#layer", expected, "127.0.0.1:39106")
+        deadline = __import__("time").monotonic() + 2
+        while "good#layer" not in consumer.recv_store:
+            assert __import__("time").monotonic() < deadline
+            __import__("time").sleep(0.01)
+        torch.testing.assert_close(consumer.recv_store["good#layer"], expected)
+    finally:
+        socket.close(linger=0)
+        producer.shutdown()
+        consumer.shutdown()
+
+
 def test_corex_compat_rewrites_explicit_vllm_p2p_config(monkeypatch):
     from llumnix.backends.vllm import v1_kv_transfer
     from vllm.config import KVTransferConfig

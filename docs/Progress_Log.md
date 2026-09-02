@@ -201,5 +201,7 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   防止对端故障导致 listener 线程退出或请求永久阻塞；回归保持 `40 passed`。
 - 新增无对端发送、无 tensor 接收的超时故障恢复测试；V1 KV transfer 定向测试
   当前为 `25 passed`，超时默认值可通过 `zmq_recv_timeout_s` 调整。
+- 新增 malformed payload 后继续接收合法 tensor 的恢复测试，确认 listener 不会
+  因单个坏包退出；V1 KV transfer 定向测试当前为 `26 passed`。
 - Manager 的 V1 P/D 启动异常现在会并行取消已启动的 producer 与 consumer，
   防止 consumer 阻塞等待 KV 或 producer 遗留发送任务；相关回归保持 `42 passed`。

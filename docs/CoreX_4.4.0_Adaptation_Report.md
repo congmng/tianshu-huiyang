@@ -264,7 +264,7 @@ staging transport 对来自对端的 payload 做异常隔离，并对发送确�
 增加可配置超时（`zmq_recv_timeout_s`，默认 120 秒）。因此对端崩溃或网络异常会
 返回明确的超时/协议错误，而不会静默终止 listener 或永久阻塞 EngineCore。
 无对端发送和缺失 tensor 接收的故障路径均有测试覆盖；V1 KV transfer 定向测试
-为 25 项通过。
+为 26 项通过，并覆盖坏 payload 后 listener 继续处理合法 tensor 的恢复路径。
 
 Manager 的 V1 P/D 双请求启动路径在任一侧失败时，会同时向 producer 和 consumer
 发送取消请求，并逐侧记录清理异常；因此不会留下等待 KV 的 consumer 或孤立的
