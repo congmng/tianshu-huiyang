@@ -58,6 +58,8 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   避免部署收敛期间请求悬挂；相关回归测试当前为 32 passed。一次旧
   `test_manager.py` 运行因已连接 Ray 集群的 raylet 被 OOM/终止而在 teardown
   失败，不作为本次代码功能失败结论。
+- 若 producer 已启动而 consumer actor 启动失败，Manager 会 best-effort abort
+  producer，避免遗留后台 KV 发送任务。
 
 ## 2026-09-01：跨主机事件与 hash 一致性验证
 

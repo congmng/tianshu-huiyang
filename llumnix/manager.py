@@ -286,19 +286,32 @@ class Manager:
                         llumnix_kv_decode_address=decode_endpoint,
                         llumnix_suppress_output=True,
                     )
-                    await self.instances[prefill_id].generate.remote(
-                        request_id, server_info, request_expected_steps, *args,
-                        **producer_kwargs
-                    )
-                    consumer_kwargs = dict(kwargs)
-                    consumer_kwargs.update(
-                        llumnix_kv_prefill_address=prefill_endpoint,
-                        llumnix_public_request_id=request_id,
-                    )
-                    await self.instances[decode_id].generate.remote(
-                        request_id, server_info, float("inf"), *args,
-                        **consumer_kwargs
-                    )
+                    try:
+                        await self.instances[prefill_id].generate.remote(
+                            request_id, server_info, request_expected_steps, *args,
+                            **producer_kwargs
+                        )
+                        consumer_kwargs = dict(kwargs)
+                        consumer_kwargs.update(
+                            llumnix_kv_prefill_address=prefill_endpoint,
+                            llumnix_public_request_id=request_id,
+                        )
+                        await self.instances[decode_id].generate.remote(
+                            request_id, server_info, float("inf"), *args,
+                            **consumer_kwargs
+                        )
+                    except Exception:
+                        # Do not leave a producer stream sending KV after the
+                        # consumer failed to start.  Best-effort cancellation
+                        # is intentionally local and does not mask the error.
+                        try:
+                            await self.instances[prefill_id].abort.remote(request_id)
+                        except Exception:
+                            logger.warning(
+                                "failed to clean up V1 P/D producer request %s",
+                                request_id,
+                            )
+                        raise
                     instance_id = decode_id
                     self.request_instances[request_id] = {prefill_id, decode_id}
             else:
