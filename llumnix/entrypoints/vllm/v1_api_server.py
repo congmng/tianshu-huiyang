@@ -71,6 +71,12 @@ def main() -> None:
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.70)
     parser.add_argument("--max-model-len", type=int, default=4096)
+    parser.add_argument(
+        "--max-num-seqs",
+        type=int,
+        default=4,
+        help="Maximum concurrent sequences; 4 avoids sampler warmup OOM on 32 GiB CoreX cards.",
+    )
     args, unknown = parser.parse_known_args()
     engine_args = AsyncEngineArgs(
         model=args.model,
@@ -78,6 +84,7 @@ def main() -> None:
         dtype="float16",
         gpu_memory_utilization=args.gpu_memory_utilization,
         max_model_len=args.max_model_len,
+        max_num_seqs=args.max_num_seqs,
         enforce_eager=True,
     )
     # Keep unknown options available for future V1 argument forwarding rather

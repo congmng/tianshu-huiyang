@@ -270,6 +270,11 @@ Manager 的 V1 P/D 双请求启动路径在任一侧失败时，会同时向 pro
 发送取消请求，并逐侧记录清理异常；因此不会留下等待 KV 的 consumer 或孤立的
 producer 发送任务。相关回归测试保持 42 项通过。
 
+独立 `v1_api_server` 入口新增 `--max-num-seqs`（默认 4），避免 Qwen3-14B 在
+32 GiB CoreX 卡上按默认 128 dummy requests 进行 sampler 预热时 OOM。使用本机
+Qwen3-14B 实测启动后，`GET /health` 返回 200，`POST /generate` 返回 200 和
+正常生成文本；该参数仍可由部署显式调高或调低。
+
 以下是历史兼容性记录（不是当前 CoreX 安装要求）：仓库早期版本曾锁定 vLLM
 0.6.3：
 

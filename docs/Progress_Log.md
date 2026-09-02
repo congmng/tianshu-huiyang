@@ -205,3 +205,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   因单个坏包退出；V1 KV transfer 定向测试当前为 `26 passed`。
 - Manager 的 V1 P/D 启动异常现在会并行取消已启动的 producer 与 consumer，
   防止 consumer 阻塞等待 KV 或 producer 遗留发送任务；相关回归保持 `42 passed`。
+- 独立 `v1_api_server` 实测发现 Qwen3-14B 在 32 GiB 卡上需要限制 vLLM
+  sampler 预热并发；入口新增 `--max-num-seqs`（默认 4）。使用 CoreX 栈真实
+  验证 `/health=200`，`/generate=200` 并返回正常文本。
