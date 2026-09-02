@@ -151,12 +151,49 @@ class _RawRequest(_Request):
         return ["not", "an", "object"]
 
 
+class _LegacyClient:
+    def __init__(self):
+        self.calls = []
+        self.aborts = []
+
+    async def generate(self, prompt, params, request_id):
+        self.calls.append((prompt, params, request_id))
+
+        class _Stream:
+            async def generator(_self):
+                yield type("Output", (), {
+                    "prompt": prompt,
+                    "outputs": [type("Completion", (), {"text": " world"})()],
+                })()
+        return _Stream()
+
+    async def abort(self, request_id):
+        self.aborts.append(request_id)
+
+
 def _route(app, path, method):
     return next(
         route.endpoint
         for route in app.routes
         if getattr(route, "path", None) == path and method in route.methods
     )
+
+
+def test_main_api_validates_requests_and_preserves_public_request_id(monkeypatch):
+    import llumnix.entrypoints.vllm.api_server as main_api
+
+    client = _LegacyClient()
+    monkeypatch.setattr(main_api, "llumnix_client", client)
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(main_api.generate(_RawRequest({})))
+    assert error.value.status_code == 400
+
+    response = asyncio.run(main_api.generate(_Request({
+        "prompt": "hello", "request_id": "public-id", "max_tokens": 1,
+    })))
+    assert response.status_code == 200
+    assert json.loads(response.body) == {"text": ["hello world"]}
+    assert client.calls[0][2] == "public-id"
 
 
 def test_v1_api_health_and_generate_without_model():
