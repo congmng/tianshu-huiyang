@@ -110,6 +110,10 @@ class EntrypointsArgs:
         parser.add_argument('--launch-ray-cluster',
                             action='store_true',
                             help='if launch ray cluster')
+        parser.add_argument('--no-launch-ray-cluster',
+                            action='store_false',
+                            dest='launch_ray_cluster',
+                            help='connect to an existing Ray cluster instead of stopping/launching one')
         parser.add_argument("--ray-cluster-port",
                             type=int,
                             help='ray cluster port')

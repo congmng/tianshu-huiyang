@@ -448,3 +448,8 @@ CoreX 4.4.0 软件栈中提供的是 vLLM 0.11.2。导入旧后端的实测失�
 说明：论文第三点中的跨域请求迁移，在当前 V1 栈由 connector 驱动的 P/D KV
 handoff 实现；旧 vLLM 0.6 的任意时刻 block-manager 迁移接口仍不兼容，不能将
 二者混称为同一 API。
+为支持真实跨机控制面，已将两端 Ray 统一到 Python 3.12/CoreX 的
+`2.52.1+corex.4.4.0`，并验证 Ray head/worker 汇聚为 2 节点、2 GPU；远端已
+通过内网续传获得完整 Qwen3-14B 权重（8 个分片索引一致）。同时新增
+`--no-launch-ray-cluster`，解决配置默认自动 `ray stop` 与已有 head 冲突的问题。
+该参数是跨机部署的必要安全开关，使用时 API 仅连接集群、不重启 Ray。

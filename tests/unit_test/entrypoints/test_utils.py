@@ -13,10 +13,12 @@
 
 import os
 import subprocess
+import sys
 import pytest
 import ray
 
-from llumnix.arg_utils import ManagerArgs, EntrypointsArgs, InstanceArgs, LaunchArgs
+from llumnix.arg_utils import (ManagerArgs, EntrypointsArgs, InstanceArgs, LaunchArgs,
+                               LlumnixArgumentParser)
 from llumnix.entrypoints.setup import launch_ray_cluster, init_manager, init_llumnix_components
 from llumnix.entrypoints.utils import get_ip_address, retry_manager_method_sync, retry_manager_method_async
 from llumnix.entrypoints.utils import LaunchMode
@@ -44,6 +46,15 @@ def test_launch_ray_cluster(monkeypatch):
     assert ["ray", "stop"] in calls
     assert ["ray", "start", "--head", f"--node-ip-address={ip_address}",
             "--port=18079"] in calls
+
+
+def test_no_launch_ray_cluster_overrides_config_default(monkeypatch):
+    parser = LlumnixArgumentParser()
+    EntrypointsArgs.add_cli_args(parser)
+    monkeypatch.setattr(sys, "argv", ["test", "--no-launch-ray-cluster"])
+    cli_args = parser.parse_args()
+    args = EntrypointsArgs(launch_ray_cluster=cli_args.launch_ray_cluster)
+    assert args.launch_ray_cluster is False
 
 def test_init_manager(ray_env):
     manager = init_manager(ManagerArgs())
