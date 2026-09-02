@@ -280,3 +280,5 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   `/data1/congmng/conda-envs/ds-corex44`，编译及 `sha256_cbor` hash 探针通过，
   `PYTHONHASHSEED=0` 生效。报告中的早期 native-NCCL/P/D 阶段结论已显式标为
   历史记录，当前正式结论仍为两机 `zmq_cpu` 模型级 handoff 已验证。
+- 随后将最新报告与代码同步到 `6a1f5c2`，远端 Python 3.12.13 编译及关键
+  endpoint/hash 导入探针通过；两机部署基线与 GitHub `main` 一致。

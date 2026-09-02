@@ -50,7 +50,7 @@ rank-1 communicator 在该 CoreX 栈仍会 native abort，因此生产默认 tra
 （本段记录早期仅完成事件/哈希验证的阶段性状态；当前结论以文档后面的
 “两机模型级 P/D handoff：已验证（ZMQ CPU staging）”为准。）
 
-当前代码也已通过 Git bundle 同步到 `10.31.10.210` 的 `f084a52`；远端只读核验
+当前代码也已通过 Git bundle 同步到 `10.31.10.210` 的 `6a1f5c2`；远端只读核验
 为 Python `3.12.13`、vLLM `0.11.2`、PyTorch `2.7.1`，与本机正式 V1 验证栈一致。
 这使已完成的双机 affinity/P/D 验证可复现于当前源码，而不需要修改远端驱动或
 CoreX 系统安装。
