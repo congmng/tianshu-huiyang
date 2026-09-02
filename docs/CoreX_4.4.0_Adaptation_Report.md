@@ -222,6 +222,21 @@ NCCL 数据面日志。`CoreXP2pNcclConnector` 的进程内 shim 现启用该 wr
 证据证明 scheduler、attention hook、跨主机握手和 producer 保存路径均工作，
 但 CoreX communicator 的模型级 consumer 稳定性仍未通过验证。
 
+### 两机模型级 P/D handoff：已验证（ZMQ CPU staging，2026-09-02）
+
+为规避上述 CoreX NCCL rank-1 原生崩溃，`CoreXP2pNcclConnector` 新增
+`corex_transport`。默认 `zmq_cpu` 使用 ZMQ 传输连续 CPU staging buffer，再由
+consumer 放入 GPU paged KV cache；显式设为 `nccl` 才使用上游 NCCL 路径。该选择
+保留了 V1 P2P connector 的 request ID、per-layer KV ownership、调度 metadata 与
+阻塞 load 语义，而不修改驱动、CoreX 安装或共享库。
+
+两机 Qwen3-14B 实测中，`10.31.10.62` producer 保存并发送 40 个 attention
+layers，`10.31.10.210` consumer 接收全部 KV 后先输出 `重复的`，最终返回
+`重复的句子`（`finished=True`）。这证明 Python 3.12/CoreX 栈上的 V1 P/D 模型级
+KV handoff 已可运行。CPU staging 的代价是额外 host-memory copy；原生 NCCL 模式
+仍保留为非默认诊断/优化路径，待 CoreX 修复 rank-1 communicator 的 native abort
+后再启用。
+
 当前仓库明确锁定的是 vLLM 0.6.3：
 
 ```text

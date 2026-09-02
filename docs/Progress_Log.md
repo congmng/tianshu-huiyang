@@ -167,3 +167,18 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   的 cuMem allocator 模式（`NCCL_CUMEM_ENABLE=0`），且将设置前移到 connector
   模块导入时；针对性单元测试仍为 `19 passed`。模型级 handoff 尚未宣称成功，
   需要继续确认 CoreX/远端运行时的 communicator ABI 与 allocator 兼容性。
+
+## 2026-09-02：两机模型级 P/D KV handoff 验证通过
+
+- 在两台 CoreX 4.4 / Python 3.12 / vLLM 0.11.2 主机上，以同一内部 request ID
+  运行 Qwen3-14B producer/consumer。CoreX 专用 connector 默认使用
+  `corex_transport=zmq_cpu`：以 ZMQ 传输 CPU-staged KV tensor，再注入 consumer
+  GPU paged cache；`corex_transport=nccl` 仍保留为显式性能实验选项。
+- 实测 producer 在 `10.31.10.62` 导出全部 40 个 attention layer KV；
+  `10.31.10.210` consumer 完成 KV load 后输出 `重复的`，随后以
+  `finished=True` 输出 `重复的句子`。没有 EngineCore 崩溃或 NCCL rank-1 初始化。
+- 该结果首次证明当前 V1 P/D 内部 request ID、调度 metadata、attention hooks、
+  跨主机 KV 数据面与 consumer 公开生成能够端到端协同。原生 NCCL 模式仍因
+  CoreX rank-1 native double-free 保持非默认诊断路径，不能作为生产默认。
+- 本地 V1 KV transfer 测试：`20 passed`；同时修复测试失败日志夹具漏导入
+  `tempfile` 的 Python 3.12 路径。
