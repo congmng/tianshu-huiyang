@@ -63,6 +63,19 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - endpoint 发布现在优先采用显式 vLLM `KVTransferConfig.kv_ip`，再由
   `LLUMNIX_KV_IP` 覆盖；这支持不依赖 Llumnix legacy 参数的双机配置。
 
+## 2026-09-02：两机模型级启动探针
+
+- 通过 Git bundle 将当前代码部署到 `10.31.10.210`，避免 GitHub 拉取超时；
+  远端补齐缺失的用户态 `yacs` 与 `backports.zstd` 后，Llumnix 可正常导入。
+- 两端使用已有 Qwen3-14B 权重、Python 3.12、vLLM 0.11.2、CoreX 4.4.0，
+  各用一张 GPU 成功加载模型和 `CoreXP2pNcclConnector`；本机与远端均报告
+  17K 级 KV cache 并监听 `19052` 基础端口。
+- 独立 `AsyncLLM` producer/consumer 探针尚未观察到 `ncclCommInitRank`、KV
+  send/recv 或 consumer 输出。当前证据证明“模型/connector 可启动”，不证明
+  “模型级 KV handoff 已完成”；探针脚本保留为 `tools/v1_p2p_model_probe.py`，
+  默认使用超过一个 KV block 的 prompt，后续继续定位 vLLM P2P 调度元数据条件。
+- 探针结束后已清理两端 engine 进程，GPU 恢复空闲；没有修改驱动或系统安装。
+
 ## 2026-09-01：跨主机事件与 hash 一致性验证
 
 - 本机 `10.31.10.62` 使用 vLLM `EventPublisherFactory` 在
