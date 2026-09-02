@@ -57,6 +57,10 @@ def _disable_corex_cumem_for_p2p() -> None:
     manager; no environment or shared library outside this worker is changed.
     """
     try:
+        # Set this before any worker-side communicator is constructed.  The
+        # context-manager shim below also re-applies it around each InitRank
+        # call because vLLM restores the environment on context exit.
+        os.environ["NCCL_CUMEM_ENABLE"] = "0"
         from vllm.distributed.kv_transfer.kv_connector.v1.p2p import (
             p2p_nccl_engine,
         )
