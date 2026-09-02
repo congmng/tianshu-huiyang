@@ -10,6 +10,7 @@ library is modified.
 from __future__ import annotations
 
 import re
+import os
 
 from vllm.distributed.device_communicators.pynccl_wrapper import NCCLLibrary
 from vllm.distributed.kv_transfer.kv_connector.v1.p2p.p2p_nccl_connector import (
@@ -18,6 +19,21 @@ from vllm.distributed.kv_transfer.kv_connector.v1.p2p.p2p_nccl_connector import 
 from vllm.logger import init_logger
 
 logger = init_logger(__name__)
+
+
+def _enable_v1_kv_attention_hooks() -> None:
+    """Enable the upstream V1 attention transfer wrapper for this connector.
+
+    CoreX's vLLM build guards the direct-call attention wrapper with
+    ``VLLM_SUPPORT_IXSERVER``.  That wrapper is also the sole place that
+    calls ``save_kv_layer`` / ``wait_for_layer_load`` for V1 connectors.
+    P2P metadata therefore reaches the worker but no KV tensors are ever
+    exported when the guard is left at its CoreX default (false).  The wrapper
+    is generic vLLM connector code; enabling it in the process that explicitly
+    loads the CoreX P2P connector restores the normal V1 connector lifecycle
+    without changing the installed CoreX or NCCL libraries.
+    """
+    os.environ.setdefault("VLLM_SUPPORT_IXSERVER", "1")
 
 
 def _drop_unavailable_optional_nccl_symbols() -> None:
@@ -47,6 +63,7 @@ def _drop_unavailable_optional_nccl_symbols() -> None:
 
 
 _drop_unavailable_optional_nccl_symbols()
+_enable_v1_kv_attention_hooks()
 
 
 class CoreXP2pNcclConnector(P2pNcclConnector):
