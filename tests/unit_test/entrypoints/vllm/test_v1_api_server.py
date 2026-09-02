@@ -1,6 +1,8 @@
 import asyncio
 import json
 
+import pytest
+from fastapi import HTTPException
 from vllm import SamplingParams
 
 from llumnix.entrypoints.vllm.v1_api_server import build_app
@@ -112,6 +114,15 @@ def test_v1_api_health_and_generate_without_model():
     assert json.loads(response.body) == {"text": ["hello world"]}
     assert engine.calls[0][2] == "r1"
     assert engine.released == ["r1"]
+
+
+def test_v1_api_rejects_invalid_request_without_engine_call():
+    engine = _Engine()
+    generate = _route(build_app(engine), "/generate", "POST")
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(generate(_Request({"max_tokens": 1})))
+    assert error.value.status_code == 400
+    assert not engine.calls
 
 
 def test_v1_api_streaming_wire_format_without_model():

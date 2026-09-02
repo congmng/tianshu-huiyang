@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from vllm import SamplingParams
@@ -38,11 +38,20 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
 
     @app.post("/generate")
     async def generate(request: Request) -> Response:
-        body = await request.json()
-        prompt = body.pop("prompt")
-        stream = body.pop("stream", False)
-        request_id = body.pop("request_id", f"v1-{time.time_ns()}")
-        params = SamplingParams(**body)
+        try:
+            body = await request.json()
+            prompt = body.pop("prompt")
+            if not isinstance(prompt, str):
+                raise ValueError("prompt must be a string")
+            stream = body.pop("stream", False)
+            if not isinstance(stream, bool):
+                raise ValueError("stream must be a boolean")
+            request_id = body.pop("request_id", f"v1-{time.time_ns()}")
+            if not isinstance(request_id, str) or not request_id:
+                raise ValueError("request_id must be a non-empty string")
+            params = SamplingParams(**body)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=f"invalid generate request: {exc}") from exc
         results = engine.generate(prompt, params, request_id)
 
         async def stream_results() -> AsyncGenerator[bytes, None]:

@@ -313,6 +313,9 @@ staging 测试端口改为动态分配，重复运行或双机并行验证不会
 环境审计显示 CoreX 发行环境可能未安装 `scipy`/`pandas`；profiling 模块现将这
 两项仅用于模拟器拟合和 CSV 分析的依赖延迟加载。核心 V1 serving、KV affinity
 和 P/D handoff 不再因导入 profiling 失败；真正使用分析功能时会给出明确安装提示。
+独立 V1 HTTP 入口现在会把缺失或类型错误的 prompt、stream、request-id 及采样
+参数转为 HTTP 400，且不会启动 EngineCore request；因此部署端可区分客户端输入
+错误和 CoreX/vLLM 运行时故障。
 
 以下是历史兼容性记录（不是当前 CoreX 安装要求）：仓库早期版本曾锁定 vLLM
 0.6.3：

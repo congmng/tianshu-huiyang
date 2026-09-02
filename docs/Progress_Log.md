@@ -252,3 +252,5 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - `scipy`/`pandas` 改为 profiling 分析功能的延迟依赖，缺失时返回明确 RuntimeError；
   核心 V1 serving 不受影响。新增可选依赖回归后 API/KV/profiling 测试为
   `33 passed, 1 warning`。
+- V1 HTTP `/generate` 增加输入验证：非法 prompt/stream/request-id/采样参数返回
+  HTTP 400，并保证不调用 EngineCore。API/KV/profiling 回归为 `34 passed, 1 warning`。
