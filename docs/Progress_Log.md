@@ -22,6 +22,19 @@
   `gpu_memory_utilization=0.45`：V1 会报告负的 KV cache 可用内存并拒绝启动。
   这是显存预算约束，部署示例应为单卡实例保留至少模型权重所需预算。
 
+## 2026-09-02：远端 CoreX 栈同步与跨机 affinity 复核
+
+- 通过 Git bundle 将提交 `1ba0dea` 同步到 `10.31.10.210`；远端 Python
+  `3.12.13`、CoreX/Driver `4.4.0`、PyTorch `2.7.1`、vLLM `0.11.2`、Ray
+  `2.58.0` 环境均可导入，`compileall -q llumnix` 通过，核心 V1/API/KV 定向
+  回归全部通过（远端使用其现有环境执行）。
+- 远端项目目录当前没有完整 Qwen3-14B 权重，因此未重复传输约 29 GiB 模型；
+  使用两端相同的 `KVCacheAffinityIndex.prefix_hashes` 输入验证
+  `sha256_cbor` 结果完全一致：
+  `c9d58ba6...ef071cb`、`24125b23...54ab2d6`。这证明跨主机 affinity 哈希
+  算法在 Python 3.12/CoreX 两套环境中保持一致；模型级跨域请求仍复用此前已
+  完成的双机 P/D handoff 证据。
+
 ## 2026-09-02：论文第三点基础部署冒烟验证
 
 论文第三个研究点为“基于异构负载感知的跨域请求调度技术”，核心包括异构
