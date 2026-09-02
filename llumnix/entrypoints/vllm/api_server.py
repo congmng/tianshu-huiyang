@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 import time
 import asyncio
 import json
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 import uvicorn
 import subprocess
@@ -75,11 +75,22 @@ async def generate(request: Request) -> Response:
     - stream: whether to stream the results or not.
     - other fields: the sampling parameters (See `SamplingParams` for details).
     """
-    request_dict = await request.json()
-    prompt = request_dict.pop("prompt")
-    stream = request_dict.pop("stream", False)
-    sampling_params = SamplingParams(**request_dict)
-    request_id = random_uuid()
+    try:
+        request_dict = await request.json()
+        if not isinstance(request_dict, dict):
+            raise ValueError("request body must be a JSON object")
+        prompt = request_dict.pop("prompt")
+        if not isinstance(prompt, str):
+            raise ValueError("prompt must be a string")
+        stream = request_dict.pop("stream", False)
+        if not isinstance(stream, bool):
+            raise ValueError("stream must be a boolean")
+        request_id = request_dict.pop("request_id", random_uuid())
+        if not isinstance(request_id, str) or not request_id:
+            raise ValueError("request_id must be a non-empty string")
+        sampling_params = SamplingParams(**request_dict)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=f"invalid generate request: {exc}") from exc
 
     # Use LlumnixClientVLLM's generate and abort api to replace with vLLM AsyncLLMEngine's generate and abort api.
     results_generator = await llumnix_client.generate(
@@ -88,11 +99,19 @@ async def generate(request: Request) -> Response:
 
     # Streaming case
     async def stream_results() -> AsyncGenerator[bytes, None]:
-        async for request_output in results_generator.generator():
-            prompt = request_output.prompt
-            text_outputs = [prompt + output.text for output in request_output.outputs]
-            ret = {"text": text_outputs}
-            yield (json.dumps(ret) + "\0").encode("utf-8")
+        completed = False
+        try:
+            async for request_output in results_generator.generator():
+                prompt = request_output.prompt
+                text_outputs = [prompt + output.text for output in request_output.outputs]
+                ret = {"text": text_outputs}
+                yield (json.dumps(ret) + "\0").encode("utf-8")
+            completed = True
+        finally:
+            # A disconnected streaming client must not leave a V1 producer or
+            # P/D consumer active behind the Manager.
+            if not completed:
+                await llumnix_client.abort(request_id)
 
     if stream:
         return StreamingResponse(stream_results())

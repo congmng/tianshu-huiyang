@@ -348,6 +348,9 @@ Qwen3-14B 实测启动后，`GET /health` 返回 200，`POST /generate` 返回 2
 此外，主 `api_server` 的本地初始化已修复为向 Manager 完整透传
 `entrypoints_args`、`instance_args`、`engine_args` 和 `launch_args`；这保证本地
 多实例部署也能执行 V1 检测、P/D 配置和 CoreX 参数选择。专用回归通过。
+主 HTTP `/generate` 入口也已与独立 V1 入口对齐：非对象 JSON、缺失或错误类型
+的 prompt/stream/request-id 及非法采样参数统一返回 HTTP 400；streaming 客户端
+断连会调用 Manager abort，避免 V1 请求或 P/D 双请求残留。
 该变更已在 `10.31.10.210` 的 Python 3.12/CoreX 环境复核：同步同一源码后
 V1/KV/HTTP 定向回归为 45 passed，完整参数帮助可正常加载。
 无模型 mock 回归覆盖 `/health`、非流式 `/generate` 和 streaming wire format，

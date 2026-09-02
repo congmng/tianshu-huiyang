@@ -38,6 +38,9 @@ counter。异构容量排序与回退逻辑新增测试，相关定向回归为 
 主 `api_server` 本地部署路径修复 Manager 上下文透传，避免 V1/P-D 配置在本地
 多实例启动时丢失；专用入口回归与 V1/KV 回归合计 44 passed。
 
+主 API `/generate` 已补齐 V1 请求校验与 streaming 断连 abort 生命周期，行为与
+独立 `v1_api_server` 一致；`compileall` 通过。
+
 两机同步到提交 `5893493` 后分别执行同一 44 项定向回归均通过。实机采样的
 `virtual_usage` 为本机 0.00468、远端 0.00522，差异由两端的实时空闲显存产生；
 同一 token prefix 的 `sha256_cbor` 哈希保持逐字节一致。
