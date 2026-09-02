@@ -263,6 +263,8 @@ request lifecycle、CoreX connector 和 request-ID 处理；多实例调度仍�
 staging transport 对来自对端的 payload 做异常隔离，并对发送确认和接收 KV
 增加可配置超时（`zmq_recv_timeout_s`，默认 120 秒）。因此对端崩溃或网络异常会
 返回明确的超时/协议错误，而不会静默终止 listener 或永久阻塞 EngineCore。
+无对端发送和缺失 tensor 接收的故障路径均有测试覆盖；V1 KV transfer 定向测试
+为 25 项通过。
 
 当前仓库明确锁定的是 vLLM 0.6.3：
 

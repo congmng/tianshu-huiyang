@@ -199,3 +199,5 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   Manager 负责。
 - staging transport 增加 malformed payload 防护、发送/接收超时和可诊断异常，
   防止对端故障导致 listener 线程退出或请求永久阻塞；回归保持 `40 passed`。
+- 新增无对端发送、无 tensor 接收的超时故障恢复测试；V1 KV transfer 定向测试
+  当前为 `25 passed`，超时默认值可通过 `zmq_recv_timeout_s` 调整。

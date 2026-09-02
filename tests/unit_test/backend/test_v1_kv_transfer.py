@@ -222,6 +222,47 @@ def test_corex_zmq_staging_round_trip_cpu_tensor():
         consumer.shutdown()
 
 
+def test_corex_zmq_staging_send_timeout_without_peer():
+    import pytest
+    import torch
+    from llumnix.backends.vllm.corex_p2p_connector import CoreXZmqP2pEngine
+
+    class Config:
+        kv_ip = "127.0.0.1"
+        kv_port = 39103
+
+        @staticmethod
+        def get_from_extra_config(name, default):
+            return 0.05 if name == "zmq_recv_timeout_s" else default
+
+    engine = CoreXZmqP2pEngine(0, Config())
+    try:
+        with pytest.raises(TimeoutError, match="timed out waiting"):
+            engine.send_tensor("missing#layer", torch.ones(1), "127.0.0.1:39104")
+    finally:
+        engine.shutdown()
+
+
+def test_corex_zmq_staging_receive_timeout_without_tensor():
+    import pytest
+    from llumnix.backends.vllm.corex_p2p_connector import CoreXZmqP2pEngine
+
+    class Config:
+        kv_ip = "127.0.0.1"
+        kv_port = 39105
+
+        @staticmethod
+        def get_from_extra_config(name, default):
+            return 0.05 if name == "zmq_recv_timeout_s" else default
+
+    engine = CoreXZmqP2pEngine(0, Config())
+    try:
+        with pytest.raises(TimeoutError, match="timed out waiting"):
+            engine.recv_tensor("missing#layer")
+    finally:
+        engine.shutdown()
+
+
 def test_corex_compat_rewrites_explicit_vllm_p2p_config(monkeypatch):
     from llumnix.backends.vllm import v1_kv_transfer
     from vllm.config import KVTransferConfig
