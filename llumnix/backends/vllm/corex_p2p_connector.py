@@ -160,14 +160,15 @@ class CoreXZmqP2pEngine:
         self.recv_request_id_to_tensor_ids = defaultdict(set)
         self.send_request_id_to_tensor_ids = defaultdict(set)
         self._sockets = {}
+        self._closed = threading.Event()
         self._listener = threading.Thread(target=self._listen, daemon=True)
         self._listener.start()
         logger.info("CoreX P2P using ZMQ CPU staging at %s", self.zmq_address)
 
     def _listen(self):
-        while True:
+        while not self._closed.is_set():
             try:
-                events = dict(self.poller.poll())
+                events = dict(self.poller.poll(timeout=250))
                 if self.router_socket not in events:
                     continue
                 frames = self.router_socket.recv_multipart()
@@ -237,6 +238,19 @@ class CoreXZmqP2pEngine:
                 self.send_request_id_to_tensor_ids.pop(request_id, None)
         return None, None
 
+    def shutdown(self):
+        """Release sockets so a replacement EngineCore can bind its port."""
+        if self._closed.is_set():
+            return
+        self._closed.set()
+        self.poller.unregister(self.router_socket)
+        for socket in self._sockets.values():
+            socket.close(linger=0)
+        self._sockets.clear()
+        self.router_socket.close(linger=0)
+        self.context.term()
+        self._listener.join(timeout=1)
+
 
 class CoreXP2pNcclConnector(P2pNcclConnector):
     """P2pNcclConnector with optional CoreX NCCL symbols filtered."""
@@ -253,6 +267,12 @@ class CoreXP2pNcclConnector(P2pNcclConnector):
             super().__init__(vllm_config, role, kv_cache_config)
         finally:
             upstream_p2p_connector.P2pNcclEngine = original
+
+    def shutdown(self):
+        engine = getattr(self, "p2p_nccl_engine", None)
+        shutdown = getattr(engine, "shutdown", None)
+        if shutdown is not None:
+            shutdown()
 
     @staticmethod
     def parse_request_id(request_id: str, is_prefill=True) -> tuple[str, int]:

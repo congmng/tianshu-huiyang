@@ -182,3 +182,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   CoreX rank-1 native double-free 保持非默认诊断路径，不能作为生产默认。
 - 本地 V1 KV transfer 测试：`20 passed`；同时修复测试失败日志夹具漏导入
   `tempfile` 的 Python 3.12 路径。
+- 补齐 `zmq_cpu` staging transport 的 listener/socket/context shutdown 和幂等
+  回收，避免长运行服务重启时残留端口；新增回收测试后 V1 KV transfer 为
+  `21 passed`。

@@ -237,6 +237,10 @@ KV handoff 已可运行。CPU staging 的代价是额外 host-memory copy；原�
 仍保留为非默认诊断/优化路径，待 CoreX 修复 rank-1 communicator 的 native abort
 后再启用。
 
+staging engine 同时实现了 listener 线程、ROUTER/DEALER socket 和 ZMQ context
+的幂等 shutdown，并由 CoreX connector 的 V1 shutdown 生命周期调用，保证实例
+重启或故障恢复时不会遗留 KV 端口。新增回收测试与原有 V1 KV 测试合计 21 项通过。
+
 当前仓库明确锁定的是 vLLM 0.6.3：
 
 ```text

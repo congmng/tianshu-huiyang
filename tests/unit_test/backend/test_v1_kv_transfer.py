@@ -170,6 +170,17 @@ def test_corex_p2p_defaults_to_safe_cpu_staging(monkeypatch):
     assert CoreXP2pNcclConnector.__name__ == "CoreXP2pNcclConnector"
 
 
+def test_corex_zmq_staging_shutdown_releases_listener():
+    from llumnix.backends.vllm.corex_p2p_connector import CoreXZmqP2pEngine
+
+    engine = CoreXZmqP2pEngine(
+        local_rank=0,
+        config=SimpleNamespace(kv_ip="127.0.0.1", kv_port=0),
+    )
+    engine.shutdown()
+    engine.shutdown()
+
+
 def test_corex_compat_rewrites_explicit_vllm_p2p_config(monkeypatch):
     from llumnix.backends.vllm import v1_kv_transfer
     from vllm.config import KVTransferConfig
