@@ -224,6 +224,32 @@ def test_main_api_instance_list_exposes_v1_heterogeneous_state(monkeypatch):
     assert instance["kv_cache_affinity_blocks"] == 2
 
 
+def test_llumlet_aborts_engine_when_v1_output_stream_fails():
+    from llumnix.llumlet.llumlet import Llumlet
+
+    class _Backend:
+        def __init__(self):
+            self.requests = {"public": (None, 0)}
+            self._request_id_aliases = {"public": "internal"}
+            self.running = ["public"]
+            self.aborts = []
+
+        async def abort(self, request_id):
+            self.aborts.append(request_id)
+
+    async def broken_stream():
+        raise RuntimeError("connector failed")
+        yield None
+
+    llumlet = object.__new__(Llumlet)
+    llumlet.backend_engine = backend = _Backend()
+    asyncio.run(llumlet._forward_v1_outputs("public", None, broken_stream()))
+    assert backend.aborts == ["public"]
+    assert not backend.requests
+    assert not backend._request_id_aliases
+    assert not backend.running
+
+
 def test_v1_api_health_and_generate_without_model():
     engine = _Engine()
     app = build_app(engine)

@@ -65,6 +65,9 @@ V1 P/D 配置门禁已补齐：旧 block-manager 后端配置会在启动前明�
 为 28 passed。
 远端同步 `8c9a4a9` 后，扩展 V1/KV/API/调度回归为 56 passed，`compileall` 通过。
 
+补齐 V1 Llumlet 故障流回收：EngineCore/connector 异常时先 abort 内部请求，再清理
+bookkeeping；无模型故障流测试通过，本轮核心回归为 57 passed。
+
 两机同步到提交 `5893493` 后分别执行同一 44 项定向回归均通过。实机采样的
 `virtual_usage` 为本机 0.00468、远端 0.00522，差异由两端的实时空闲显存产生；
 同一 token prefix 的 `sha256_cbor` 哈希保持逐字节一致。

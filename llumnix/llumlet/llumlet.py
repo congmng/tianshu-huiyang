@@ -358,6 +358,17 @@ class Llumlet:
                 await self._put_v1_outputs([output], server_info)
         except Exception:
             logger.error("V1 request %s failed: %s", request_id, traceback.format_exc())
+            # EngineCore may terminate a stream without emitting a final
+            # output (worker failure, connector timeout, or malformed peer
+            # payload). Explicitly abort the internal alias so a P/D peer is
+            # not left waiting and its KV buffers are released.
+            try:
+                await self.backend_engine.abort(request_id)
+            except Exception:
+                logger.warning(
+                    "Failed to abort failed V1 request %s", request_id,
+                    exc_info=True,
+                )
         finally:
             self.backend_engine.requests.pop(request_id, None)
             self.backend_engine._request_id_aliases.pop(request_id, None)
