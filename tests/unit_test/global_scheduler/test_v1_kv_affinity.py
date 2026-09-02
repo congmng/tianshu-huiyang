@@ -1,4 +1,5 @@
 from llumnix.backends.vllm.v1_kv import KVCacheAffinityIndex
+from llumnix.instance_info import DispatchLoadComputation, InstanceInfo
 
 
 class BlockStored:
@@ -131,3 +132,33 @@ def test_vllm_zmq_replay_rebuilds_affinity_index():
     finally:
         subscriber.close()
         publisher.shutdown()
+
+
+def test_virtual_usage_uses_reported_heterogeneous_memory_and_capacity():
+    calculator = DispatchLoadComputation("virtual_usage")
+    fast = InstanceInfo(
+        instance_id="fast",
+        num_running_requests=8,
+        gpu_memory_total_bytes=32 * 1024**3,
+        gpu_memory_free_bytes=24 * 1024**3,
+        compute_capacity=2.0,
+    )
+    constrained = InstanceInfo(
+        instance_id="constrained",
+        num_running_requests=8,
+        gpu_memory_total_bytes=16 * 1024**3,
+        gpu_memory_free_bytes=2 * 1024**3,
+        compute_capacity=0.5,
+    )
+    assert calculator.compute_instance_load(fast) < calculator.compute_instance_load(constrained)
+
+
+def test_virtual_usage_keeps_legacy_block_counter_fallback():
+    calculator = DispatchLoadComputation("virtual_usage")
+    info = InstanceInfo(
+        instance_id="legacy",
+        num_running_requests=1,
+        num_total_gpu_blocks=100,
+        num_used_gpu_blocks=50,
+    )
+    assert calculator.compute_instance_load(info) > 0

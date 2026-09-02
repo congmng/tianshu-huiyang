@@ -50,6 +50,12 @@ class InstanceInfo:
     num_used_gpu_blocks: int = 0
     num_free_gpu_blocks: int = 0
     gpu_cache_usage: float = 0.0
+    # Hardware/load signals used by the heterogeneous-load dispatcher.  They
+    # are optional so legacy engines and the simulator retain their wire
+    # compatibility; V1 engines populate them from the visible CoreX device.
+    gpu_memory_total_bytes: int = 0
+    gpu_memory_free_bytes: int = 0
+    compute_capacity: float = 1.0
     num_running_requests: int = 0
     num_waiting_requests: int = 0
     num_killed_requests: int = 0
@@ -156,39 +162,40 @@ class DispatchLoadComputation(LoadComputationStrategy):
             )
             instance_load = (num_available_gpu_blocks / num_requests) * (-1)
         elif self.load_metric == "virtual_usage":
-            if instance_info.num_total_gpu_blocks > 20000:
-                throughput = 1.5
-            else:
-                throughput = 1.0
-
             num_requests = (
                 instance_info.num_running_requests + instance_info.num_waiting_requests
             )
             if num_requests == 0:
                 return -np.inf
 
-            compute_load = num_requests / 256
-            compute_weight = 1 / throughput
+            # Normalize request pressure by the advertised compute capacity;
+            # this lets a faster heterogeneous instance accept proportionally
+            # more work.  Keep the historical 256-request scale as the
+            # fallback for legacy engines that do not report capacity.
+            capacity = max(float(getattr(instance_info, "compute_capacity", 1.0)), 1e-6)
+            compute_load = num_requests / (256.0 * capacity)
+            compute_weight = 1.0
 
-            # The V1 adapter does not expose legacy physical block counts.
-            # An absent counter must not make Manager's polling task divide by
-            # zero and evict an otherwise healthy inference instance.
-            if instance_info.num_total_gpu_blocks > 0:
+            total_mem = int(getattr(instance_info, "gpu_memory_total_bytes", 0) or 0)
+            free_mem = int(getattr(instance_info, "gpu_memory_free_bytes", 0) or 0)
+            if total_mem > 0 and 0 <= free_mem <= total_mem:
+                memory_use_ratio = 1.0 - (free_mem / total_mem)
+            elif instance_info.num_total_gpu_blocks > 0:
                 memory_use_ratio = (
                     instance_info.num_used_gpu_blocks
                     + instance_info.num_blocks_all_waiting_requests
                 ) / instance_info.num_total_gpu_blocks
             else:
                 memory_use_ratio = 0.0
-            memory_load = memory_use_ratio
-            memory_weight = 1 / (1 + np.exp(-5 * (memory_use_ratio - 0.4)))
+            memory_load = min(max(memory_use_ratio, 0.0), 1.0)
+            memory_weight = 1 / (1 + np.exp(-5 * (memory_load - 0.4)))
 
             instance_load = (compute_load * compute_weight) + (
                 memory_weight * memory_load
             )
             logger.info(
                 f"Instance Load Calculation:\n"
-                f"  Throughput: {throughput}\n"
+                f"  Compute Capacity: {capacity}\n"
                 f"  Num Requests: {num_requests}\n"
                 f"  Compute Load: {compute_load} (requests/256)\n"
                 f"  Compute Weight: {compute_weight}\n"

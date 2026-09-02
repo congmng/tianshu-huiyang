@@ -195,6 +195,22 @@ class V1EngineAdapter:
         info.num_used_gpu_blocks = 0
         info.num_free_gpu_blocks = 0
         info.gpu_cache_usage = 0.0
+        # V1 does not expose the legacy block-manager counters.  Publish the
+        # actual visible device memory so heterogeneous-load scheduling can
+        # distinguish a 32 GiB CoreX card from a differently sized device.
+        try:
+            import torch
+            device = torch.cuda.current_device()
+            free_mem, total_mem = torch.cuda.mem_get_info(device)
+            info.gpu_memory_free_bytes = int(free_mem)
+            info.gpu_memory_total_bytes = int(total_mem)
+            # A conservative capacity proxy: total memory in GiB. Deployments
+            # may override this with a calibrated accelerator score.
+            info.compute_capacity = max(float(total_mem) / (32 * 1024**3), 1e-3)
+        except Exception:
+            info.gpu_memory_free_bytes = 0
+            info.gpu_memory_total_bytes = 0
+            info.compute_capacity = 1.0
         info.kv_cache_block_hashes = self.kv_affinity.block_hashes(self.instance_id)
 
     # The V1 engine owns scheduling and does not expose Llumnix's legacy

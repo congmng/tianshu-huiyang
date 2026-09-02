@@ -21,6 +21,13 @@ Qwen3-14B（vLLM 0.11.2 V1、CoreX 4.4.0、TP=2）启动
 时 Triton 编译 CUDA helper 找不到 `-lcuda` 的问题。本次仅验证基础服务和
 并发分发入口，尚未宣称跨域多实例迁移实验完成。
 
+## 2026-09-02：论文第三点异构负载模型补齐
+
+V1 `InstanceInfo` 新增 GPU 总/空闲显存和归一化算力容量字段，V1 adapter 从
+`torch.cuda.mem_get_info()` 发布实际设备状态。`virtual_usage` 现按请求数除以
+算力容量计算计算压力，并融合显存占用率；旧引擎无新字段时仍回退到 block
+counter。异构容量排序与回退逻辑新增测试，相关定向回归为 44 passed。
+
 ## 2026-09-01：Python 3.12 与 V1/KV 亲和基础
 
 - 将 `setup.py` 的 Python 版本范围扩展到 `>=3.9,<3.13`，并补充 Python 3.11/3.12 classifiers，匹配 CoreX 4.4.0 本机 Python 3.12 环境。

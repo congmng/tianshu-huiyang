@@ -30,6 +30,13 @@ Ray/Llumlet 队列桥接、KV event/hash affinity、GlobalScheduler 缓存亲和
 rank-1 communicator 在该 CoreX 栈仍会 native abort，因此生产默认 transport 为
 已验证的 ZMQ CPU staging，NCCL 为非默认诊断/优化选项。
 
+针对论文第三点“基于异构负载感知的跨域请求调度”，V1 实例信息现在额外发布
+实际可见 GPU 总显存、空闲显存和归一化算力容量。`virtual_usage` 调度模型用
+请求数/算力容量表示计算压力，并用显存占用率表示内存压力；缺少新指标的旧
+后端继续回退到 block-counter 估计。这样不同显存容量或计算能力的 CoreX 实例
+可以进入同一调度决策，而不会把所有实例视为同质资源。该模型已由两组单元测试
+覆盖（含异构容量排序和旧接口回退）。
+
 ## 最新适配增量（2026-09-01）
 
 `V1EngineAdapter` 现在订阅 vLLM V1 的 ZMQ `KVEventBatch`，并把 block 所有权
@@ -376,3 +383,7 @@ CoreX 4.4.0 软件栈中提供的是 vLLM 0.11.2。导入旧后端的实测失�
   旧 block-manager 实现仅在 vLLM 0.6 环境选择。
 - V1 的安全迁移语义由 connector 驱动的 P/D KV handoff 提供，不模拟旧接口的
   任意时刻 block-manager request migration。
+
+说明：论文第三点中的跨域请求迁移，在当前 V1 栈由 connector 驱动的 P/D KV
+handoff 实现；旧 vLLM 0.6 的任意时刻 block-manager 迁移接口仍不兼容，不能将
+二者混称为同一 API。
