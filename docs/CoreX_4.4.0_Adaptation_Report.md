@@ -283,6 +283,10 @@ abort 不会再次访问已经完成的 actor 请求。
 `vllm>=0.11.2,<0.12`。完整历史测试集中的旧 block-manager 测试依赖 vLLM 0.6
 已在 V1 环境收集阶段隔离；当前 V1/调度相关回归保持绿色。
 
+测试基础设施为每次会话选择随机本机 Ray 控制端口、显式绑定 `127.0.0.1`，并让
+`ray.init` 使用该地址，不再继承开发机或共享集群的 `RAY_ADDRESS`。这避免外部
+raylet/dashboard 故障污染适配回归；V1 KV/affinity 定向测试在该夹具下通过。
+
 独立 `v1_api_server` 入口新增 `--max-num-seqs`（默认 4），避免 Qwen3-14B 在
 32 GiB CoreX 卡上按默认 128 dummy requests 进行 sampler 预热时 OOM。使用本机
 Qwen3-14B 实测启动后，`GET /health` 返回 200，`POST /generate` 返回 200 和

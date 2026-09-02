@@ -225,3 +225,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   V1 测试收集会跳过仅依赖 vLLM 0.6 block-manager API 的历史测试；专用 V1/调度
   回归为 `44 passed, 7 warnings`。一次全量 unit-test 运行受已有 Ray 集群的
   raylet/dashboard 异常退出影响，未归因于代码断言失败。
+- 测试夹具改为随机本机 Ray 控制端口并显式 `ray.init(address=...)`，清除外部
+  `RAY_ADDRESS` 继承，避免连接共享集群；V1 KV/affinity 定向回归在隔离夹具下
+  为 `30 passed, 1 warning`。

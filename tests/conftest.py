@@ -17,6 +17,7 @@ import shutil
 import os
 import subprocess
 import tempfile
+import socket
 import ray
 from ray._raylet import PlacementGroupID
 try:
@@ -70,18 +71,26 @@ def pytest_ignore_collect(collection_path, config):
 
 from llumnix.utils import random_uuid
 
+_TEST_RAY_ADDRESS = None
+
 
 def ray_start():
+    global _TEST_RAY_ADDRESS
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    _TEST_RAY_ADDRESS = f"127.0.0.1:{port}"
     for _ in range(5):
-        subprocess.run(["ray", "stop"], check=False, stdout=subprocess.DEVNULL)
+        subprocess.run(["ray", "stop", "--force"], check=False, stdout=subprocess.DEVNULL)
         subprocess.run(
-            ["ray", "start", "--head", "--port=6379"],
+            ["ray", "start", "--head", f"--port={port}", "--node-ip-address=127.0.0.1"],
             check=False,
             stdout=subprocess.DEVNULL,
         )
         time.sleep(5.0)
         result = subprocess.run(
-            ["ray", "status"], check=False, capture_output=True, text=True
+            ["ray", "status", f"--address={_TEST_RAY_ADDRESS}"],
+            check=False, capture_output=True, text=True,
         )
         if result.returncode == 0:
             return
@@ -144,6 +153,9 @@ def cleanup_ray_env_func():
 
 
 def pytest_sessionstart(session):
+    # Never inherit a developer/CI ``RAY_ADDRESS`` or Ray's persisted
+    # auto-connect target.  The fixture owns a disposable local head node.
+    os.environ.pop("RAY_ADDRESS", None)
     ray_start()
 
 
@@ -153,7 +165,7 @@ def pytest_sessionfinish(session):
 
 @pytest.fixture
 def ray_env():
-    ray.init(namespace="llumnix", ignore_reinit_error=True)
+    ray.init(address=_TEST_RAY_ADDRESS, namespace="llumnix", ignore_reinit_error=True)
     yield
     cleanup_ray_env_func()
 
