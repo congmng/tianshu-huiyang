@@ -302,6 +302,9 @@ Qwen3-14B 实测启动后，`GET /health` 返回 200，`POST /generate` 返回 2
 该入口的 FastAPI 生命周期已改用 `lifespan`，在关闭时幂等释放 V1 adapter；新增
 无模型 mock 回归覆盖 `/health`、非流式 `/generate` 和 streaming wire format，
 因此 HTTP 协议可在不加载大模型的情况下持续验证。
+流式响应的异步迭代器在客户端断连/提前关闭时也会自动 abort 对应 V1 request，
+避免长生成或 P/D consumer 在 HTTP 客户端消失后继续占用 EngineCore；该路径已有
+mock 回归覆盖。
 
 以下是历史兼容性记录（不是当前 CoreX 安装要求）：仓库早期版本曾锁定 vLLM
 0.6.3：

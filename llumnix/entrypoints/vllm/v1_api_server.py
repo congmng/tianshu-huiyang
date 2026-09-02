@@ -46,8 +46,17 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
         results = engine.generate(prompt, params, request_id)
 
         async def stream_results() -> AsyncGenerator[bytes, None]:
-            async for output in results:
-                yield (json.dumps({"text": [prompt + x.text for x in output.outputs]}) + "\0").encode()
+            completed = False
+            try:
+                async for output in results:
+                    yield (json.dumps({"text": [prompt + x.text for x in output.outputs]}) + "\0").encode()
+                completed = True
+            finally:
+                # Starlette closes the iterator when a client disconnects.
+                # Abort the V1 request in that path so EngineCore does not
+                # retain a producer or consumer stream indefinitely.
+                if not completed:
+                    await engine.abort(request_id)
 
         if stream:
             return StreamingResponse(stream_results(), media_type="application/octet-stream")

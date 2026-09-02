@@ -80,3 +80,20 @@ def test_v1_api_streaming_wire_format_without_model():
 
     chunks = asyncio.run(collect())
     assert json.loads(chunks[0].rstrip(b"\0")) == {"text": ["hi world"]}
+
+
+def test_v1_api_stream_disconnect_aborts_request():
+    engine = _Engine()
+    app = build_app(engine)
+    generate = _route(app, "/generate", "POST")
+    response = asyncio.run(
+        generate(_Request({"prompt": "hi", "stream": True, "request_id": "r-disconnect"}))
+    )
+
+    async def close_early():
+        iterator = response.body_iterator
+        await anext(iterator)
+        await iterator.aclose()
+
+    asyncio.run(close_early())
+    assert ("abort", "r-disconnect") in engine.calls

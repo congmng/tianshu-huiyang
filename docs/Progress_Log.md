@@ -241,3 +241,5 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 独立 V1 API 入口改用 FastAPI `lifespan` 释放 adapter，移除弃用的
   `@app.on_event("shutdown")`；新增无模型 health/普通生成/streaming mock 测试，
   定向测试 `2 passed`。
+- 流式响应 iterator 提前关闭时自动调用 V1 `abort`，覆盖客户端断连后的请求
+  回收；V1 API mock 测试增至 `3 passed`。
