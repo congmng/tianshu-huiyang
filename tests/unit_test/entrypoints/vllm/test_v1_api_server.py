@@ -166,3 +166,15 @@ def test_v1_api_stream_disconnect_aborts_request():
 
     asyncio.run(close_early())
     assert ("abort", "r-disconnect") in engine.calls
+
+
+def test_v1_api_lifespan_shuts_down_engine():
+    engine = _Engine()
+    app = build_app(engine)
+
+    async def exercise():
+        async with app.router.lifespan_context(app):
+            assert not engine.shutdown_called
+
+    asyncio.run(exercise())
+    assert engine.shutdown_called

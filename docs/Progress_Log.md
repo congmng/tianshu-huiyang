@@ -259,3 +259,5 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 新增统一 P2P endpoint 校验（具体 host 与 1--65535 端口），Manager 在 P/D
   编排前拒绝 malformed endpoint 并安全回退；KV/affinity/调度/API/profiling
   回归为 `52 passed, 7 warnings`。
+- 新增 V1 API FastAPI lifespan shutdown 回归，确认服务退出调用 adapter shutdown；
+  API/KV transfer/affinity 定向回归为 `38 passed, 1 warning`，compileall 通过。

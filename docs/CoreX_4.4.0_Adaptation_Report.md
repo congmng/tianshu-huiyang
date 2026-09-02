@@ -309,6 +309,8 @@ Qwen3-14B 实测启动后，`GET /health` 返回 200，`POST /generate` 返回 2
 流式响应的异步迭代器在客户端断连/提前关闭时也会自动 abort 对应 V1 request，
 避免长生成或 P/D consumer 在 HTTP 客户端消失后继续占用 EngineCore；该路径已有
 mock 回归覆盖。
+lifespan 退出时调用 adapter shutdown 的路径也已有无模型回归，覆盖 HTTP 服务
+退出后 EngineCore 与 connector listener 的资源回收契约。
 独立入口直接调用 adapter 的路径也会记录公开 request-id 到 connector 内部
 request-id 的 alias；因此启用 P2P 后，断连或显式 abort 能准确取消真实 EngineCore
 请求，而不会只删除 HTTP 层 bookkeeping。
