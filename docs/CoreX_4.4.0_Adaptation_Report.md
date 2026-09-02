@@ -255,6 +255,11 @@ staging engine 同时实现了 listener 线程、ROUTER/DEALER socket 和 ZMQ co
 `cuda:0`），因此多卡 Ray placement group 中的 KV cache 不会跨卡写入；设备绑定
 回归覆盖后，当前相关测试总计 40 项通过。
 
+独立 V1 HTTP 入口 `v1_api_server` 现在通过 `V1EngineAdapter` 创建引擎，而不是
+直接实例化 `AsyncLLM`，因此其 `/generate` 请求与 Manager/Llumlet 路径共享
+request lifecycle、CoreX connector 和 request-ID 处理；多实例调度仍由主
+`api_server`/Manager 入口负责。
+
 当前仓库明确锁定的是 vLLM 0.6.3：
 
 ```text

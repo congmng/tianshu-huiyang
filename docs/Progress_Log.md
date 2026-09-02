@@ -190,3 +190,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 修复 staging consumer 使用默认 CUDA 设备的问题：接收 KV 现在绑定
   EngineCore 的 `local_rank`，避免多 GPU/Ray placement group 下跨卡注入；相关
   多 GPU 设备绑定测试加入后，完整相关回归为 `40 passed`。
+- 独立 `v1_api_server` 入口改为通过 `V1EngineAdapter` 创建引擎，统一采用
+  Llumnix 的请求生命周期、CoreX connector 和 request-ID 处理；多实例编排仍由
+  Manager 负责。

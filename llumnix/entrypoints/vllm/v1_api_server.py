@@ -1,9 +1,11 @@
 """Minimal Llumnix-compatible HTTP frontend for vLLM 0.11 (V1).
 
-This is the first migration seam: request handling uses vLLM's supported V1
-``AsyncLLM`` API and keeps the same ``/health`` and ``/generate`` wire format
-as the legacy Llumnix frontend. KV-cache migration and multi-instance routing
-remain intentionally disabled until their V1 equivalents are implemented.
+The frontend uses Llumnix's V1 adapter around vLLM's supported ``AsyncLLM``
+API and keeps the same ``/health`` and ``/generate`` wire format as the legacy
+frontend. This ensures CoreX connector configuration and request-ID handling
+are applied consistently with the Manager/Llumlet path when supplied through
+``AsyncEngineArgs``; multi-instance orchestration itself remains the Manager's
+responsibility.
 """
 
 import argparse
@@ -18,10 +20,10 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from vllm import SamplingParams
 from vllm.engine.arg_utils import AsyncEngineArgs
-from vllm.v1.engine.async_llm import AsyncLLM
+from llumnix.backends.vllm.v1_engine import V1EngineAdapter
 
 
-def build_app(engine: AsyncLLM) -> FastAPI:
+def build_app(engine: V1EngineAdapter) -> FastAPI:
     app = FastAPI()
 
     @app.get("/health")
@@ -82,7 +84,7 @@ def main() -> None:
     # than silently claiming that legacy Llumnix options are supported.
     if unknown:
         print("Ignoring unsupported legacy/V1 options:", " ".join(unknown))
-    engine = AsyncLLM.from_engine_args(engine_args)
+    engine = V1EngineAdapter(engine_args, instance_id=f"v1-api-{args.port}")
     uvicorn.run(build_app(engine), host=args.host, port=args.port)
 
 
