@@ -65,13 +65,25 @@ def _disable_corex_cumem_for_p2p() -> None:
             p2p_nccl_engine,
         )
 
-        original = p2p_nccl_engine.set_p2p_nccl_context
-
         @contextmanager
         def corex_context(num_channels):
-            with original(num_channels):
-                os.environ["NCCL_CUMEM_ENABLE"] = "0"
+            names = (
+                "NCCL_MAX_NCHANNELS",
+                "NCCL_MIN_NCHANNELS",
+                "NCCL_CUMEM_ENABLE",
+            )
+            old = {name: os.environ.get(name) for name in names}
+            os.environ["NCCL_MAX_NCHANNELS"] = str(num_channels)
+            os.environ["NCCL_MIN_NCHANNELS"] = str(num_channels)
+            os.environ["NCCL_CUMEM_ENABLE"] = "0"
+            try:
                 yield
+            finally:
+                for name, value in old.items():
+                    if value is None:
+                        os.environ.pop(name, None)
+                    else:
+                        os.environ[name] = value
 
         p2p_nccl_engine.set_p2p_nccl_context = corex_context
     except (ImportError, AttributeError):
