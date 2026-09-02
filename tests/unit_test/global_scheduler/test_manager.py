@@ -285,6 +285,29 @@ def test_get_request_instance(ray_env):
     assert num_requests == 0
     assert num_requests_1 == 0
 
+
+def test_reconcile_request_instances_tracks_pd_and_completion():
+    """P/D's single public ID must retain both actors until both finish."""
+    manager = object.__new__(Manager)
+    manager.request_instance = {"stale": "old"}
+    manager.request_instances = {"stale": {"old"}}
+
+    manager._reconcile_request_instances(
+        ["prefill", "decode", "single"],
+        [["pd-request"], ["pd-request"], ["ordinary-request"]],
+    )
+    assert manager.request_instances == {
+        "pd-request": {"prefill", "decode"},
+        "ordinary-request": {"single"},
+    }
+    assert manager.request_instance["pd-request"] in {"prefill", "decode"}
+    assert manager.request_instance["ordinary-request"] == "single"
+
+    # The next authoritative actor snapshot must remove completed P/D state.
+    manager._reconcile_request_instances(["single"], [["ordinary-request"]])
+    assert manager.request_instances == {"ordinary-request": {"single"}}
+    assert manager.request_instance == {"ordinary-request": "single"}
+
 def get_instance_info_migrate_in(instance_id):
     instance_info = InstanceInfo(
         instance_id=instance_id,

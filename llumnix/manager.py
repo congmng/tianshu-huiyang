@@ -1175,10 +1175,18 @@ class Manager:
         logger.debug("instance_ids: {}".format(instance_ids))
         logger.debug("instance_requests: {}".format(instance_requests))
 
-        # Reconcile both bookkeeping maps from the actors' authoritative
-        # active-request sets. V1 P/D uses one public request id on two
-        # Llumlets, so rebuilding only ``request_instance`` would leave stale
-        # producer/consumer entries in ``request_instances`` after completion.
+        self._reconcile_request_instances(instance_ids, instance_requests)
+
+    def _reconcile_request_instances(
+        self, instance_ids: Iterable[str], instance_requests: Iterable[Iterable[str]]
+    ) -> None:
+        """Replace request bookkeeping from Llumlets' active-request sets.
+
+        A V1 P/D request is present on both producer and consumer actors.
+        Rebuilding both maps atomically removes completed requests and keeps
+        cancellation fan-out accurate while preserving legacy single-instance
+        request routing.
+        """
         active_by_request = defaultdict(set)
         for instance_id, requests in zip(instance_ids, instance_requests):
             for request_id in requests:
@@ -1193,11 +1201,12 @@ class Manager:
         }
 
     async def _clear_request_instance_loop(self, interval: float):
-        await self._get_request_instance()
-        # Clear the request_instance at a certain interval to prevent memory leaking.
+        # Query actors each interval rather than clearing a local map.  In V1
+        # P/D a request can belong to two actors, and clearing only one map
+        # leaves stale cancellation targets after either stream finishes.
         while True:
+            await self._get_request_instance()
             await asyncio.sleep(interval)
-            self.request_instance = {}
 
     def _init_instance_info_csv(self, manager_args: ManagerArgs) -> None:
         # pylint: disable=consider-using-with

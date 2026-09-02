@@ -273,6 +273,9 @@ producer 发送任务。相关回归测试保持 42 项通过。
 请求 bookkeeping 也会在周期性轮询中按各 Llumlet 的活动 request-id 集合重建。
 因此 producer/consumer 均完成后，公开 request-id 与双实例映射会同时移除；后续
 abort 不会再次访问已经完成的 actor 请求。
+该轮询现在每个周期都会重新查询 actor，而不是只在 Manager 启动时查询一次；因此
+长时间运行的 V1 P/D 服务也能持续回收完成请求。纯 CPU 回归覆盖了一个公开 ID
+同时位于 producer/decode 两端、随后两端完成的场景。
 
 独立 `v1_api_server` 入口新增 `--max-num-seqs`（默认 4），避免 Qwen3-14B 在
 32 GiB CoreX 卡上按默认 128 dummy requests 进行 sampler 预热时 OOM。使用本机

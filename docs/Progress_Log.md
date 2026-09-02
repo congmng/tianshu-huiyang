@@ -216,3 +216,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   这覆盖同一公开请求对应 producer/consumer 两个 V1 actor 的完成场景，避免
   完成后残留双实例映射导致后续 abort 访问过期请求。
 - CoreX/V1 相关回归：`43 passed, 7 warnings`；Python 3.12 `compileall` 通过。
+- 随后修正周期任务：每个清理间隔都从各 Llumlet 重新拉取活动 request-id，原子
+  重建 `request_instance`/`request_instances`；新增 P/D 双端完成回收单测，相关
+  回归为 `44 passed, 7 warnings`。
