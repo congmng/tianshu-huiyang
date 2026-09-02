@@ -12,6 +12,7 @@ import os
 import hashlib
 import ctypes
 import copy
+import socket
 from typing import Any
 
 
@@ -19,6 +20,27 @@ P2P_REQUEST_ID_PREFIX = "___decode_addr_"
 P2P_REQUEST_ID_SUFFIX = "___"
 P2P_PREFILL_ID_PREFIX = "___prefill_addr_"
 P2P_CONNECTORS = {"P2pNcclConnector", "CoreXP2pNcclConnector"}
+
+
+def default_kv_ip() -> str:
+    """Return this process' routable address for a cross-host connector.
+
+    ``127.0.0.1`` is correct only for a single host.  Llumlets are created
+    inside Ray actors, so deriving the address at configuration time gives
+    each actor an endpoint reachable by its peer without requiring a per-node
+    environment override.  The explicit variable remains authoritative for
+    unusual multi-NIC deployments.
+    """
+    override = os.getenv("LLUMNIX_KV_IP")
+    if override:
+        return override
+    try:
+        address = socket.gethostbyname(socket.gethostname())
+        if address and address != "127.0.0.1":
+            return address
+    except OSError:
+        pass
+    return "127.0.0.1"
 
 
 def valid_p2p_endpoint(address: str | None) -> bool:
@@ -188,7 +210,7 @@ def configure_v1_kv_transfer(
         )
         default_parallel_size = "2" if connector in P2P_CONNECTORS else "1"
         parallel_size = int(os.getenv("LLUMNIX_KV_PARALLEL_SIZE", default_parallel_size))
-        ip = os.getenv("LLUMNIX_KV_IP", "127.0.0.1")
+        ip = default_kv_ip()
         port = int(os.getenv("LLUMNIX_KV_PORT", "14579"))
         extra: dict[str, Any] = {}
         naming = getattr(migration_config, "kvtransfer_migration_backend_naming_url", "")

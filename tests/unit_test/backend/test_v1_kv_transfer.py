@@ -83,6 +83,22 @@ def test_kvtransfer_makes_cross_host_prefix_hashes_reproducible(monkeypatch):
     assert __import__("os").environ["PYTHONHASHSEED"] == "0"
 
 
+def test_kvtransfer_derives_routable_ip_when_not_overridden(monkeypatch):
+    from llumnix.backends.vllm.v1_kv_transfer import configure_v1_kv_transfer
+
+    monkeypatch.delenv("LLUMNIX_KV_IP", raising=False)
+    monkeypatch.setattr("socket.gethostname", lambda: "corex-u62")
+    monkeypatch.setattr("socket.gethostbyname", lambda _: "10.31.10.62")
+    args = SimpleNamespace(kv_transfer_config=None, kv_events_config=None)
+    cfg = SimpleNamespace(
+        migration_backend="kvtransfer",
+        migration_backend_transfer_type="P2pNcclConnector",
+        kvtransfer_migration_backend_naming_url="",
+    )
+    configure_v1_kv_transfer(args, cfg)
+    assert args.kv_transfer_config.kv_ip == "10.31.10.62"
+
+
 def test_kvtransfer_uses_instance_scoped_event_and_replay_endpoints(monkeypatch):
     from llumnix.backends.vllm.v1_kv_transfer import configure_v1_kv_transfer
 

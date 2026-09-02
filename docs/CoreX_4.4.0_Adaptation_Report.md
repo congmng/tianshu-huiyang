@@ -1,5 +1,13 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## V1 P/D endpoint 跨机修复（2026-09-02）
+
+V1 KV-transfer 配置不再在未设置环境变量时默认使用 `127.0.0.1`；配置器会
+解析当前 Ray actor 所在主机 IP，`LLUMNIX_KV_IP` 仍可用于多网卡覆盖。这样
+producer 发布给 consumer 的 endpoint 在两台服务器之间可路由。对应定向回归
+29 项通过；该项是 P/D connector 编排的地址前置条件，不等同于 GPU KV tensor
+传输本身已完成。
+
 ## 双机 affinity 算法复现（2026-09-02）
 
 新增离线探针 `tools/cross_host_kv_affinity_probe.py`，在本机和

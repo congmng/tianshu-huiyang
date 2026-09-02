@@ -1,5 +1,15 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-02：V1 P/D connector 默认地址修复
+
+- 修复 `configure_v1_kv_transfer` 在跨机部署中的默认地址：此前无
+  `LLUMNIX_KV_IP` 时写入 `127.0.0.1`，producer 生成的 endpoint 对远端
+  consumer 不可达；现在自动解析当前 Ray actor 所在主机 IP，显式环境变量仍
+  可覆盖多网卡场景。
+- 新增默认 routable IP 单测，V1 KV-transfer 定向回归为 **29 passed**。
+  该修复完成 P/D connector 地址编排前置条件；真实 GPU tensor handoff 仍需
+  使用 `migration_backend=kvtransfer` 的 prefill/decode 实例专项验收。
+
 ## 2026-09-02：双机 Llumnix 主服务验证
 
 - 纠正前一轮的 Ray 生命周期判断：以持久 `ray start --block` 会话保存 head，并在
