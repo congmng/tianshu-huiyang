@@ -359,6 +359,9 @@ GlobalScheduler 闭环回归进一步验证：在异构负载差距处于 0.10 �
 48 项 V1/KV/入口/调度定向回归及 `compileall`，结果全部通过。
 主 API `/instance_list` 现同步暴露 V1/CoreX 的总/空闲显存、算力容量、调度负载
 和已缓存 KV block 数，旧 block 计数字段保持兼容；无模型接口回归已覆盖这些字段。
+扩缩容策略已移除对旧版 `instance_load_dispatch_scale` 等不存在字段的依赖，直接
+基于当前实例负载计算；V1 自动扩容在没有 block-manager 计数时按控制周期增补一个
+实例，待下一轮采集真实 CoreX 显存/算力状态，避免空实例 `-inf` 导致扩容失效。
 该变更已在 `10.31.10.210` 的 Python 3.12/CoreX 环境复核：同步同一源码后
 V1/KV/HTTP 定向回归为 45 passed，完整参数帮助可正常加载。
 无模型 mock 回归覆盖 `/health`、非流式 `/generate` 和 streaming wire format，

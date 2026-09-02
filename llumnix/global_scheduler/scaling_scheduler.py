@@ -54,9 +54,12 @@ class ScalingScheduler:
         load_metric_up = self.scaling_policy.compute_load_metric_up(now_instances)
         load_metric_down = self.scaling_policy.compute_load_metric_down(now_instances)
         if load_metric_up > self.scale_up_threshold:
-            while self.scaling_policy.compute_load_metric_avg(now_instances) > self.scale_up_threshold:
-                scale_up_num += 1
-                now_instances.append(self.get_empty_instance_info())
+            # A new V1 instance has no legacy block-manager counters yet, so
+            # a synthetic empty InstanceInfo would report ``-inf`` and make
+            # the historical iterative estimate incorrectly request zero
+            # replicas. Add one replica per control interval; the next poll
+            # uses its real CoreX memory/capacity report before scaling again.
+            scale_up_num = 1
         elif load_metric_down < self.scale_down_threshold:
             scale_down_num = 1
         return scale_up_num, scale_down_num

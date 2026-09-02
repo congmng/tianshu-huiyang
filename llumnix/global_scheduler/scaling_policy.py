@@ -20,33 +20,32 @@ class ScalePolicy(ABC):
         pass
 
     def compute_load_metric_avg(self, instance_infos: List[InstanceInfo]) -> float:
-        tot_instance_info = InstanceInfo()
-        tot_instance_info.instance_id = -1
-        tot_instance_info.step_id = -1
-        tot_instance_info.num_running_requests = sum([i.num_running_requests for i in instance_infos])
-        tot_instance_info.num_waiting_requests = sum([i.num_waiting_requests for i in instance_infos])
-        tot_instance_info.num_free_gpu_blocks = sum([i.num_free_gpu_blocks for i in instance_infos])
-        tot_instance_info.num_total_gpu_blocks = sum([i.num_total_gpu_blocks for i in instance_infos])
-        tot_instance_info.num_watermark_blocks = sum([i.num_watermark_blocks for i in instance_infos])
-        tot_instance_info.num_blocks_all_waiting_requests = sum([i.num_blocks_all_waiting_requests for i in instance_infos])
-        tot_instance_info.num_available_gpu_blocks = tot_instance_info.num_free_gpu_blocks - tot_instance_info.num_watermark_blocks
-        return self.instance_load_calculator.compute_instance_load(tot_instance_info, action="scale")
+        if not instance_infos:
+            return float("-inf")
+        return sum(
+            self.scaling_load_calculator.compute_instance_load(info)
+            for info in instance_infos
+        ) / len(instance_infos)
 
 
 class MaxLoad(ScalePolicy):
     def compute_load_metric_up(self, instance_infos: List[InstanceInfo]) -> float:
-        return max([i.instance_load_dispatch_scale for i in instance_infos])
+        return max(self.scaling_load_calculator.compute_instance_load(i)
+                   for i in instance_infos)
 
     def compute_load_metric_down(self, instance_infos: List[InstanceInfo]) -> float:
-        return max([i.instance_load_dispatch_scale for i in instance_infos])
+        return max(self.scaling_load_calculator.compute_instance_load(i)
+                   for i in instance_infos)
 
 
 class MinLoad(ScalePolicy):
     def compute_load_metric_up(self, instance_infos: List[InstanceInfo]) -> float:
-        return min([i.instance_load_dispatch_scale for i in instance_infos])
+        return min(self.scaling_load_calculator.compute_instance_load(i)
+                   for i in instance_infos)
 
     def compute_load_metric_down(self, instance_infos: List[InstanceInfo]) -> float:
-        return min([i.instance_load_dispatch_scale for i in instance_infos])
+        return min(self.scaling_load_calculator.compute_instance_load(i)
+                   for i in instance_infos)
 
 
 class AvgLoad(ScalePolicy):
@@ -54,24 +53,17 @@ class AvgLoad(ScalePolicy):
         return self.compute_load_metric_avg(instance_infos)
 
     def compute_load_metric_down(self, instance_infos: List[InstanceInfo]) -> float:
-        num_instances = len(instance_infos)
-        tot_instance_info = InstanceInfo()
-        tot_instance_info.instance_id = -1
-        tot_instance_info.step_id = -1
-        # the average load after scale down the last instance
-        tot_instance_info.num_running_requests = sum([i.num_running_requests for i in instance_infos])
-        tot_instance_info.num_waiting_requests = sum([i.num_waiting_requests for i in instance_infos])
-        tot_instance_info.num_free_gpu_blocks = sum([i.num_free_gpu_blocks - i.num_total_gpu_blocks
-                                                    if i.instance_id + 1 == num_instances else i.num_free_gpu_blocks
-                                                    for i in instance_infos])
-        tot_instance_info.num_free_gpu_blocks = max(0, tot_instance_info.num_free_gpu_blocks)
-        tot_instance_info.num_total_gpu_blocks = sum([0 if i.instance_id + 1 == num_instances else i.num_total_gpu_blocks
-                                                    for i in instance_infos])
-        tot_instance_info.num_watermark_blocks = sum([0 if i.instance_id + 1 == num_instances else i.num_watermark_blocks
-                                                    for i in instance_infos])
-        tot_instance_info.num_blocks_all_waiting_requests = sum([i.num_blocks_all_waiting_requests for i in instance_infos])
-        tot_instance_info.num_available_gpu_blocks = tot_instance_info.num_free_gpu_blocks - tot_instance_info.num_watermark_blocks
-        return self.instance_load_calculator.compute_instance_load(tot_instance_info, action='scale')
+        if len(instance_infos) <= 1:
+            return float("inf")
+        # Predict the average after removing the least-loaded instance. This
+        # works for V1's memory headroom signal and preserves the old policy's
+        # intent without relying on invalid numeric instance IDs.
+        loads = [(self.scaling_load_calculator.compute_instance_load(info), info)
+                 for info in instance_infos]
+        _, least_loaded = min(loads, key=lambda item: item[0])
+        return self.compute_load_metric_avg(
+            [info for info in instance_infos if info is not least_loaded]
+        )
 
 
 class ScalePolicyFactory:

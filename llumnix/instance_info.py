@@ -151,6 +151,15 @@ class DispatchLoadComputation(LoadComputationStrategy):
                 instance_info.num_available_gpu_blocks
                 - instance_info.num_blocks_all_waiting_requests
             )
+            # V1 no longer exposes block-manager counters. Use normalized
+            # free-memory capacity as the equivalent headroom signal instead
+            # of collapsing every active instance to load=0.
+            if (num_available_gpu_blocks == 0 and
+                    getattr(instance_info, "gpu_memory_total_bytes", 0) > 0):
+                total_mem = float(instance_info.gpu_memory_total_bytes)
+                free_mem = max(0.0, float(instance_info.gpu_memory_free_bytes))
+                capacity = max(float(getattr(instance_info, "compute_capacity", 1.0)), 1e-6)
+                num_available_gpu_blocks = (free_mem / (1024 ** 3)) * capacity
             if num_requests == 0:
                 return -np.inf
             logger.info(

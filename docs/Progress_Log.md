@@ -50,6 +50,10 @@ counter。异构容量排序与回退逻辑新增测试，相关定向回归为 
 主 API `/instance_list` 增加 V1 异构状态和 KV affinity 可观测字段（总/空闲显存、
 算力容量、调度负载、缓存 block 数），并保持旧字段兼容；无模型接口回归 12 passed。
 
+修复 V1 自动扩缩容对旧 `instance_load_dispatch_scale` 和 block-manager 空实例
+假设的依赖，改为直接计算当前实例负载并按周期安全扩容；全局调度、KV、API 和
+入口定向回归共 53 passed。
+
 两机同步到提交 `5893493` 后分别执行同一 44 项定向回归均通过。实机采样的
 `virtual_usage` 为本机 0.00468、远端 0.00522，差异由两端的实时空闲显存产生；
 同一 token prefix 的 `sha256_cbor` 哈希保持逐字节一致。
