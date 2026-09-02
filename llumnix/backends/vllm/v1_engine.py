@@ -104,7 +104,11 @@ class V1EngineAdapter:
         self._request_id_aliases[public_request_id] = request_id
         self.requests[public_request_id] = (None, time.time())
         self.running.append(public_request_id)
-        return self.engine.generate(prompt, sampling_params, request_id)
+        try:
+            return self.engine.generate(prompt, sampling_params, request_id)
+        except Exception:
+            self.release_request(public_request_id)
+            raise
 
     def add_request(self, request_id, server_info, expected_steps, prompt,
                     sampling_params, *args, **kwargs):
@@ -130,7 +134,11 @@ class V1EngineAdapter:
         self._request_id_aliases[request_id] = internal_request_id
         self.requests[request_id] = (server_info, time.time())
         self.running.append(request_id)
-        return self.engine.generate(prompt, sampling_params, internal_request_id)
+        try:
+            return self.engine.generate(prompt, sampling_params, internal_request_id)
+        except Exception:
+            self.release_request(request_id)
+            raise
 
     def get_kv_endpoint(self) -> str | None:
         """Return this connector's routable host:port endpoint.

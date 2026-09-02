@@ -37,6 +37,12 @@ class _Engine:
         self.released.append(request_id)
 
 
+class _FailingEngine(_Engine):
+    def generate(self, prompt, params, request_id):
+        self.calls.append((prompt, params, request_id))
+        raise RuntimeError("engine startup failed")
+
+
 def test_v1_adapter_direct_generate_abort_uses_internal_alias(monkeypatch):
     from llumnix.backends.vllm.v1_engine import V1EngineAdapter
 
@@ -99,6 +105,22 @@ def test_v1_adapter_preserves_shared_pd_request_id(monkeypatch):
     )
     assert adapter._request_id_aliases["public"] == shared_id
     assert adapter.engine.calls[0][2] == shared_id
+
+
+def test_v1_adapter_rolls_back_bookkeeping_when_engine_start_fails():
+    from llumnix.backends.vllm.v1_engine import V1EngineAdapter
+
+    adapter = object.__new__(V1EngineAdapter)
+    adapter.engine_args = type("Args", (), {"kv_transfer_config": None})()
+    adapter.engine = _FailingEngine()
+    adapter._request_id_aliases = {}
+    adapter.requests = {}
+    adapter.running = []
+    with pytest.raises(RuntimeError, match="startup failed"):
+        adapter.add_request("failed", None, 0, "prompt", object())
+    assert not adapter.requests
+    assert not adapter._request_id_aliases
+    assert not adapter.running
 
 
 class _Request:

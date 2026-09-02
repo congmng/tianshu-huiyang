@@ -83,6 +83,8 @@ consumer 进入不可恢复等待。
 Manager 生成的共享 P/D 内部 request-id（同时携带 decode/prefill endpoint）现在
 在两侧 V1 adapter 中原样保留；adapter 不会用公开 request-id 重新装饰并丢失另一
 端 marker。这保证 producer 和 consumer 解析同一份跨主机路由信息。
+V1 adapter 在向 EngineCore 提交请求同步失败时会回滚本地 request、alias 与 running
+bookkeeping，避免配置/启动异常后留下孤立请求，适用于独立 API 和 Llumlet 两条入口。
 
 ## vLLM V1 迁移进展（2026-09-01）
 

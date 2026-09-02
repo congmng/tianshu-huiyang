@@ -262,6 +262,9 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 修复 V1 adapter 对 Manager 共享 P/D request-id 的二次装饰：producer/consumer
   均保留同时含 decode/prefill endpoint 的内部 ID，避免丢失对端路由 marker；相关
   KV/affinity/调度/API 回归仍为 `52 passed, 7 warnings`。
+- V1 adapter 在 EngineCore 同步 `generate` 启动失败时回滚 request/alias/running
+  状态，防止独立 API 或 Llumlet 遗留孤立 bookkeeping；API/KV/affinity 定向回归
+  `40 passed, 1 warning`，compileall 通过。
 - 新增 V1 API FastAPI lifespan shutdown 回归，确认服务退出调用 adapter shutdown；
   API/KV transfer/affinity 定向回归为 `38 passed, 1 warning`，compileall 通过。
 - 使用 Git bundle 将当前 `f084a52` 同步至 `10.31.10.210`，只读核验远端栈为
