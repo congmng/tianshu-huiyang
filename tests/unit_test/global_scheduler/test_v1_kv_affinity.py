@@ -1,5 +1,8 @@
 from llumnix.backends.vllm.v1_kv import KVCacheAffinityIndex
 from llumnix.instance_info import DispatchLoadComputation, InstanceInfo
+from llumnix.internal_config import GlobalSchedulerConfig
+from llumnix.global_scheduler.global_scheduler import GlobalScheduler
+from llumnix.arg_utils import InstanceArgs
 
 
 class BlockStored:
@@ -162,3 +165,37 @@ def test_virtual_usage_keeps_legacy_block_counter_fallback():
         num_used_gpu_blocks=50,
     )
     assert calculator.compute_instance_load(info) > 0
+
+
+def test_global_scheduler_uses_v1_heterogeneous_load_and_kv_affinity_together():
+    scheduler = GlobalScheduler(GlobalSchedulerConfig(
+        0, "load", 1, "balanced", 1.0, "avg_load", "remaining_steps",
+        1.0, 0.0, False, False,
+    ))
+    cached = InstanceInfo(
+        instance_id="cached", num_running_requests=8,
+        gpu_memory_total_bytes=32 * 1024**3,
+        gpu_memory_free_bytes=24 * 1024**3,
+        compute_capacity=2.0,
+        kv_cache_block_hashes=frozenset({b"prefix"}),
+    )
+    uncached = InstanceInfo(
+        instance_id="uncached", num_running_requests=1,
+        gpu_memory_total_bytes=32 * 1024**3,
+        gpu_memory_free_bytes=31 * 1024**3,
+        compute_capacity=1.0,
+    )
+    calculator = DispatchLoadComputation("virtual_usage")
+    cached.dispatch_load_metric = calculator.compute_instance_load(cached)
+    uncached.dispatch_load_metric = calculator.compute_instance_load(uncached)
+    assert uncached.dispatch_load_metric < cached.dispatch_load_metric
+    scheduler.scale_up(["cached", "uncached"], [
+        InstanceArgs(instance_type="no_constraints"),
+        InstanceArgs(instance_type="no_constraints"),
+    ])
+    scheduler.update_instance_infos([cached, uncached])
+    # Cache affinity is used only among sufficiently healthy nodes. The two
+    # computed heterogeneous loads are within the 0.10 safety window, so the
+    # stored prefix selects ``cached`` rather than blindly using load alone.
+    instance_id, _ = scheduler.dispatch([b"prefix"])
+    assert instance_id == "cached"
