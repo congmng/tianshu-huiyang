@@ -16,6 +16,7 @@ import time
 import shutil
 import os
 import subprocess
+import tempfile
 import ray
 from ray._raylet import PlacementGroupID
 try:

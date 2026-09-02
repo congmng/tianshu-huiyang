@@ -12,10 +12,19 @@ from __future__ import annotations
 import re
 import os
 from contextlib import contextmanager
+import threading
+from collections import defaultdict
+
+import msgpack
+import torch
+import zmq
 
 from vllm.distributed.device_communicators.pynccl_wrapper import NCCLLibrary
 from vllm.distributed.kv_transfer.kv_connector.v1.p2p.p2p_nccl_connector import (
     P2pNcclConnector,
+)
+from vllm.distributed.kv_transfer.kv_connector.v1.p2p import (
+    p2p_nccl_connector as upstream_p2p_connector,
 )
 from vllm.logger import init_logger
 
@@ -121,8 +130,129 @@ _enable_v1_kv_attention_hooks()
 _disable_corex_cumem_for_p2p()
 
 
+class CoreXZmqP2pEngine:
+    """CPU-staged transport for CoreX when V1 NCCL worker init is unstable.
+
+    The CoreX 4.4 NCCL library successfully transfers standalone tensors, but
+    its rank-1 communicator can abort a vLLM EngineCore process.  This engine
+    retains the upstream P2P connector protocol (routing IDs, per-layer KV
+    ownership and blocking load semantics) while moving each KV tensor through
+    ZMQ as a CPU buffer.  It is intentionally selected only by the CoreX
+    connector; native NCCL remains available with ``corex_transport=nccl``.
+    """
+
+    def __init__(self, local_rank, config, hostname="", port_offset=0, **_):
+        del local_rank, hostname
+        self.config = config
+        self.rank = port_offset
+        host = getattr(config, "kv_ip", None)
+        if not host:
+            raise ValueError("CoreX ZMQ P2P requires kv_ip")
+        self.zmq_address = f"{host}:{int(config.kv_port) + port_offset}"
+        self.context = zmq.Context()
+        self.router_socket = self.context.socket(zmq.ROUTER)
+        self.router_socket.setsockopt(zmq.LINGER, 0)
+        self.router_socket.bind(f"tcp://{self.zmq_address}")
+        self.poller = zmq.Poller()
+        self.poller.register(self.router_socket, zmq.POLLIN)
+        self.recv_store = {}
+        self.recv_store_cv = threading.Condition()
+        self.recv_request_id_to_tensor_ids = defaultdict(set)
+        self.send_request_id_to_tensor_ids = defaultdict(set)
+        self._sockets = {}
+        self._listener = threading.Thread(target=self._listen, daemon=True)
+        self._listener.start()
+        logger.info("CoreX P2P using ZMQ CPU staging at %s", self.zmq_address)
+
+    def _listen(self):
+        while True:
+            try:
+                events = dict(self.poller.poll())
+                if self.router_socket not in events:
+                    continue
+                frames = self.router_socket.recv_multipart()
+                if len(frames) != 3:
+                    continue
+                peer, packed, payload = frames
+                meta = msgpack.loads(packed)
+                if meta.get("cmd") != "PUT_CPU":
+                    continue
+                tensor = torch.frombuffer(
+                    bytearray(payload), dtype=getattr(torch, meta["dtype"])
+                ).reshape(tuple(meta["shape"]))
+                tensor_id = meta["tensor_id"]
+                with self.recv_store_cv:
+                    self.recv_store[tensor_id] = tensor
+                    self.recv_request_id_to_tensor_ids[tensor_id.split("#")[0]].add(tensor_id)
+                    self.recv_store_cv.notify_all()
+                self.router_socket.send_multipart([peer, b"0"])
+            except zmq.ZMQError:
+                return
+
+    def _socket(self, remote_address):
+        sock = self._sockets.get(remote_address)
+        if sock is None:
+            sock = self.context.socket(zmq.DEALER)
+            sock.setsockopt(zmq.LINGER, 0)
+            sock.connect(f"tcp://{remote_address}")
+            self._sockets[remote_address] = sock
+        return sock
+
+    def send_tensor(self, tensor_id, tensor, remote_address=None):
+        if remote_address is None:
+            with self.recv_store_cv:
+                self.recv_store[tensor_id] = tensor.detach().cpu()
+                self.recv_store_cv.notify_all()
+            return True
+        cpu = tensor.detach().contiguous().cpu()
+        meta = {
+            "cmd": "PUT_CPU",
+            "tensor_id": tensor_id,
+            "shape": tuple(cpu.shape),
+            "dtype": str(cpu.dtype).replace("torch.", ""),
+        }
+        sock = self._socket(remote_address)
+        sock.send_multipart([msgpack.dumps(meta), cpu.numpy().tobytes()])
+        if sock.recv() != b"0":
+            return False
+        self.send_request_id_to_tensor_ids[tensor_id.split("#")[0]].add(tensor_id)
+        return True
+
+    def recv_tensor(self, tensor_id, remote_address=None):
+        del remote_address
+        with self.recv_store_cv:
+            while tensor_id not in self.recv_store:
+                self.recv_store_cv.wait()
+            return self.recv_store[tensor_id].to("cuda")
+
+    def wait_for_sent(self):
+        return None
+
+    def get_finished(self, finished_req_ids, no_compile_layers):
+        for request_id in finished_req_ids:
+            with self.recv_store_cv:
+                for layer_name in no_compile_layers:
+                    self.recv_store.pop(f"{request_id}#{layer_name}", None)
+                self.recv_request_id_to_tensor_ids.pop(request_id, None)
+                self.send_request_id_to_tensor_ids.pop(request_id, None)
+        return None, None
+
+
 class CoreXP2pNcclConnector(P2pNcclConnector):
     """P2pNcclConnector with optional CoreX NCCL symbols filtered."""
+
+    def __init__(self, vllm_config, role, kv_cache_config=None):
+        config = vllm_config.kv_transfer_config
+        transport = config.get_from_extra_config("corex_transport", "zmq_cpu")
+        if transport not in {"zmq_cpu", "nccl"}:
+            raise ValueError("corex_transport must be 'zmq_cpu' or 'nccl'")
+        original = upstream_p2p_connector.P2pNcclEngine
+        if transport == "zmq_cpu":
+            upstream_p2p_connector.P2pNcclEngine = CoreXZmqP2pEngine
+        try:
+            super().__init__(vllm_config, role, kv_cache_config)
+        finally:
+            upstream_p2p_connector.P2pNcclEngine = original
 
     @staticmethod
     def parse_request_id(request_id: str, is_prefill=True) -> tuple[str, int]:

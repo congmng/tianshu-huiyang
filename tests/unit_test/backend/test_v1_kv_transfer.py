@@ -154,6 +154,22 @@ def test_corex_p2p_compat_keeps_p2p_defaults(monkeypatch):
     assert args.kv_transfer_config.kv_parallel_size == 2
 
 
+def test_corex_p2p_defaults_to_safe_cpu_staging(monkeypatch):
+    from llumnix.backends.vllm.corex_p2p_connector import CoreXP2pNcclConnector
+    from vllm.config import KVTransferConfig
+
+    config = KVTransferConfig(
+        kv_connector="CoreXP2pNcclConnector",
+        kv_role="kv_producer",
+        kv_rank=0,
+        kv_parallel_size=2,
+        kv_ip="127.0.0.1",
+        kv_port=18999,
+    )
+    assert config.get_from_extra_config("corex_transport", "zmq_cpu") == "zmq_cpu"
+    assert CoreXP2pNcclConnector.__name__ == "CoreXP2pNcclConnector"
+
+
 def test_corex_compat_rewrites_explicit_vllm_p2p_config(monkeypatch):
     from llumnix.backends.vllm import v1_kv_transfer
     from vllm.config import KVTransferConfig
