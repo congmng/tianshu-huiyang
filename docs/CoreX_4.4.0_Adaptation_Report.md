@@ -458,3 +458,8 @@ handoff 实现；旧 vLLM 0.6 的任意时刻 block-manager 迁移接口仍不�
 远端 worker 随后无法连接 GCS；该现象发生在 Llumnix/模型 actor 创建之前，不构成
 V1 调度代码失败证据。后续跨机部署应将 Ray head 的 `--temp-dir` 和 object-store
 目录固定到 `/data1`，并用轻量 Ray actor 心跳验证集群稳定后再加载模型。
+
+进一步的诊断将 Ray head 临时目录固定到 `/data1`、每节点限制为 4 CPU/1 GPU；
+head 单节点可稳定运行，但远端 worker 注册时仍观察到 head/GCS 退出，远端仅报
+GCS 连接超时，head 日志没有 Llumnix 或模型错误。该现象属于跨节点 Ray 运行时
+握手层，当前已清理进程；模型同步、版本统一和 affinity 哈希验证不受影响。

@@ -54,6 +54,12 @@
   `/data1` 仍有充足空间；后续应固定 Ray head 的 `/data1` 临时目录并先完成轻量
   actor 心跳，再启动大模型。
 
+- 本轮将 head 临时目录固定到 `/data1/congmng/llumnix/.ray-stable`，并将两端
+  Ray 限制为每节点 4 CPU、1 GPU；head 单节点可稳定启动并报告 1 GPU。远端
+  worker 注册阶段仍复现 head/GCS 退出，worker 日志持续为 “Failed to connect to
+  GCS”，且 head 日志没有 Llumnix、模型或 connector 错误。该结果将跨机 Ray
+  控制面问题隔离在运行时/网络握手层；本轮已清理所有 Ray 进程，避免遗留资源。
+
 ## 2026-09-02：论文第三点基础部署冒烟验证
 
 论文第三个研究点为“基于异构负载感知的跨域请求调度技术”，核心包括异构
