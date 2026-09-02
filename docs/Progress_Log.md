@@ -33,6 +33,7 @@ counter。异构容量排序与回退逻辑新增测试，相关定向回归为 
 独立 `v1_api_server` 改为复用 vLLM 0.11 `AsyncEngineArgs` 的完整 CLI 参数
 注册与校验。量化、tokenizer、调度和 KV-transfer 等原生选项不再被静默丢弃；
 新增 CLI/HTTP 回归共 16 passed，`compileall` 通过。
+远端 `10.31.10.210` 同步提交后执行扩展定向集也为 45 passed。
 
 两机同步到提交 `5893493` 后分别执行同一 44 项定向回归均通过。实机采样的
 `virtual_usage` 为本机 0.00468、远端 0.00522，差异由两端的实时空闲显存产生；

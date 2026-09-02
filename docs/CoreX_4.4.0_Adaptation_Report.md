@@ -345,6 +345,8 @@ Qwen3-14B 实测启动后，`GET /health` 返回 200，`POST /generate` 返回 2
 丢弃量化、tokenizer、调度及 KV-transfer 选项；`--help` 已实测包含
 `--quantization`、`--kv-transfer-config`、`--tensor-parallel-size` 等原生参数，
 对应 CLI 回归通过。
+该变更已在 `10.31.10.210` 的 Python 3.12/CoreX 环境复核：同步同一源码后
+V1/KV/HTTP 定向回归为 45 passed，完整参数帮助可正常加载。
 无模型 mock 回归覆盖 `/health`、非流式 `/generate` 和 streaming wire format，
 因此 HTTP 协议可在不加载大模型的情况下持续验证。
 流式响应的异步迭代器在客户端断连/提前关闭时也会自动 abort 对应 V1 request，
