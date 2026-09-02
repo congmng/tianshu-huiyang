@@ -208,3 +208,11 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 独立 `v1_api_server` 实测发现 Qwen3-14B 在 32 GiB 卡上需要限制 vLLM
   sampler 预热并发；入口新增 `--max-num-seqs`（默认 4）。使用 CoreX 栈真实
   验证 `/health=200`，`/generate=200` 并返回正常文本。
+
+## 2026-09-02：V1 请求生命周期 bookkeeping 收敛
+
+- Manager 周期性请求轮询现在同时重建 `request_instance` 和
+  `request_instances`，以各 Llumlet 的活动 request-id 集合为权威来源。
+  这覆盖同一公开请求对应 producer/consumer 两个 V1 actor 的完成场景，避免
+  完成后残留双实例映射导致后续 abort 访问过期请求。
+- CoreX/V1 相关回归：`43 passed, 7 warnings`；Python 3.12 `compileall` 通过。

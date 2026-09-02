@@ -1174,9 +1174,23 @@ class Manager:
         await asyncio.gather(*tasks, return_exceptions=True)
         logger.debug("instance_ids: {}".format(instance_ids))
         logger.debug("instance_requests: {}".format(instance_requests))
+
+        # Reconcile both bookkeeping maps from the actors' authoritative
+        # active-request sets. V1 P/D uses one public request id on two
+        # Llumlets, so rebuilding only ``request_instance`` would leave stale
+        # producer/consumer entries in ``request_instances`` after completion.
+        active_by_request = defaultdict(set)
         for instance_id, requests in zip(instance_ids, instance_requests):
             for request_id in requests:
-                self.request_instance[request_id] = instance_id
+                active_by_request[request_id].add(instance_id)
+        self.request_instance = {
+            request_id: next(iter(active_instances))
+            for request_id, active_instances in active_by_request.items()
+        }
+        self.request_instances = {
+            request_id: set(active_instances)
+            for request_id, active_instances in active_by_request.items()
+        }
 
     async def _clear_request_instance_loop(self, interval: float):
         await self._get_request_instance()
