@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import hashlib
 import ctypes
+import copy
 from typing import Any
 
 
@@ -77,6 +78,22 @@ def decorate_p2p_consumer_request_id(
 def p2p_connector_enabled(engine_args: Any) -> bool:
     config = getattr(engine_args, "kv_transfer_config", None)
     return config is not None and getattr(config, "kv_connector", None) in P2P_CONNECTORS
+
+
+def producer_sampling_params(sampling_params: Any) -> Any:
+    """Return P/D producer parameters that stop after the prefill handoff.
+
+    ``P2pNcclConnector`` exports the completed prompt KV during the producer's
+    first forward pass.  Letting that request use the public ``max_tokens``
+    would continue decoding tokens that are never returned and needlessly
+    occupy the prefill worker.  One token retains vLLM's normal prefill-to-
+    decode transition while the consumer owns the full public generation.
+    """
+    if sampling_params is None or not hasattr(sampling_params, "max_tokens"):
+        return sampling_params
+    producer_params = copy.copy(sampling_params)
+    producer_params.max_tokens = 1
+    return producer_params
 
 
 def validate_p2p_environment(engine_args: Any) -> None:

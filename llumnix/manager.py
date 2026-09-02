@@ -286,9 +286,13 @@ class Manager:
                         llumnix_kv_decode_address=decode_endpoint,
                         llumnix_suppress_output=True,
                     )
+                    producer_args = list(args)
+                    if len(producer_args) >= 2:
+                        from llumnix.backends.vllm.v1_kv_transfer import producer_sampling_params
+                        producer_args[1] = producer_sampling_params(producer_args[1])
                     try:
                         await self.instances[prefill_id].generate.remote(
-                            request_id, server_info, request_expected_steps, *args,
+                            request_id, server_info, request_expected_steps, *producer_args,
                             **producer_kwargs
                         )
                         consumer_kwargs = dict(kwargs)

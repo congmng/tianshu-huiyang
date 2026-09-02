@@ -238,3 +238,14 @@ def test_v1_adapter_advertises_p2p_base_port(monkeypatch):
     )
     monkeypatch.setenv("LLUMNIX_KV_IP", "10.31.10.210")
     assert adapter.get_kv_endpoint() == "10.31.10.210:19052"
+
+
+def test_pd_producer_sampling_stops_after_handoff():
+    from llumnix.backends.vllm.v1_kv_transfer import producer_sampling_params
+
+    params = SimpleNamespace(max_tokens=32, temperature=0.7)
+    producer = producer_sampling_params(params)
+    assert producer is not params
+    assert producer.max_tokens == 1
+    assert params.max_tokens == 32
+    assert producer.temperature == 0.7

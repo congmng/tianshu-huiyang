@@ -52,6 +52,13 @@ P/D 仍需在两端部署相同权重后做端到端验证。
 vLLM 配置不被改写。consumer 的 P2P 请求 ID 现可编码 prefill 地址，但 Manager
 尚未实现 producer/consumer 双请求编排，因而不能将该编码视为完整 P/D 服务支持。
 
+V1 P/D 编排现已进入可执行的第一阶段：Manager 在 prefill/decode 实例均报告
+可路由 P2P endpoint 时，为同一个公开 request ID 启动两个 `AsyncLLM` 请求；
+producer 的输出被抑制并限制为 handoff 所需的一步，consumer 用原始采样参数
+负责所有公开输出。取消请求会广播到两个实例；consumer 启动失败时会反向清理已
+启动的 producer。endpoint 尚未就绪时安全回退到原有单请求路径。该实现尚缺两机
+同权重模型级验证，不能据此宣称端到端 KV 复用已完成。
+
 ## vLLM V1 迁移进展（2026-09-01）
 
 针对本机软件栈的 `vllm 0.11.2+corex.4.4.0`，已加入第一阶段 V1 迁移代码：
