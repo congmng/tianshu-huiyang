@@ -66,6 +66,11 @@ def pytest_ignore_collect(collection_path, config):
         "test_simulator.py",
         "test_worker.py",
     }
+    # These HTTP tests boot the legacy Manager/API server and expect the
+    # removed vLLM 0.6 engine lifecycle. V1 has a dedicated lightweight API
+    # entrypoint and model-level smoke coverage instead.
+    if path.endswith("/tests/unit_test/entrypoints/vllm/test_api_server.py"):
+        return True
     return path.rsplit("/", 1)[-1] in legacy
 
 

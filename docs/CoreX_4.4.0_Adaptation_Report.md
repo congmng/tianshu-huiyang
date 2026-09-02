@@ -291,6 +291,9 @@ raylet/dashboard 故障污染适配回归；V1 KV/affinity 定向测试在该夹
 进一步将 unit-test fixture 改为无 dashboard 的进程内 Ray runtime，并移除清理阶段
 对 State API 的依赖；入口启动命令使用 subprocess mock 校验参数。这样测试不会
 停止或查询用户正在运行的共享集群，也不会因 dashboard 不可用误报适配失败。
+依赖旧 vLLM 0.6 API 的 legacy HTTP 测试也在 V1 收集阶段跳过；V1 HTTP 入口由
+独立的 `v1_api_server` 实测覆盖。部分历史 Ray actor/placement 测试仍可能因其
+长轮询语义而耗时，不作为当前 V1 生产门禁。
 
 独立 `v1_api_server` 入口新增 `--max-num-seqs`（默认 4），避免 Qwen3-14B 在
 32 GiB CoreX 卡上按默认 128 dummy requests 进行 sampler 预热时 OOM。使用本机

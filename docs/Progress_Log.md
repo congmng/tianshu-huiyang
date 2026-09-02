@@ -234,3 +234,7 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   `test_launch_ray_cluster` 改用 subprocess mock 校验启动参数，避免测试停止或
   依赖共享 Ray 集群。缺少 `pytest-asyncio` 的 async 测试会明确 skip；当前 V1
   定向测试保持通过。
+- 追加隔离 legacy `entrypoints/vllm/test_api_server.py`（其启动的是 vLLM 0.6
+  HTTP 生命周期）；V1 HTTP 行为以 `v1_api_server` 实测为准。完整 unit-test
+  仍可能在历史 Ray actor/placement 长轮询处停滞，已停止该次运行并保留专用
+  V1 门禁结果。
