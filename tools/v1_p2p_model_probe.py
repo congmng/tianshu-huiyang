@@ -31,6 +31,10 @@ async def run(args: argparse.Namespace) -> None:
         kv_parallel_size=2,
         kv_ip=args.host,
         kv_port=args.port,
+        # The probe exits after the producer's first output. Use synchronous
+        # transport so the worker cannot be torn down before its async queue
+        # hands the KV tensors to the consumer.
+        kv_connector_extra_config={"send_type": "PUT"},
     )
     engine_args = AsyncEngineArgs(
         model=args.model,
