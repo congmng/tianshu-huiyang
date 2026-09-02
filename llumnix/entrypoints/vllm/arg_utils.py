@@ -11,6 +11,19 @@ from llumnix.entrypoints.utils import LaunchMode
 logger = init_logger(__name__)
 
 
+def validate_v1_pd_connector(manager_args: ManagerArgs, instance_args: InstanceArgs,
+                              vllm_version: str) -> None:
+    """Reject V1 P/D deployments that cannot perform a KV handoff."""
+    if not str(vllm_version).startswith("0.11"):
+        return
+    if manager_args.enable_pd_disagg and instance_args.migration_backend != "kvtransfer":
+        raise ValueError(
+            "vLLM V1 P/D requires --migration-backend kvtransfer and "
+            "a P2pNcclConnector/CoreX endpoint configuration; legacy "
+            f"{instance_args.migration_backend!r} cannot transfer V1 KV cache"
+        )
+
+
 def add_cli_args(parser: LlumnixArgumentParser) -> "Namespace":
     parser.set_namespace("llumnix")
     parser = EntrypointsArgs.add_cli_args(parser)
@@ -41,9 +54,13 @@ def get_args(cfg, launch_mode: LaunchMode, parser: LlumnixArgumentParser, cli_ar
     if not getattr(vllm, "__version__", "").startswith("0.11"):
         check_engine_args(engine_args, instance_args)
     else:
-        # V1 migration is connector-based. Keep the manager migration loop
-        # disabled for the legacy coordinator; ``kvtransfer`` is configured
-        # later when the V1 backend is constructed.
+        # V1 migration is connector-based. P/D requires a connector; the
+        # historical gloo default would start two ordinary engines and
+        # silently omit KV handoff. Do not guess host/rank/port topology here:
+        # fail at startup with an actionable configuration requirement.
+        validate_v1_pd_connector(manager_args, instance_args, vllm.__version__)
+        # Keep the old block-manager migration loop disabled.  ``kvtransfer``
+        # is configured later when each V1 backend is constructed.
         if instance_args.migration_backend != "kvtransfer":
             manager_args.enable_migration = False
             logger.warning(

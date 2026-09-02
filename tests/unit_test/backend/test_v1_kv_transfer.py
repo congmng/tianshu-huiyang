@@ -21,6 +21,20 @@ def test_kvtransfer_config_is_opt_in(monkeypatch):
     assert args.kv_transfer_config is None
 
 
+def test_v1_pd_rejects_legacy_backend_before_engine_startup():
+    import pytest
+    from llumnix.entrypoints.vllm.arg_utils import validate_v1_pd_connector
+
+    manager = SimpleNamespace(enable_pd_disagg=True)
+    instance = SimpleNamespace(migration_backend="gloo")
+    with pytest.raises(ValueError, match="requires --migration-backend kvtransfer"):
+        validate_v1_pd_connector(manager, instance, "0.11.2")
+    instance.migration_backend = "kvtransfer"
+    validate_v1_pd_connector(manager, instance, "0.11.2")
+
+
+
+
 def test_kvtransfer_config_maps_llumnix_options(monkeypatch):
     from llumnix.backends.vllm.v1_kv_transfer import configure_v1_kv_transfer
 
