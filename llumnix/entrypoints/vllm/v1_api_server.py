@@ -40,6 +40,8 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
     async def generate(request: Request) -> Response:
         try:
             body = await request.json()
+            if not isinstance(body, dict):
+                raise ValueError("request body must be a JSON object")
             prompt = body.pop("prompt")
             if not isinstance(prompt, str):
                 raise ValueError("prompt must be a string")

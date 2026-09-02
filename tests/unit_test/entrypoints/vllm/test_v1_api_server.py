@@ -91,6 +91,11 @@ class _Request:
         return False
 
 
+class _RawRequest(_Request):
+    async def json(self):
+        return ["not", "an", "object"]
+
+
 def _route(app, path, method):
     return next(
         route.endpoint
@@ -123,6 +128,10 @@ def test_v1_api_rejects_invalid_request_without_engine_call():
         asyncio.run(generate(_Request({"max_tokens": 1})))
     assert error.value.status_code == 400
     assert not engine.calls
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(generate(_RawRequest({})))
+    assert error.value.status_code == 400
 
 
 def test_v1_api_streaming_wire_format_without_model():

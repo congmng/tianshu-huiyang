@@ -254,3 +254,5 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   `33 passed, 1 warning`。
 - V1 HTTP `/generate` 增加输入验证：非法 prompt/stream/request-id/采样参数返回
   HTTP 400，并保证不调用 EngineCore。API/KV/profiling 回归为 `34 passed, 1 warning`。
+- 补充非对象 JSON body 校验，避免列表输入触发未处理异常；API/KV/profiling
+  回归仍为 `34 passed, 1 warning`。

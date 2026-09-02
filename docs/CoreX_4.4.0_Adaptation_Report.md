@@ -316,6 +316,8 @@ staging 测试端口改为动态分配，重复运行或双机并行验证不会
 独立 V1 HTTP 入口现在会把缺失或类型错误的 prompt、stream、request-id 及采样
 参数转为 HTTP 400，且不会启动 EngineCore request；因此部署端可区分客户端输入
 错误和 CoreX/vLLM 运行时故障。
+非对象 JSON body 也按同一规则拒绝，避免 Python 3.12 下对列表等输入调用
+`.pop("prompt")` 产生未处理的属性异常。
 
 以下是历史兼容性记录（不是当前 CoreX 安装要求）：仓库早期版本曾锁定 vLLM
 0.6.3：
