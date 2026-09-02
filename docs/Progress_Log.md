@@ -31,6 +31,18 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 `P2pNcclConnector` 负责物理 GPU block 的导出/传输/导入，但在 CoreX 两机上
 尚未完成实际 worker tensor transfer 验证，因此当前不宣称跨实例迁移全部完成。
 
+## 2026-09-02：显式 P2P 配置兼容与边界收紧
+
+- 即使未设置 Llumnix 的 `migration_backend=kvtransfer`，只要用户显式提供
+  vLLM `KVTransferConfig(kv_connector="P2pNcclConnector")`，CoreX NCCL ABI
+  shim 也会被应用；非 P2P 原生配置保持不变。
+- 增加 consumer 侧 `___prefill_addr_<host>:<port>___` 请求 ID 编码/解码，
+  与 producer 的 `___decode_addr_...___` 对称，并在输出前恢复公开 request ID。
+- 暂不宣称 V1 P/D 编排完成：当前 Manager 不会凭空创建第二个 consumer 请求，
+  因此仍需实现 producer/consumer 双请求生命周期、输出抑制、abort/超时清理后，
+  才能进行模型级端到端验证。
+- 本轮相关单测：31 passed；未下载或提交 `.models/`、`.conda-corex44/`。
+
 ## 2026-09-01：跨主机事件与 hash 一致性验证
 
 - 本机 `10.31.10.62` 使用 vLLM `EventPublisherFactory` 在

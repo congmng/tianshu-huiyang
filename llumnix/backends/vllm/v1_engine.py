@@ -101,11 +101,19 @@ class V1EngineAdapter:
     def add_request(self, request_id, server_info, expected_steps, prompt,
                     sampling_params, *args, **kwargs):
         decode_address = kwargs.pop("llumnix_kv_decode_address", None)
+        prefill_address = kwargs.pop("llumnix_kv_prefill_address", None)
         internal_request_id = request_id
         if p2p_connector_enabled(self.engine_args):
             role = getattr(self.engine_args.kv_transfer_config, "kv_role", None)
             if role in ("kv_producer", "kv_both") and decode_address:
                 internal_request_id = decorate_p2p_request_id(request_id, decode_address)
+            elif role == "kv_consumer" and prefill_address:
+                from llumnix.backends.vllm.v1_kv_transfer import (
+                    decorate_p2p_consumer_request_id,
+                )
+                internal_request_id = decorate_p2p_consumer_request_id(
+                    request_id, prefill_address
+                )
         self._request_id_aliases[request_id] = internal_request_id
         self.requests[request_id] = (server_info, time.time())
         self.running.append(request_id)

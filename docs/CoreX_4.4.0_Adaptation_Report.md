@@ -46,6 +46,12 @@ communicator 在 `ens1f0` 上成功初始化，GPU tensor `[1,2,3,4]` 已从本�
 `10.31.10.210` 完整接收。这是实际 NCCL send/recv 数据面证据；完整模型级
 P/D 仍需在两端部署相同权重后做端到端验证。
 
+补充配置兼容：用户若直接传入 vLLM 原生的
+`KVTransferConfig(kv_connector="P2pNcclConnector")`，即使没有选择 Llumnix
+`migration_backend=kvtransfer`，也会重定向到本项目的 CoreX ABI shim；其余显式
+vLLM 配置不被改写。consumer 的 P2P 请求 ID 现可编码 prefill 地址，但 Manager
+尚未实现 producer/consumer 双请求编排，因而不能将该编码视为完整 P/D 服务支持。
+
 ## vLLM V1 迁移进展（2026-09-01）
 
 针对本机软件栈的 `vllm 0.11.2+corex.4.4.0`，已加入第一阶段 V1 迁移代码：

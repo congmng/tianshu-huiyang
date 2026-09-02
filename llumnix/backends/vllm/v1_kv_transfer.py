@@ -16,6 +16,7 @@ from typing import Any
 
 P2P_REQUEST_ID_PREFIX = "___decode_addr_"
 P2P_REQUEST_ID_SUFFIX = "___"
+P2P_PREFILL_ID_PREFIX = "___prefill_addr_"
 P2P_CONNECTORS = {"P2pNcclConnector", "CoreXP2pNcclConnector"}
 
 
@@ -34,7 +35,13 @@ def corex_nccl_needs_compat() -> bool:
 
 def strip_p2p_request_id(request_id: str) -> str:
     """Remove connector routing metadata from a vLLM output request id."""
-    marker = request_id.find(P2P_REQUEST_ID_PREFIX)
+    markers = [
+        request_id.find(P2P_REQUEST_ID_PREFIX),
+        request_id.find(P2P_PREFILL_ID_PREFIX),
+    ]
+    marker = min(marker for marker in markers if marker >= 0) if any(
+        marker >= 0 for marker in markers
+    ) else -1
     if marker < 0:
         return request_id
     return request_id[:marker]
@@ -51,6 +58,20 @@ def decorate_p2p_request_id(request_id: str, decode_address: str | None) -> str:
             "P2pNcclConnector"
         )
     return f"{request_id}{P2P_REQUEST_ID_PREFIX}{decode_address}{P2P_REQUEST_ID_SUFFIX}"
+
+
+def decorate_p2p_consumer_request_id(
+    request_id: str, prefill_address: str | None
+) -> str:
+    """Attach P2pNcclConnector's required prefill address for a consumer."""
+    if not prefill_address or P2P_PREFILL_ID_PREFIX in request_id:
+        return request_id
+    host, separator, port = prefill_address.rpartition(":")
+    if not host or not separator or not port.isdigit():
+        raise ValueError(
+            "prefill P2P endpoint must be a concrete host:port"
+        )
+    return f"{request_id}{P2P_PREFILL_ID_PREFIX}{prefill_address}{P2P_REQUEST_ID_SUFFIX}"
 
 
 def p2p_connector_enabled(engine_args: Any) -> bool:
@@ -91,7 +112,13 @@ def configure_v1_kv_transfer(
     configuration unchanged. ``LLUMNIX_KV_*`` environment variables provide
     per-instance rank/address values for multi-process deployments.
     """
-    if getattr(migration_config, "migration_backend", None) != "kvtransfer":
+    migration_backend = getattr(migration_config, "migration_backend", None)
+    current = getattr(engine_args, "kv_transfer_config", None)
+    # An explicit native vLLM P2P configuration is also in scope.  Llumnix
+    # must still apply the CoreX ABI shim even when the legacy migration
+    # backend flag is left at its default value.
+    explicit_p2p = getattr(current, "kv_connector", None) in P2P_CONNECTORS
+    if migration_backend != "kvtransfer" and not explicit_p2p:
         return False
 
     from vllm.config import KVEventsConfig, KVTransferConfig
@@ -106,7 +133,6 @@ def configure_v1_kv_transfer(
     if getattr(engine_args, "enable_prefix_caching", None) is not True:
         engine_args.enable_prefix_caching = True
 
-    current = getattr(engine_args, "kv_transfer_config", None)
     if current is None:
         connector = getattr(migration_config, "migration_backend_transfer_type", "")
         if not connector or connector == "rdma":
@@ -149,10 +175,22 @@ def configure_v1_kv_transfer(
             kv_connector_module_path=connector_module_path,
         )
         engine_args.kv_transfer_config = current
+    elif (
+        getattr(current, "kv_connector", None) == "P2pNcclConnector"
+        and corex_nccl_needs_compat()
+    ):
+        # Respect every explicit vLLM transfer setting while redirecting the
+        # connector class through the CoreX ABI shim. This covers users that
+        # pass --kv-transfer-config directly rather than Llumnix's legacy
+        # migration options.
+        current.kv_connector = "CoreXP2pNcclConnector"
+        current.kv_connector_module_path = (
+            "llumnix.backends.vllm.corex_p2p_connector"
+        )
 
     # Events are useful for the affinity index and harmless for connectors
     # that do not consume them. Preserve an explicitly supplied configuration.
-    if getattr(engine_args, "kv_events_config", None) is None:
+    if migration_backend == "kvtransfer" and getattr(engine_args, "kv_events_config", None) is None:
         endpoint = os.getenv("LLUMNIX_KV_EVENTS_ENDPOINT")
         if endpoint is None:
             # The V1 engine core binds the publisher. Give each colocated

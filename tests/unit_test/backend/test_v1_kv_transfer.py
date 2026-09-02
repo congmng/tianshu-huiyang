@@ -154,6 +154,58 @@ def test_corex_p2p_compat_keeps_p2p_defaults(monkeypatch):
     assert args.kv_transfer_config.kv_parallel_size == 2
 
 
+def test_corex_compat_rewrites_explicit_vllm_p2p_config(monkeypatch):
+    from llumnix.backends.vllm import v1_kv_transfer
+    from vllm.config import KVTransferConfig
+
+    monkeypatch.setattr(v1_kv_transfer, "corex_nccl_needs_compat", lambda: True)
+    transfer = KVTransferConfig(
+        kv_connector="P2pNcclConnector",
+        kv_role="kv_consumer",
+        kv_parallel_size=2,
+        kv_ip="10.31.10.210",
+        kv_port=19052,
+    )
+    args = SimpleNamespace(
+        kv_transfer_config=transfer,
+        kv_events_config=None,
+        prefix_caching_hash_algo="sha256",
+        enable_prefix_caching=False,
+    )
+    cfg = SimpleNamespace(
+        migration_backend="kvtransfer",
+        migration_backend_transfer_type="P2pNcclConnector",
+        kvtransfer_migration_backend_naming_url="",
+    )
+    v1_kv_transfer.configure_v1_kv_transfer(args, cfg, instance_id="instance-a")
+    assert transfer.kv_connector == "CoreXP2pNcclConnector"
+    assert transfer.kv_connector_module_path == (
+        "llumnix.backends.vllm.corex_p2p_connector"
+    )
+    assert transfer.kv_ip == "10.31.10.210"
+    assert transfer.kv_port == 19052
+
+
+def test_explicit_vllm_p2p_config_is_compatible_without_legacy_backend(monkeypatch):
+    from llumnix.backends.vllm import v1_kv_transfer
+    from vllm.config import KVTransferConfig
+
+    monkeypatch.setattr(v1_kv_transfer, "corex_nccl_needs_compat", lambda: True)
+    transfer = KVTransferConfig(
+        kv_connector="P2pNcclConnector", kv_role="kv_consumer", kv_parallel_size=2
+    )
+    args = SimpleNamespace(
+        kv_transfer_config=transfer,
+        kv_events_config=None,
+        prefix_caching_hash_algo="sha256",
+        enable_prefix_caching=False,
+    )
+    cfg = SimpleNamespace(migration_backend="gloo")
+    assert v1_kv_transfer.configure_v1_kv_transfer(args, cfg) is True
+    assert transfer.kv_connector == "CoreXP2pNcclConnector"
+    assert args.kv_events_config is None
+
+
 def test_corex_nccl_compat_detection_is_boolean():
     from llumnix.backends.vllm.v1_kv_transfer import corex_nccl_needs_compat
 
@@ -165,3 +217,11 @@ def test_strip_p2p_request_id():
 
     assert strip_p2p_request_id("request-1___decode_addr_10.0.0.8:17000___") == "request-1"
     assert strip_p2p_request_id("request-1") == "request-1"
+
+
+def test_consumer_request_id_has_required_prefill_address():
+    from llumnix.backends.vllm.v1_kv_transfer import decorate_p2p_consumer_request_id
+
+    request_id = decorate_p2p_consumer_request_id("request-1", "10.0.0.9:17001")
+    assert request_id == "request-1___prefill_addr_10.0.0.9:17001___"
+    assert decorate_p2p_consumer_request_id(request_id, "10.0.0.9:17001") == request_id
