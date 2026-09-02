@@ -31,7 +31,7 @@ from llumnix.logging.logger import init_logger
 from llumnix.global_scheduler.global_scheduler import GlobalScheduler
 from llumnix.global_scheduler.migration_scheduler import PairMigrationConstraints
 from llumnix.global_scheduler.migration_filter import CustomFilter
-from llumnix.instance_info import InstanceInfo
+from llumnix.instance_info import InstanceInfo, InstanceType
 from llumnix.arg_utils import ManagerArgs, EntrypointsArgs, InstanceArgs, LaunchArgs
 from llumnix.server_info import ServerInfo
 from llumnix.backends.backend_interface import BackendType
@@ -166,6 +166,9 @@ class Manager:
 
         # request states
         self.request_instance: Dict[str, str] = {}
+        # V1 P/D owns two backend requests for one public request.  Keep the
+        # complete set so cancellation reaches both the producer and consumer.
+        self.request_instances: Dict[str, set[str]] = {}
 
         # migration states
         self.num_instance_info_updates = 0
@@ -243,18 +246,68 @@ class Manager:
                         break
                 except (ray.exceptions.RayActorError, AttributeError):
                     continue
-        instance_id, request_expected_steps = self.global_scheduler.dispatch(block_hashes)
+        pd_v1 = self.is_vllm_v1 and self.enable_pd_disagg
+        prefill_id = decode_id = None
+        if pd_v1:
+            prefill_ids = [
+                iid for iid, info in self.global_scheduler.instance_info.items()
+                if getattr(info, "instance_type", None) == InstanceType.PREFILL
+            ]
+            decode_ids = [
+                iid for iid, info in self.global_scheduler.instance_info.items()
+                if getattr(info, "instance_type", None) == InstanceType.DECODE
+            ]
+            # A complete V1 P/D request is two independent AsyncLLM streams:
+            # producer sends the prompt KV and consumer owns the public output.
+            if prefill_ids and decode_ids:
+                prefill_id = min(prefill_ids, key=lambda iid: self.global_scheduler.instance_info[iid].dispatch_load_metric)
+                decode_id = min(decode_ids, key=lambda iid: self.global_scheduler.instance_info[iid].dispatch_load_metric)
+        if prefill_id is None:
+            instance_id, request_expected_steps = self.global_scheduler.dispatch(block_hashes)
+        else:
+            instance_id, request_expected_steps = prefill_id, float("inf")
         try:
             set_timestamp(server_info, "manager_generate_timestamp", time.time())
-            await self.instances[instance_id].generate.remote(
-                request_id, server_info, request_expected_steps, *args, **kwargs
-            )
+            if prefill_id is not None:
+                prefill_info = self.global_scheduler.instance_info[prefill_id]
+                decode_info = self.global_scheduler.instance_info[decode_id]
+                prefill_endpoint = getattr(prefill_info, "kv_endpoint", None)
+                decode_endpoint = getattr(decode_info, "kv_endpoint", None)
+                if not prefill_endpoint or not decode_endpoint:
+                    raise RuntimeError(
+                        "V1 P/D requires routable kv_endpoint on both instances"
+                    )
+                producer_kwargs = dict(kwargs)
+                producer_kwargs.update(
+                    llumnix_kv_decode_address=decode_endpoint,
+                    llumnix_suppress_output=True,
+                )
+                await self.instances[prefill_id].generate.remote(
+                    request_id, server_info, request_expected_steps, *args,
+                    **producer_kwargs
+                )
+                consumer_kwargs = dict(kwargs)
+                consumer_kwargs.update(
+                    llumnix_kv_prefill_address=prefill_endpoint,
+                    llumnix_public_request_id=request_id,
+                )
+                await self.instances[decode_id].generate.remote(
+                    request_id, server_info, float("inf"), *args,
+                    **consumer_kwargs
+                )
+                instance_id = decode_id
+                self.request_instances[request_id] = {prefill_id, decode_id}
+            else:
+                await self.instances[instance_id].generate.remote(
+                    request_id, server_info, request_expected_steps, *args, **kwargs
+                )
             if self.log_requests:
                 logger.info("manager receive request {}".format(request_id))
                 logger.info(
                     "dispath request {} to instance {}".format(request_id, instance_id)
                 )
                 self.request_instance[request_id] = instance_id
+                self.request_instances.setdefault(request_id, {instance_id})
         except (ray.exceptions.RayActorError, KeyError):
             logger.info(
                 "Instance {} is dead, regenerate request {}.".format(
@@ -276,6 +329,7 @@ class Manager:
                         logger.warning(
                             "request {} is not in request_instance".format(req_id)
                         )
+                    self.request_instances.pop(req_id, None)
             else:
                 logger.info("Instance {} is dead.".format(instance_id))
                 self.scale_down(instance_id)
@@ -286,8 +340,10 @@ class Manager:
         instance_requests = defaultdict(list)
         for req_id in request_ids:
             # Requests will be free by instance when finished, so it is acceptable to miss aborted requests.
-            if req_id in self.request_instance:
-                instance_id = self.request_instance[req_id]
+            for instance_id in self.request_instances.get(
+                req_id,
+                {self.request_instance[req_id]} if req_id in self.request_instance else set(),
+            ):
                 instance_requests[instance_id].append(req_id)
         tasks = []
         for instance_id, request_ids in instance_requests.items():

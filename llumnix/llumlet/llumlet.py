@@ -290,6 +290,7 @@ class Llumlet:
         if self.is_vllm_v1:
             instance_info = InstanceInfo(instance_id=self.instance_id)
             self.backend_engine.update_instance_info(instance_info)
+            instance_info.kv_endpoint = self.backend_engine.get_kv_endpoint()
         else:
             instance_info: InstanceInfo = self.backend_engine.engine.instance_info
         instance_info.instance_type = self.instance_args.instance_type
@@ -323,13 +324,24 @@ class Llumlet:
         **kwargs,
     ) -> None:
         set_timestamp(server_info, "llumlet_generate_timestamp", time.time())
+        suppress_output = bool(kwargs.pop("llumnix_suppress_output", False))
+        public_request_id = kwargs.pop("llumnix_public_request_id", request_id)
         request = self.backend_engine.add_request(
             request_id, server_info, expected_steps, *args, **kwargs
         )
         if self.is_vllm_v1:
-            asyncio.create_task(self._forward_v1_outputs(request_id, server_info, request))
+            asyncio.create_task(
+                self._forward_v1_outputs(
+                    request_id, server_info, request,
+                    suppress_output=suppress_output,
+                    public_request_id=public_request_id,
+                )
+            )
 
-    async def _forward_v1_outputs(self, request_id, server_info, request) -> None:
+    async def _forward_v1_outputs(
+        self, request_id, server_info, request, *, suppress_output=False,
+        public_request_id=None,
+    ) -> None:
         """Bridge V1 AsyncLLM output into the existing Llumnix queue."""
         try:
             async for output in request:
@@ -337,8 +349,10 @@ class Llumlet:
                 # request IDs. Restore the public ID before sending output to
                 # the API queue so clients and Manager bookkeeping remain
                 # stable.
+                if suppress_output:
+                    continue
                 if self.is_vllm_v1:
-                    output.request_id = self.backend_engine.public_request_id(
+                    output.request_id = public_request_id or self.backend_engine.public_request_id(
                         output.request_id
                     )
                 await self._put_v1_outputs([output], server_info)

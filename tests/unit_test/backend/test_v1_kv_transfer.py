@@ -225,3 +225,16 @@ def test_consumer_request_id_has_required_prefill_address():
     request_id = decorate_p2p_consumer_request_id("request-1", "10.0.0.9:17001")
     assert request_id == "request-1___prefill_addr_10.0.0.9:17001___"
     assert decorate_p2p_consumer_request_id(request_id, "10.0.0.9:17001") == request_id
+
+
+def test_v1_adapter_advertises_p2p_base_port(monkeypatch):
+    from llumnix.backends.vllm.v1_engine import V1EngineAdapter
+
+    adapter = object.__new__(V1EngineAdapter)
+    adapter.engine_args = SimpleNamespace(
+        kv_transfer_config=SimpleNamespace(
+            kv_connector="P2pNcclConnector", kv_port=19052, kv_rank=1
+        )
+    )
+    monkeypatch.setenv("LLUMNIX_KV_IP", "10.31.10.210")
+    assert adapter.get_kv_endpoint() == "10.31.10.210:19052"

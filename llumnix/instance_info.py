@@ -62,6 +62,8 @@ class InstanceInfo:
     # intentionally empty for legacy backends and for engines without KV
     # events, preserving their existing dispatch behaviour.
     kv_cache_block_hashes: frozenset = field(default_factory=frozenset, repr=False)
+    # Routable V1 P2P endpoint (host:port), when a connector is enabled.
+    kv_endpoint: str = None
 
     # on-demand init infos
     dispatch_load_metric: float = -np.inf

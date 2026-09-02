@@ -43,6 +43,18 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   才能进行模型级端到端验证。
 - 本轮相关单测：31 passed；未下载或提交 `.models/`、`.conda-corex44/`。
 
+## 2026-09-02：V1 P/D 双请求编排第一阶段
+
+- `Manager.generate` 在同时存在 prefill/decode V1 实例且两端报告
+  `kv_endpoint` 时，会为一个公开 request ID 启动 producer 与 consumer 两个
+  `AsyncLLM` 请求；producer 只转发 KV、不向 API 输出，consumer 负责公开输出。
+- `Manager.abort` 记录同一公开请求对应的两个实例，并将取消操作广播到两端；
+  普通单池部署仍保持原有单请求路径。
+- `V1EngineAdapter.get_kv_endpoint` 发布 P2P 基础端口（connector 内部按 rank
+  加偏移），避免跨主机连接发生双重端口偏移。
+- 该阶段尚未完成模型级跨机 P/D 验证；仍需在两台机器用相同权重验证 KV
+  复用、生成一致性、producer 失败/超时清理和 HTTP 端到端输出。
+
 ## 2026-09-01：跨主机事件与 hash 一致性验证
 
 - 本机 `10.31.10.62` 使用 vLLM `EventPublisherFactory` 在

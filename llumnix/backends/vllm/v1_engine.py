@@ -11,6 +11,7 @@ import asyncio
 import math
 import time
 import os
+import socket
 
 from vllm import SamplingParams
 from vllm.v1.engine.async_llm import AsyncLLM
@@ -102,6 +103,10 @@ class V1EngineAdapter:
                     sampling_params, *args, **kwargs):
         decode_address = kwargs.pop("llumnix_kv_decode_address", None)
         prefill_address = kwargs.pop("llumnix_kv_prefill_address", None)
+        # P/D producer requests still run through AsyncLLM, but their token
+        # outputs are intentionally consumed by the orchestration layer only
+        # after the decode request has started.
+        kwargs.pop("llumnix_suppress_output", None)
         internal_request_id = request_id
         if p2p_connector_enabled(self.engine_args):
             role = getattr(self.engine_args.kv_transfer_config, "kv_role", None)
@@ -118,6 +123,28 @@ class V1EngineAdapter:
         self.requests[request_id] = (server_info, time.time())
         self.running.append(request_id)
         return self.engine.generate(prompt, sampling_params, internal_request_id)
+
+    def get_kv_endpoint(self) -> str | None:
+        """Return this connector's routable host:port endpoint.
+
+        P2pNcclEngine binds one port per KV rank.  An explicit environment
+        override is preferred for multi-host deployments; otherwise derive a
+        stable address from the connector configuration and local hostname.
+        """
+        config = getattr(self.engine_args, "kv_transfer_config", None)
+        if not p2p_connector_enabled(self.engine_args) or config is None:
+            return None
+        host = os.getenv("LLUMNIX_KV_IP")
+        if not host or host in {"0.0.0.0", "127.0.0.1"}:
+            try:
+                host = socket.gethostbyname(socket.gethostname())
+            except OSError:
+                host = "127.0.0.1"
+        # P2pNcclEngine itself applies ``port_offset=rank`` when binding and
+        # when parsing a peer request ID.  Advertise the shared base port;
+        # adding kv_rank here would shift one side twice.
+        port = int(getattr(config, "kv_port", 0))
+        return f"{host}:{port}" if port > 0 else None
 
     def get_all_request_ids(self):
         return list(self.requests)
