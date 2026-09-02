@@ -4,6 +4,23 @@
 > 状态。当前状态以 2026-09-02 的“两机模型级 P/D KV handoff 验证通过”及
 > 其后续条目为准。
 
+## 2026-09-02：论文第三点基础部署冒烟验证
+
+论文第三个研究点为“基于异构负载感知的跨域请求调度技术”，核心包括异构
+计算/显存负载感知的请求分发，以及结合存算协同的请求迁移。使用本地
+Qwen3-14B（vLLM 0.11.2 V1、CoreX 4.4.0、TP=2）启动
+`llumnix.entrypoints.vllm.v1_api_server` 做最小验证：
+
+- `GET /health` 返回 HTTP 200；
+- 单个 `/generate` 请求正常返回中文结果；
+- 4 个并发请求均成功返回，端到端耗时约 0.42--0.45 秒，request ID
+  路径未出现错误。
+
+启动前需 `source tools/corex44_env.sh`；脚本现同时设置 `LD_LIBRARY_PATH`
+和 `LIBRARY_PATH`，解决 CoreX 驱动库位于 `/usr/local/corex-4.4.0/lib64`
+时 Triton 编译 CUDA helper 找不到 `-lcuda` 的问题。本次仅验证基础服务和
+并发分发入口，尚未宣称跨域多实例迁移实验完成。
+
 ## 2026-09-01：Python 3.12 与 V1/KV 亲和基础
 
 - 将 `setup.py` 的 Python 版本范围扩展到 `>=3.9,<3.13`，并补充 Python 3.11/3.12 classifiers，匹配 CoreX 4.4.0 本机 Python 3.12 环境。

@@ -21,6 +21,10 @@ if [[ ! -x "${CONDA_PREFIX}/bin/python" ]]; then
 fi
 export PATH="/usr/local/corex-4.4.0/bin:${CONDA_PREFIX}/bin:${PATH}"
 export LD_LIBRARY_PATH="/usr/local/corex-4.4.0/lib64:${CONDA_PREFIX}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+# Triton/vLLM may compile a small CUDA helper with ``-lcuda``.  On CoreX
+# installations the driver library is outside the default linker paths, so
+# expose it for child-process compilations as well as runtime loading.
+export LIBRARY_PATH="/usr/local/corex-4.4.0/lib64${LIBRARY_PATH:+:${LIBRARY_PATH}}"
 # Triton/Inductor compiles a small CUDA-driver helper at runtime for
 # tensor-parallel vLLM workers.  CoreX provides cuda.h here, while the
 # vendor wheel otherwise only searches /usr/local/include.
