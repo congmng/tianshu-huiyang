@@ -23,5 +23,9 @@ export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-1}"
 export NCCL_SOCKET_IFNAME="${NCCL_SOCKET_IFNAME:-ens1f0}"
 export CUDA_DEVICE_MAX_CONNECTIONS="${CUDA_DEVICE_MAX_CONNECTIONS:-1}"
 export VLLM_ENFORCE_CUDA_GRAPH="${VLLM_ENFORCE_CUDA_GRAPH:-0}"
+# vLLM's sha256_cbor prefix hashes include Python's hash seed for some cache
+# metadata paths. Set it before Python starts so both hosts derive identical
+# ownership keys; configure_v1_kv_transfer also preserves this invariant.
+export PYTHONHASHSEED="${PYTHONHASHSEED:-0}"
 
 unset _corex44_root

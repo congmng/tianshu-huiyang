@@ -264,3 +264,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 使用 Git bundle 将当前 `f084a52` 同步至 `10.31.10.210`，只读核验远端栈为
   Python `3.12.13` / vLLM `0.11.2` / PyTorch `2.7.1`；与本机双机 KV-affinity
   和 P/D 验证的正式版本一致，未改动远端系统或驱动。
+- `tools/corex44_env.sh` 前移设置 `PYTHONHASHSEED=0`，保证 Python 启动前即
+  满足 vLLM `sha256_cbor` affinity hash 的跨主机可复现要求；远端探针曾发现
+  未设置该变量的诊断提示，未修改远端系统环境。

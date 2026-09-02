@@ -52,6 +52,8 @@ rank-1 communicator 在该 CoreX 栈仍会 native abort，因此生产默认 tra
 为 Python `3.12.13`、vLLM `0.11.2`、PyTorch `2.7.1`，与本机正式 V1 验证栈一致。
 这使已完成的双机 affinity/P/D 验证可复现于当前源码，而不需要修改远端驱动或
 CoreX 系统安装。
+CoreX 环境脚本现在在 Python 启动前设置 `PYTHONHASHSEED=0`（可显式覆盖），
+避免 vLLM 在 affinity 哈希探针中报告不可复现；两台机器应使用同一值。
 
 最新 P2P 数据面验证已完成：CoreX 4.4.0 附带的 NCCL 2.24.3 不含 vLLM ctypes
 wrapper 会探测的可选 symmetric-memory window 符号。项目新增的
