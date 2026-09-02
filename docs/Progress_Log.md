@@ -230,3 +230,7 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   为 `30 passed, 1 warning`。
 - 修正生产 Ray head 启动分支，显式传递 `--node-ip-address`，避免多网卡 CoreX
   节点选错接口；随机端口入口测试 `test_launch_ray_cluster` 通过。
+- unit-test fixture 改为无 dashboard 的进程内 Ray，并使用 `ray.shutdown()` 清理；
+  `test_launch_ray_cluster` 改用 subprocess mock 校验启动参数，避免测试停止或
+  依赖共享 Ray 集群。缺少 `pytest-asyncio` 的 async 测试会明确 skip；当前 V1
+  定向测试保持通过。

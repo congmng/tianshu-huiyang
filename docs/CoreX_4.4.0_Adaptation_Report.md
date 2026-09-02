@@ -288,6 +288,9 @@ abort 不会再次访问已经完成的 actor 请求。
 raylet/dashboard 故障污染适配回归；V1 KV/affinity 定向测试在该夹具下通过。
 同时修正 Ray head 启动命令，确保 `HEAD_NODE_IP` 对应的 `--node-ip-address`
 实际传递给 `ray start --head`；入口测试以随机端口启动 head 成功。
+进一步将 unit-test fixture 改为无 dashboard 的进程内 Ray runtime，并移除清理阶段
+对 State API 的依赖；入口启动命令使用 subprocess mock 校验参数。这样测试不会
+停止或查询用户正在运行的共享集群，也不会因 dashboard 不可用误报适配失败。
 
 独立 `v1_api_server` 入口新增 `--max-num-seqs`（默认 4），避免 Qwen3-14B 在
 32 GiB CoreX 卡上按默认 128 dummy requests 进行 sampler 预热时 OOM。使用本机

@@ -12,7 +12,7 @@
 # limitations under the License.
 
 import os
-import socket
+import subprocess
 import pytest
 import ray
 
@@ -26,15 +26,22 @@ from llumnix.utils import get_manager_name
 from tests.conftest import ray_env
 
 
-def test_launch_ray_cluster():
+def test_launch_ray_cluster(monkeypatch):
     ip_address = get_ip_address()
     os.environ['HEAD_NODE'] = '1'
     os.environ['HEAD_NODE_IP'] = ip_address
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        port = probe.getsockname()[1]
-    result = launch_ray_cluster(port)
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="started", stderr="")
+
+    monkeypatch.setattr("llumnix.entrypoints.setup.subprocess.run", run)
+    result = launch_ray_cluster(18079)
     assert result.returncode == 0
+    assert ["ray", "stop"] in calls
+    assert ["ray", "start", "--head", f"--node-ip-address={ip_address}",
+            "--port=18079"] in calls
 
 def test_init_manager(ray_env):
     manager = init_manager(ManagerArgs())
