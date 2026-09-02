@@ -59,7 +59,19 @@ def launch_ray_cluster(port: int) -> subprocess.CompletedProcess:
         for device in os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")
         if device.strip()
     ]
+    # CoreX hosts can have a nearly-full root filesystem and hundreds of
+    # logical CPUs. Make Ray's resource/session footprint explicitly
+    # configurable without changing the historical defaults. These settings
+    # are process-scoped and are especially useful for an existing two-host
+    # cluster deployment.
+    ray_num_cpus = os.getenv("LLUMNIX_RAY_NUM_CPUS")
+    ray_object_store_memory = os.getenv("LLUMNIX_RAY_OBJECT_STORE_MEMORY")
+    ray_temp_dir = os.getenv("LLUMNIX_RAY_TEMP_DIR")
     gpu_args = ["--num-gpus", str(len(visible_devices))] if visible_devices else []
+    cpu_args = ["--num-cpus", ray_num_cpus] if ray_num_cpus else []
+    object_store_args = (["--object-store-memory", ray_object_store_memory]
+                         if ray_object_store_memory else [])
+    temp_dir_args = ["--temp-dir", ray_temp_dir] if ray_temp_dir else []
     ray_start_command = None
     if 'HEAD_NODE' in os.environ:
         ray_start_command = (
@@ -74,6 +86,7 @@ def launch_ray_cluster(port: int) -> subprocess.CompletedProcess:
                     'ray', 'start', '--head',
                     f'--node-ip-address={node_ip_address}',
                     f'--port={port}', *gpu_args,
+                    *cpu_args, *object_store_args, *temp_dir_args,
                 ],
                 check=True, text=True, capture_output=True)
         except subprocess.CalledProcessError as e:
@@ -84,7 +97,10 @@ def launch_ray_cluster(port: int) -> subprocess.CompletedProcess:
         for attempt in range(MAX_RAY_RESTART_TIMES):
             try:
                 # wait about 2 mins by default
-                result = subprocess.run(['ray', 'start', f'--address={head_node_ip}:{port}'], check=True, text=True, capture_output=True)
+                result = subprocess.run(
+                    ['ray', 'start', f'--address={head_node_ip}:{port}',
+                     *gpu_args, *cpu_args],
+                    check=True, text=True, capture_output=True)
                 break
             except subprocess.CalledProcessError as e:
                 if attempt < MAX_RAY_RESTART_TIMES:

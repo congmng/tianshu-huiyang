@@ -48,6 +48,33 @@ def test_launch_ray_cluster(monkeypatch):
             "--port=18079"] in calls
 
 
+def test_launch_ray_cluster_accepts_corex_resource_overrides(monkeypatch):
+    ip_address = get_ip_address()
+    os.environ['HEAD_NODE'] = '1'
+    os.environ['HEAD_NODE_IP'] = ip_address
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    os.environ['LLUMNIX_RAY_NUM_CPUS'] = '4'
+    os.environ['LLUMNIX_RAY_OBJECT_STORE_MEMORY'] = '2147483648'
+    os.environ['LLUMNIX_RAY_TEMP_DIR'] = '/data1/congmng/llumnix/.ray-test'
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="started", stderr="")
+
+    monkeypatch.setattr("llumnix.entrypoints.setup.subprocess.run", run)
+    try:
+        launch_ray_cluster(18080)
+        start = next(call for call in calls if call[:3] == ["ray", "start", "--head"])
+        assert "--num-gpus" in start and "--num-cpus" in start
+        assert "--object-store-memory" in start and "--temp-dir" in start
+    finally:
+        for name in ("HEAD_NODE", "HEAD_NODE_IP", "CUDA_VISIBLE_DEVICES",
+                     "LLUMNIX_RAY_NUM_CPUS", "LLUMNIX_RAY_OBJECT_STORE_MEMORY",
+                     "LLUMNIX_RAY_TEMP_DIR"):
+            os.environ.pop(name, None)
+
+
 def test_no_launch_ray_cluster_overrides_config_default(monkeypatch):
     parser = LlumnixArgumentParser()
     EntrypointsArgs.add_cli_args(parser)

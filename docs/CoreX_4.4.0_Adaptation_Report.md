@@ -463,3 +463,10 @@ V1 调度代码失败证据。后续跨机部署应将 Ray head 的 `--temp-dir`
 head 单节点可稳定运行，但远端 worker 注册时仍观察到 head/GCS 退出，远端仅报
 GCS 连接超时，head 日志没有 Llumnix 或模型错误。该现象属于跨节点 Ray 运行时
 握手层，当前已清理进程；模型同步、版本统一和 affinity 哈希验证不受影响。
+
+为将该部署要求纳入正式适配，`setup_ray_cluster` 已支持
+`LLUMNIX_RAY_NUM_CPUS`、`LLUMNIX_RAY_OBJECT_STORE_MEMORY` 与
+`LLUMNIX_RAY_TEMP_DIR`。这些变量只影响 head 的 `ray start` 参数，worker 接入
+已有集群时不会错误地传递 head-only `--temp-dir`。跨机端口探针进一步表明需在
+网络层允许两节点间 Ray GCS、node-manager、object-manager 以及配置的 worker
+端口范围；在该条件满足前，不应将 Ray GCS 超时归因于 Llumnix V1 适配。

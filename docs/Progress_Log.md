@@ -60,6 +60,18 @@
   GCS”，且 head 日志没有 Llumnix、模型或 connector 错误。该结果将跨机 Ray
   控制面问题隔离在运行时/网络握手层；本轮已清理所有 Ray 进程，避免遗留资源。
 
+## 2026-09-02：CoreX Ray 启动资源参数化
+
+- `setup_ray_cluster` 现支持进程级环境变量 `LLUMNIX_RAY_NUM_CPUS`、
+  `LLUMNIX_RAY_OBJECT_STORE_MEMORY`、`LLUMNIX_RAY_TEMP_DIR`，仅在创建 head
+  时转化为 Ray CLI 参数；worker 接入已有 head 时不传 `--temp-dir`。这使 CoreX
+  节点可避免默认按宿主机 CPU 数预启动大量 worker，且可将 Ray session/spill 目录
+  放到空间充足的 `/data1`。
+- 新增资源覆盖参数入口回归；启动参数相关定向测试为 3 passed，`compileall` 和
+  `diff --check` 均通过。两机实测端口探针显示跨节点高位端口仍受网络策略约束：
+  该问题需由网络/防火墙层开放 Ray 所需的 GCS、node-manager、object-manager 和
+  worker 端口范围后，才能继续真实跨机 Manager 部署。
+
 ## 2026-09-02：论文第三点基础部署冒烟验证
 
 论文第三个研究点为“基于异构负载感知的跨域请求调度技术”，核心包括异构
