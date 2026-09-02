@@ -250,6 +250,33 @@ def test_llumlet_aborts_engine_when_v1_output_stream_fails():
     assert not backend.running
 
 
+def test_client_abort_cancels_fallback_instance_when_manager_is_down():
+    from llumnix.entrypoints.vllm.client import LlumnixClientVLLM
+    import ray
+
+    class _RemoteCall:
+        def __init__(self, fn): self.fn = fn
+        async def remote(self, *args): return await self.fn(*args)
+
+    class _DeadManager:
+        async def abort(_request_id):
+            raise ray.exceptions.RayActorError("manager down")
+
+    class _Fallback:
+        async def abort(_request_id):
+            calls.append(_request_id)
+
+    calls = []
+    client = object.__new__(LlumnixClientVLLM)
+    client.manager = type("M", (), {"abort": _RemoteCall(_DeadManager.abort)})()
+    client.instances = {"i0": type("I", (), {"abort": _RemoteCall(_Fallback.abort)})()}
+    client._fallback_request_instance = {"r1": "i0"}
+    client.instance_num_requests = {"i0": 1}
+    asyncio.run(client.abort("r1"))
+    assert calls == ["r1"]
+    assert client.instance_num_requests["i0"] == 0
+
+
 def test_v1_api_health_and_generate_without_model():
     engine = _Engine()
     app = build_app(engine)

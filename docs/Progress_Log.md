@@ -68,6 +68,9 @@ V1 P/D 配置门禁已补齐：旧 block-manager 后端配置会在启动前明�
 补齐 V1 Llumlet 故障流回收：EngineCore/connector 异常时先 abort 内部请求，再清理
 bookkeeping；无模型故障流测试通过，本轮核心回归为 57 passed。
 
+补齐 Manager 故障期间的 fallback 请求取消：客户端 abort 会直接通知 fallback
+Llumlet 并回收本地计数；入口故障回归扩展后本机核心集为 58 passed。
+
 两机同步到提交 `5893493` 后分别执行同一 44 项定向回归均通过。实机采样的
 `virtual_usage` 为本机 0.00468、远端 0.00522，差异由两端的实时空闲显存产生；
 同一 token prefix 的 `sha256_cbor` 哈希保持逐字节一致。

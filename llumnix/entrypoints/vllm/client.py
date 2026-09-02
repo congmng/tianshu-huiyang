@@ -198,6 +198,23 @@ class LlumnixClientVLLM:
             await self.manager.abort.remote(request_id)
         except ray.exceptions.RayActorError:
             logger.warning("Manager is unavailable.")
+            # Requests dispatched during a manager outage live only on the
+            # API server's fallback Llumlet.  Cancel that actor directly so
+            # a disconnected V1/P-D stream cannot remain in EngineCore.
+            instance_id = self._fallback_request_instance.pop(request_id, None)
+            if instance_id is not None and instance_id in self.instances:
+                try:
+                    await self.instances[instance_id].abort.remote(request_id)
+                except (ray.exceptions.RayActorError, KeyError):
+                    logger.warning(
+                        "Fallback instance %s unavailable while aborting %s",
+                        instance_id, request_id,
+                    )
+                finally:
+                    if instance_id in self.instance_num_requests:
+                        self.instance_num_requests[instance_id] = max(
+                            0, self.instance_num_requests[instance_id] - 1
+                        )
 
     def abort_request(self, request_id: str) -> None:
         logger.info("Abort request: {}.".format(request_id))
