@@ -80,6 +80,27 @@ def test_v1_adapter_abort_request_cleans_public_alias(monkeypatch):
     assert not adapter.running
 
 
+def test_v1_adapter_preserves_shared_pd_request_id(monkeypatch):
+    from llumnix.backends.vllm.v1_engine import V1EngineAdapter
+
+    adapter = object.__new__(V1EngineAdapter)
+    adapter.engine_args = type("Args", (), {})()
+    adapter.engine_args.kv_transfer_config = type("KV", (), {"kv_role": "kv_producer"})()
+    adapter.engine = _Engine()
+    adapter._request_id_aliases = {}
+    adapter.requests = {}
+    adapter.running = []
+    monkeypatch.setattr("llumnix.backends.vllm.v1_engine.p2p_connector_enabled", lambda _: True)
+    shared_id = "public___decode_addr_10.0.0.2:9______prefill_addr_10.0.0.3:9___"
+    adapter.add_request(
+        "public", None, float("inf"), "prompt", object(),
+        llumnix_p2p_request_id=shared_id,
+        llumnix_kv_decode_address="10.0.0.2:9",
+    )
+    assert adapter._request_id_aliases["public"] == shared_id
+    assert adapter.engine.calls[0][2] == shared_id
+
+
 class _Request:
     def __init__(self, body):
         self.body = body

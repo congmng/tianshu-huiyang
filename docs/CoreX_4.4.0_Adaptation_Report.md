@@ -80,6 +80,10 @@ Manager 现在还会验证两端 endpoint 必须是有效的 `host:port`（端�
 1--65535）；配置错误会在 P/D 编排前安全回退单请求，避免半启动的 producer 或
 consumer 进入不可恢复等待。
 
+Manager 生成的共享 P/D 内部 request-id（同时携带 decode/prefill endpoint）现在
+在两侧 V1 adapter 中原样保留；adapter 不会用公开 request-id 重新装饰并丢失另一
+端 marker。这保证 producer 和 consumer 解析同一份跨主机路由信息。
+
 ## vLLM V1 迁移进展（2026-09-01）
 
 针对本机软件栈的 `vllm 0.11.2+corex.4.4.0`，已加入第一阶段 V1 迁移代码：

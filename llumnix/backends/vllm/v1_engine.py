@@ -92,6 +92,9 @@ class V1EngineAdapter:
     def generate(self, prompt, sampling_params: SamplingParams, request_id: str,
                  decode_address: str | None = None):
         public_request_id = request_id
+        # Manager creates one shared P/D ID carrying both endpoints. Preserve
+        # it verbatim on both actors; regenerating it from the public ID would
+        # discard the peer marker needed by the opposite connector role.
         if p2p_connector_enabled(self.engine_args):
             role = getattr(self.engine_args.kv_transfer_config, "kv_role", None)
             if role in ("kv_producer", "kv_both"):
@@ -113,7 +116,7 @@ class V1EngineAdapter:
         # after the decode request has started.
         kwargs.pop("llumnix_suppress_output", None)
         internal_request_id = p2p_request_id or request_id
-        if p2p_connector_enabled(self.engine_args):
+        if p2p_request_id is None and p2p_connector_enabled(self.engine_args):
             role = getattr(self.engine_args.kv_transfer_config, "kv_role", None)
             if role in ("kv_producer", "kv_both") and decode_address:
                 internal_request_id = decorate_p2p_request_id(request_id, decode_address)
