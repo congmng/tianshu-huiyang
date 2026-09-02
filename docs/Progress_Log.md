@@ -63,6 +63,7 @@ CoreX 异构显存/算力扩缩容；参数注册回归通过。
 V1 P/D 配置门禁已补齐：旧 block-manager 后端配置会在启动前明确拒绝，要求
 `kvtransfer` 与 P2P connector endpoint，避免半配置的 P/D 服务；KV transfer 回归
 为 28 passed。
+远端同步 `8c9a4a9` 后，扩展 V1/KV/API/调度回归为 56 passed，`compileall` 通过。
 
 两机同步到提交 `5893493` 后分别执行同一 44 项定向回归均通过。实机采样的
 `virtual_usage` 为本机 0.00468、远端 0.00522，差异由两端的实时空闲显存产生；

@@ -372,6 +372,8 @@ GlobalScheduler 闭环回归进一步验证：在异构负载差距处于 0.10 �
 V1 开启 P/D 时若仍使用旧配置文件中的 `gloo`/`rayrpc`/`nccl`，入口现在会在
 引擎启动前明确报错，要求 `kvtransfer` 及 connector endpoint；不会再静默启动
 没有 KV handoff 的双普通引擎。
+本机与 `10.31.10.210` 已在提交 `8c9a4a9` 上复核该门禁及 V1/KV/API/调度集，
+两端均为 56 passed，且 `compileall` 通过。
 该变更已在 `10.31.10.210` 的 Python 3.12/CoreX 环境复核：同步同一源码后
 V1/KV/HTTP 定向回归为 45 passed，完整参数帮助可正常加载。
 无模型 mock 回归覆盖 `/health`、非流式 `/generate` 和 streaming wire format，
