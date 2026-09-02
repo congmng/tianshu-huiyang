@@ -282,8 +282,13 @@ class Manager:
                     )
                 else:
                     producer_kwargs = dict(kwargs)
+                    from llumnix.backends.vllm.v1_kv_transfer import decorate_p2p_pd_request_id
+                    shared_p2p_id = decorate_p2p_pd_request_id(
+                        request_id, decode_endpoint, prefill_endpoint
+                    )
                     producer_kwargs.update(
                         llumnix_kv_decode_address=decode_endpoint,
+                        llumnix_p2p_request_id=shared_p2p_id,
                         llumnix_suppress_output=True,
                     )
                     producer_args = list(args)
@@ -298,6 +303,7 @@ class Manager:
                         consumer_kwargs = dict(kwargs)
                         consumer_kwargs.update(
                             llumnix_kv_prefill_address=prefill_endpoint,
+                            llumnix_p2p_request_id=shared_p2p_id,
                             llumnix_public_request_id=request_id,
                         )
                         await self.instances[decode_id].generate.remote(

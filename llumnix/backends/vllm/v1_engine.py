@@ -103,11 +103,12 @@ class V1EngineAdapter:
                     sampling_params, *args, **kwargs):
         decode_address = kwargs.pop("llumnix_kv_decode_address", None)
         prefill_address = kwargs.pop("llumnix_kv_prefill_address", None)
+        p2p_request_id = kwargs.pop("llumnix_p2p_request_id", None)
         # P/D producer requests still run through AsyncLLM, but their token
         # outputs are intentionally consumed by the orchestration layer only
         # after the decode request has started.
         kwargs.pop("llumnix_suppress_output", None)
-        internal_request_id = request_id
+        internal_request_id = p2p_request_id or request_id
         if p2p_connector_enabled(self.engine_args):
             role = getattr(self.engine_args.kv_transfer_config, "kv_role", None)
             if role in ("kv_producer", "kv_both") and decode_address:

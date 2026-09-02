@@ -17,8 +17,7 @@ from vllm import AsyncEngineArgs, SamplingParams
 from vllm.config import KVTransferConfig
 
 from llumnix.backends.vllm.v1_kv_transfer import (
-    decorate_p2p_consumer_request_id,
-    decorate_p2p_request_id,
+    decorate_p2p_pd_request_id,
     producer_sampling_params,
 )
 
@@ -48,11 +47,12 @@ async def run(args: argparse.Namespace) -> None:
 
     engine = V1EngineAdapter(engine_args, instance_id=f"probe-{args.role}")
     public_id = args.request_id
+    local_endpoint = f"{args.host}:{args.port}"
     if args.role == "producer":
-        request_id = decorate_p2p_request_id(public_id, args.peer)
+        request_id = decorate_p2p_pd_request_id(public_id, args.peer, local_endpoint)
         params = producer_sampling_params(SamplingParams(max_tokens=args.max_tokens, temperature=0.0))
     else:
-        request_id = decorate_p2p_consumer_request_id(public_id, args.peer)
+        request_id = decorate_p2p_pd_request_id(public_id, local_endpoint, args.peer)
         params = SamplingParams(max_tokens=args.max_tokens, temperature=0.0)
     print(f"START role={args.role} endpoint={args.host}:{args.port} request_id={request_id}", flush=True)
     try:

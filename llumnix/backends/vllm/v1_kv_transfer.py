@@ -75,6 +75,15 @@ def decorate_p2p_consumer_request_id(
     return f"{request_id}{P2P_PREFILL_ID_PREFIX}{prefill_address}{P2P_REQUEST_ID_SUFFIX}"
 
 
+def decorate_p2p_pd_request_id(
+    request_id: str, decode_address: str, prefill_address: str
+) -> str:
+    """Build one shared internal ID carrying both P/D routing endpoints."""
+    return decorate_p2p_consumer_request_id(
+        decorate_p2p_request_id(request_id, decode_address), prefill_address
+    )
+
+
 def p2p_connector_enabled(engine_args: Any) -> bool:
     config = getattr(engine_args, "kv_transfer_config", None)
     return config is not None and getattr(config, "kv_connector", None) in P2P_CONNECTORS

@@ -227,6 +227,18 @@ def test_consumer_request_id_has_required_prefill_address():
     assert decorate_p2p_consumer_request_id(request_id, "10.0.0.9:17001") == request_id
 
 
+def test_pd_request_id_is_shared_by_producer_and_consumer():
+    from llumnix.backends.vllm.v1_kv_transfer import decorate_p2p_pd_request_id
+
+    value = decorate_p2p_pd_request_id(
+        "request-1", "10.0.0.8:17000", "10.0.0.9:17001"
+    )
+    assert value == (
+        "request-1___decode_addr_10.0.0.8:17000___"
+        "___prefill_addr_10.0.0.9:17001___"
+    )
+
+
 def test_v1_adapter_advertises_p2p_base_port(monkeypatch):
     from llumnix.backends.vllm.v1_engine import V1EngineAdapter
 
