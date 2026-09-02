@@ -134,7 +134,7 @@ class V1EngineAdapter:
         config = getattr(self.engine_args, "kv_transfer_config", None)
         if not p2p_connector_enabled(self.engine_args) or config is None:
             return None
-        host = os.getenv("LLUMNIX_KV_IP")
+        host = os.getenv("LLUMNIX_KV_IP") or getattr(config, "kv_ip", None)
         if not host or host in {"0.0.0.0", "127.0.0.1"}:
             try:
                 host = socket.gethostbyname(socket.gethostname())

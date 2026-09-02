@@ -60,6 +60,8 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   失败，不作为本次代码功能失败结论。
 - 若 producer 已启动而 consumer actor 启动失败，Manager 会 best-effort abort
   producer，避免遗留后台 KV 发送任务。
+- endpoint 发布现在优先采用显式 vLLM `KVTransferConfig.kv_ip`，再由
+  `LLUMNIX_KV_IP` 覆盖；这支持不依赖 Llumnix legacy 参数的双机配置。
 
 ## 2026-09-01：跨主机事件与 hash 一致性验证
 
