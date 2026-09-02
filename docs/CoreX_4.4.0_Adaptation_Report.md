@@ -197,6 +197,20 @@ llumnix.llumlet.llumlet
 
 ## vLLM 数据面兼容性结果
 
+### V1 attention hook 兼容性（2026-09-02）
+
+CoreX 版 vLLM 0.11.2 将 V1 attention 的 KV transfer wrapper 放在
+`VLLM_SUPPORT_IXSERVER` 条件分支下。默认值为 false 时，P2P scheduler metadata
+仍会正常生成并绑定，但 attention forward 不会调用 connector 的
+`start_load_kv`/`save_kv_layer` 生命周期，表现为 consumer 等待且 producer 无
+NCCL 数据面日志。`CoreXP2pNcclConnector` 的进程内 shim 现启用该 wrapper，并
+更新已经导入的 `vllm.envs` 缓存值；该修改仅影响显式选择 CoreX P2P connector
+的 worker，不修改驱动、系统安装或共享库。19 项 V1 KV 传输单元测试通过。
+
+两机探针已分别证明模型加载、KV cache 分配、connector 初始化和 metadata 生成；
+使用同一内部 request ID 的模型级 tensor handoff 仍在验证中，在完成前不将其
+描述为完整 P/D 端到端成功。
+
 当前仓库明确锁定的是 vLLM 0.6.3：
 
 ```text

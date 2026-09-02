@@ -34,6 +34,15 @@ def _enable_v1_kv_attention_hooks() -> None:
     without changing the installed CoreX or NCCL libraries.
     """
     os.environ.setdefault("VLLM_SUPPORT_IXSERVER", "1")
+    # ``vllm.envs`` may already have been imported by the worker before the
+    # connector module is loaded, so changing the environment alone would not
+    # update its cached boolean setting.
+    try:
+        import vllm.envs as vllm_envs
+
+        vllm_envs.VLLM_SUPPORT_IXSERVER = True
+    except (ImportError, AttributeError):
+        pass
 
 
 def _drop_unavailable_optional_nccl_symbols() -> None:

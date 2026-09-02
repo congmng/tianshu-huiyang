@@ -141,3 +141,18 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 已只读核验第二台 `u210`：CoreX/IX-ML/Driver 4.4.0、Python 3.12.13、
   torch 2.7.1、ray 2.58.0、vLLM 0.11.2；`ens1f0=10.31.10.210` 可用于后续
   NCCL/事件端口验证。尚未启动跨机推理或修改远端文件。
+
+## 2026-09-02：V1 P2P attention hook 定位与修复
+
+- 两端 Qwen3-14B V1 探针均可启动，且 producer/consumer scheduler 均生成
+  `requests=1` 的 KV connector metadata；之前 consumer 未启动或 request ID
+  不一致，不能作为数据面失败依据。
+- 在 CoreX vLLM 0.11.2 attention 实现中确认，`save_kv_layer` /
+  `wait_for_layer_load` 仅由 `VLLM_SUPPORT_IXSERVER` 守卫的
+  `maybe_transfer_kv_layer` 调用。CoreX 默认该标志为 false，导致 metadata
+  已绑定但 producer 从未导出 KV，consumer 会持续等待。
+- `CoreXP2pNcclConnector` 现在在进程内启用该 V1 attention hook，并同步更新
+  已缓存的 `vllm.envs.VLLM_SUPPORT_IXSERVER`，不修改驱动、系统库或 CoreX
+  安装。针对性测试 `test_v1_kv_transfer.py`：`19 passed`，compileall 通过。
+- 修复提交：`0696bf1`（后续缓存配置同步补丁待推送）。模型级跨机 handoff
+  仍需用同一 request ID 的干净双端实验最终确认，当前不宣称端到端已完成。
