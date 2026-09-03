@@ -1,5 +1,19 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## Llumnix V1 TP=2 本机双卡基础验证（2026-09-03）
+
+在隔离的单机 Ray head（2 GPU）上启动 Llumnix global serve，使用本地
+Qwen3-14B 完成真实推理。vLLM V1 日志确认 `world_size=2`、TP rank 0/1、模型
+权重和 KV cache 均初始化成功；Llumnix API 的 `/health` 和 `/generate` 分别
+返回 HTTP 200 和非空中文文本。
+
+为使该链路符合 V1 的运行模型，placement group 将 TP GPU 打包到 Llumlet 父
+actor 所在 bundle，TP>1 在已连接 Ray 集群中采用 vLLM `mp` executor。前者保证
+父 actor 能向子进程暴露完整 GPU 集合，后者避免 vLLM Ray executor 重新连接并
+传入资源计数。该验证覆盖 Python 3.12、CoreX 4.4、NCCL、Qwen3-14B 和
+Llumnix global API 的基础多卡功能；跨实例 P/D KV handoff 仍按本文既有证据
+单独表述，未由本次单实例测试替代。
+
 ## TP=2 多卡适配增量（2026-09-03）
 
 两节点真实 GPU 探针已分别在 `10.31.10.62` 与 `10.31.10.210` 的 BI-V150 上

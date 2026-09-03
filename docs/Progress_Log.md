@@ -1,5 +1,20 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：Llumnix V1 TP=2 本机双卡基础推理通过
+
+- 在不影响现有两机 `10.31.10.62:6408` P/D 集群的隔离 Ray head
+  `10.31.10.62:6410` 上，以两张 BI-V150（`CUDA_VISIBLE_DEVICES=0,1`）启动
+  Llumnix global serve 和 Qwen3-14B。
+- 修复 V1 的 placement 语义：AsyncLLM 在 Llumlet 父 actor 内启动，TP GPU 必须
+  打包在同一 bundle；同时 TP>1 使用 vLLM `mp` executor，避免已连接 Ray 集群
+  内部再次申请 Ray GPU 资源。日志确认 `world_size=2`、TP rank 0/1、8 个权重
+  分片加载、每卡约 13.88 GiB 权重及 193,760-token KV cache。
+- 实测 `GET http://10.31.10.62:37112/health` 返回 200，`POST /generate` 返回
+  200 和非空中文生成文本。该结果证明当前 Python 3.12/CoreX/V1/Llumnix 基础
+  多卡服务链路可运行；不将其扩大解释为跨实例 P/D handoff 验收。
+- 新增 V1 TP placement 回归测试，定向集为 **3 passed**。Ray State API 在 CoreX
+  minimal dashboard 不可用时增加 control-plane 回退，避免全局监控线程误报。
+
 ## 2026-09-03：TP=2 placement 规划兼容修复与双卡实测
 
 - 在两机 Ray 集群上完成真实双卡 CoreX 探针：任务分别落到 `u62`、`u210` 的
