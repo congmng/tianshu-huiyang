@@ -42,3 +42,12 @@ def test_qwen_smoke_exposes_multi_gpu_tensor_parallelism():
     source = script.read_text(encoding="utf-8")
     assert 'TENSOR_PARALLEL_SIZE' in source
     assert 'tensor_parallel_size=TENSOR_PARALLEL_SIZE' in source
+
+
+def test_layered_corex_validation_runner_has_all_required_levels():
+    script = Path(__file__).parents[2] / "tools" / "run_corex44_validation.py"
+    source = script.read_text(encoding="utf-8")
+    for level in ('"unit"', '"integration"', '"e2e"'):
+        assert level in source
+    assert "corex44_zmq_kv_probe.py" in source
+    assert "run_qwen3_14b_smoke.py" in source

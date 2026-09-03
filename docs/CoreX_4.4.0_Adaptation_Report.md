@@ -1,5 +1,19 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 分层 CoreX 验证入口（2026-09-03）
+
+新增 `tools/run_corex44_validation.py`，将适配验证固化为可重复的三层门禁：
+
+- `unit`：V1 adapter、KV transfer/affinity、调度与 HTTP 契约；当前 **67 passed**。
+- `integration`：两机严格版本/affinity hash 比较及真实 GPU BF16 ZMQ KV staging；
+  两端均为 Python 3.12.13、vLLM 0.11.2、PyTorch 2.7.1、Ray 2.52.1，且 producer
+  `10.31.10.62:49223` 至 consumer `10.31.10.210:50201` 成功（两端 `cuda:0`、
+  BF16 `(4,4)`、远端均值 `7.5`）。
+- `e2e`：复用 Qwen3-14B TP=1/TP=2 smoke；TP=2 已有两张 BI-V150 的真实
+  NCCL、模型加载、KV cache 和中文生成 PASS 证据。
+
+该入口不停止共享 Ray、也不删除模型或运行时目录，适用于部署节点的持续回归。
+
 ## Benchmark 真实 HTTP 端到端验证（2026-09-03）
 
 本机以 Qwen3-14B、Python 3.12、CoreX 4.4、vLLM 0.11.2 启动独立 V1 服务后，

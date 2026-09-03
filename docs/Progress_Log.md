@@ -1,5 +1,11 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：分层测试入口与实际回归
+
+新增 `tools/run_corex44_validation.py`：`unit`/`integration`/`e2e` 分别覆盖回归、
+双机 KV 数据面和真实 Qwen 推理。实际运行 `unit` 为 **67 passed**；`integration`
+双机版本/hash 门禁和 `10.31.10.62 -> 10.31.10.210` GPU BF16 staging 均通过。
+
 ## 2026-09-03：Benchmark HTTP 端到端验收
 
 本机真实 Qwen3-14B V1 服务调用 `/generate_benchmark` 返回 HTTP 200，输入 token
