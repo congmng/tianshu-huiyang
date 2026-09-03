@@ -628,18 +628,22 @@ class Manager:
         while True:
             try:
                 new_pg = None
-                if self._state_api_available and self.last_timeout_instance_id is not None:
-                    last_timeout_pg_name = get_placement_group_name(
-                        self.last_timeout_instance_id
-                    )
-                    last_timeout_pg_states = list_placement_groups(
-                        filters=[("name", "=", last_timeout_pg_name)]
-                    )
-                    if len(last_timeout_pg_states) > 0:
-                        new_instance_id = self.last_timeout_instance_id
-                        # pending, created(without server and instance) or rescheduling
-                        new_pg = ray.util.get_placement_group(last_timeout_pg_name)
-                    # reset
+                try:
+                    if self._state_api_available and self.last_timeout_instance_id is not None:
+                        last_timeout_pg_name = get_placement_group_name(
+                            self.last_timeout_instance_id
+                        )
+                        last_timeout_pg_states = list_placement_groups(
+                            filters=[("name", "=", last_timeout_pg_name)]
+                        )
+                        if len(last_timeout_pg_states) > 0:
+                            new_instance_id = self.last_timeout_instance_id
+                            # pending, created(without server and instance) or rescheduling
+                            new_pg = ray.util.get_placement_group(last_timeout_pg_name)
+                        # reset
+                        self.last_timeout_instance_id = None
+                except ServerUnavailable:
+                    self._state_api_available = False
                     self.last_timeout_instance_id = None
                 try:
                     pending_pg_states = list_placement_groups(

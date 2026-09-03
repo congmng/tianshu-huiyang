@@ -523,3 +523,12 @@ GCS 连接超时，head 日志没有 Llumnix 或模型错误。该现象属于�
 已有集群时不会错误地传递 head-only `--temp-dir`。跨机端口探针进一步表明需在
 网络层允许两节点间 Ray GCS、node-manager、object-manager 以及配置的 worker
 端口范围；在该条件满足前，不应将 Ray GCS 超时归因于 Llumnix V1 适配。
+## Ray State API 缺失时的全局部署降级（2026-09-03）
+
+CoreX 4.4.0 环境中的精简 Ray wheel 可能不包含 dashboard HTTP 服务。此前
+`Manager._auto_scale_up_loop` 在 placement-group 状态查询失败时会进入异常重试，
+使全局实例扩缩容无法继续。现已捕获 `ray.util.state.exception.ServerUnavailable`，
+同时覆盖超时 placement-group 恢复查询和常规状态查询：首次失败后关闭状态查询，保留
+Ray 控制面上的 placement-group 创建、actor 健康检查和实例注册流程。安装了
+`ray[default]` 的环境仍使用原有状态回收逻辑；该降级不改变调度算法，只移除对可选
+dashboard 的硬依赖。

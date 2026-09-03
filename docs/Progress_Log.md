@@ -1,5 +1,14 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：Ray State API 缺失的全局扩缩容降级
+
+- 现场验证 CoreX 精简 Ray 集群没有 `127.0.0.1:8265` dashboard API；Manager 原有
+  超时 placement-group 查询位于状态查询保护范围之外，会导致扩缩容线程持续异常。
+- 现在 `ServerUnavailable` 会关闭可选 State API 查询，但继续创建 placement group、
+  启动 Llumlet 并依赖 actor 健康回调完成注册；常规 Ray[default] 环境行为不变。
+- Python 3.12 编译及调度/KV/API 定向回归已通过；下一步继续在干净两机集群复验 P/D
+  实例和 KV handoff。
+
 ## 2026-09-03：全局 P/D 启动连接修复
 
 - P/D 首次启动发现 `llumnix.entrypoints.vllm.serve` 在全局模式下未指定地址调用
