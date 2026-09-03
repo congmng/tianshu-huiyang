@@ -92,6 +92,13 @@ def init_backend_engine(instance_id: str,
             # instance-specific connector rank/ports so one instance cannot
             # inherit another instance's KV endpoint.
             engine_args = copy.deepcopy(engine_args)
+            # Llumnix already reserves the TP GPUs in the parent actor's Ray
+            # placement group.  vLLM's Ray executor would try to create a
+            # second Ray client and pass resource counts, which fails when
+            # another Ray head is present on the host.  Use local multiprocess
+            # workers for TP inside that reserved bundle.
+            if getattr(engine_args, "tensor_parallel_size", 1) > 1:
+                engine_args.distributed_executor_backend = "mp"
             # Translate Llumnix's opt-in ``kvtransfer`` backend to vLLM V1's
             # connector config before AsyncLLM snapshots engine arguments.
             from llumnix.backends.vllm.v1_kv_transfer import configure_v1_kv_transfer
