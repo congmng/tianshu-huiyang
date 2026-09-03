@@ -1,5 +1,11 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：双机 GPU BF16 KV-staging 可重复门禁
+
+新增 `tools/corex44_zmq_kv_probe.py`，实际验证本机 GPU BF16 tensor 经 ZMQ
+跨机传至 `10.31.10.210` 后注入远端 GPU；两端均为 `cuda:0`，远端 dtype/shape
+为 `torch.bfloat16/(4,4)`、均值 `7.5`。工具/CLI 回归 **2 passed**。
+
 ## 2026-09-03：显式 CoreX P2P CLI 与双机 BF16 staging 复核
 
 CLI 现在正式接受 `CoreXP2pNcclConnector`；相关配置回归 **14 passed**。以当前

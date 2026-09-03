@@ -1,5 +1,14 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 可重复的双机 GPU KV-staging 门禁（2026-09-03）
+
+新增 `tools/corex44_zmq_kv_probe.py`，以 consumer-first 方式直接使用生产
+`CoreXZmqP2pEngine` 验证 `GPU BF16 tensor -> CPU wire buffer -> TCP/ZMQ ->
+CPU buffer -> peer GPU tensor`，不启动 Ray 或加载模型。当前在
+`10.31.10.62` 与 `10.31.10.210` 上实测：producer 与 consumer 均为
+`cuda:0`、`torch.bfloat16`、`(4,4)`，consumer 校验均值为 `7.5`。这将跨机
+GPU 注入数据面固化为可重复的部署门禁；工具及 CLI 回归为 **2 passed**。
+
 ## 显式 CoreX P2P 配置与双机 BF16 传输复核（2026-09-03）
 
 CLI 的 `--migration-backend-transfer-type` 现接受

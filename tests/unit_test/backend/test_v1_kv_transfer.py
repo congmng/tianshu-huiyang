@@ -45,6 +45,16 @@ def test_cli_accepts_explicit_corex_p2p_connector():
     assert args.migration_backend_transfer_type == "CoreXP2pNcclConnector"
 
 
+def test_corex_gpu_kv_probe_is_self_contained():
+    """The repeatable two-host probe must import from any cwd."""
+    from pathlib import Path
+
+    probe = Path(__file__).parents[3] / "tools" / "corex44_zmq_kv_probe.py"
+    source = probe.read_text(encoding="utf-8")
+    assert "CoreXZmqP2pEngine" in source
+    assert "torch.bfloat16" in source
+
+
 
 
 def test_kvtransfer_config_maps_llumnix_options(monkeypatch):
