@@ -1,5 +1,10 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：独立 V1 benchmark API
+
+`v1_api_server` 恢复 `/generate_benchmark`，返回生成文本、token 计数及逐输出事件
+延迟；使用 V1 abort/release 生命周期避免 benchmark 请求泄漏。入口回归 **17 passed**。
+
 ## 2026-09-03：独立 V1 节点身份发布
 
 独立 `v1_api_server /instance_list` 从 socket 解析 hostname/IP，补齐无 Ray actor

@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 独立 V1 benchmark API 兼容（2026-09-03）
+
+独立 `v1_api_server` 已恢复 `/generate_benchmark`：以 AsyncLLM 输出流记录每个
+输出事件相对起始的毫秒延迟，并返回公开 request ID、生成文本、输出 token 数、输入
+token 数和 `per_token_latency`。请求校验、异常 abort 与正常请求释放均沿用 V1
+`/generate` 语义，避免 benchmark 请求遗留 EngineCore 状态。入口回归为 **17 passed**。
+
 ## 独立入口节点身份可观测性（2026-09-03）
 
 独立 V1 server 不依赖 Ray actor context 时，`/instance_list` 现在从本机 socket
