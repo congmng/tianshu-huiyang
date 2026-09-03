@@ -130,6 +130,12 @@ connector 驱动的 P/D KV handoff 取代它们。
 
 ## 2026-09-03 P/D 兼容性回归（最新）
 
+本次真实请求进一步暴露 CoreX PyTorch 的 `bfloat16.numpy()` 限制：producer 在
+保存 KV 时因 NumPy bridge 不支持 BF16 而退出。提交 `ae81d39` 将 staging wire
+protocol 改为 uint8 原始字节视图并按 dtype/shape 重建，新增 BF16 round-trip
+回归（V1 KV transfer 定向测试 31 项全部通过）。下一轮真实请求应重新验证完整
+producer/consumer 输出闭环。
+
 在共享两机 Ray 集群重新拉起 `initial_instances=2` 的 P/D 部署时，首个实例已
 成功创建并开始加载 Qwen3-14B；此前 CoreX Ray `ActorOptionWrapper` 不支持
 `.options()` 的兼容性错误已由提交 `fa05a26` 修复，Llumlet 能够进入 vLLM V1

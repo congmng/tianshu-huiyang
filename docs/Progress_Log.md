@@ -602,6 +602,11 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 
 ### 2026-09-03：P/D 重新回归与资源隔离修复
 
+- 真实 P/D 请求已到达两端 connector：producer 保存 KV、consumer 收到 metadata
+  并执行 load。请求随后因 CoreX torch 的 `bfloat16.numpy()` 不支持而失败；已将
+  ZMQ staging 改为 uint8 原始字节视图/声明 dtype 重建，并加入 BF16 跨端 round-trip
+  测试。V1 KV-transfer 定向测试 `31 passed`，提交 `ae81d39` 已推送。
+
 - 现场日志定位到 CoreX Ray 特有的 `ActorOptionWrapper` 不支持 `.options()`，
   导致 Llumlet 在 actor 创建阶段退出；提交 `fa05a26` 增加兼容回退，并同步到
   `tianshu-huiyang/main`。
