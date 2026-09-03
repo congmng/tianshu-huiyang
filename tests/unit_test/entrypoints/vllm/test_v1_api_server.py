@@ -205,6 +205,19 @@ def test_v1_api_exposes_readiness_and_single_instance_topology(monkeypatch):
     assert payload["node_ip"] == "10.31.10.62"
 
 
+def test_v1_benchmark_endpoint_returns_latency_contract():
+    app = build_app(_Engine())
+    endpoint = _route(app, "/generate_benchmark", "POST")
+    response = asyncio.run(endpoint(_Request({
+        "prompt": "hello", "request_id": "bench-id", "max_tokens": 1,
+    })))
+    payload = json.loads(response.body)
+    assert response.status_code == 200
+    assert payload["request_id"] == "bench-id"
+    assert payload["generated_text"] == " world"
+    assert isinstance(payload["per_token_latency"], list)
+
+
 def test_main_api_validates_requests_and_preserves_public_request_id(monkeypatch):
     import llumnix.entrypoints.vllm.api_server as main_api
 

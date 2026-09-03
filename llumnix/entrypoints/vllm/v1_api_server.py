@@ -140,6 +140,52 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
             release(request_id)
         return JSONResponse({"text": [prompt + x.text for x in final.outputs]})
 
+    @app.post("/generate_benchmark")
+    async def generate_benchmark(request: Request) -> Response:
+        """Return generation text plus per-token timing for benchmark clients."""
+        try:
+            body = await request.json()
+            if not isinstance(body, dict):
+                raise ValueError("request body must be a JSON object")
+            prompt = body.pop("prompt")
+            if not isinstance(prompt, str):
+                raise ValueError("prompt must be a string")
+            body.pop("stream", False)
+            request_id = body.pop("request_id", f"bench-{time.time_ns()}")
+            if not isinstance(request_id, str) or not request_id:
+                raise ValueError("request_id must be a non-empty string")
+            params = SamplingParams(**body)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=f"invalid benchmark request: {exc}") from exc
+
+        started = time.monotonic()
+        timestamps = []
+        final = None
+        results = engine.generate(prompt, params, request_id)
+        try:
+            async for output in results:
+                now = time.monotonic()
+                timestamps.append([now, (now - started) * 1000.0])
+                final = output
+        except Exception:
+            await engine.abort(request_id)
+            raise
+        finally:
+            release = getattr(engine, "release_request", None)
+            if release is not None:
+                release(request_id)
+        if final is None or not final.outputs:
+            return JSONResponse({"error": "engine returned no output"}, status_code=500)
+        completion = final.outputs[0]
+        token_ids = getattr(completion, "token_ids", ()) or ()
+        return JSONResponse({
+            "request_id": request_id,
+            "generated_text": completion.text,
+            "num_output_tokens_cf": len(token_ids),
+            "num_input_tokens": 0,
+            "per_token_latency": timestamps,
+        })
+
     return app
 
 
