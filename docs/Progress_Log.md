@@ -529,3 +529,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   由此确认当前 CoreX 兼容路径已完成模型级 P/D KV handoff 基础闭环。
 - 本次仅验证功能可用性，不宣称论文中的 QPS/延迟收益已复现；论文原生 vLLM
   0.6 block-manager 与 native NCCL GPU handoff 仍属于后续适配范围。
+- 修复 Ray Llumlet worker 不继承 `LLUMNIX_KV_PORT` 等 V1 connector 环境变量的
+  部署缺口：V1 actor 现在通过受限 `runtime_env.env_vars` 接收 connector IP、端口、
+  rank/role、事件端点和固定 hash seed；回归测试与 Python 3.12 `compileall` 通过。

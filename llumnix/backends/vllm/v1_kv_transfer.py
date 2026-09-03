@@ -21,6 +21,31 @@ P2P_REQUEST_ID_SUFFIX = "___"
 P2P_PREFILL_ID_PREFIX = "___prefill_addr_"
 P2P_CONNECTORS = {"P2pNcclConnector", "CoreXP2pNcclConnector"}
 
+# Ray workers are forked by the raylet rather than by the ``serve`` process.
+# Keep connector settings explicit so endpoint and rank configuration crosses
+# the actor boundary without copying the complete process environment.
+V1_KV_RUNTIME_ENV_KEYS = (
+    "LLUMNIX_KV_IP",
+    "LLUMNIX_KV_PORT",
+    "LLUMNIX_KV_ROLE",
+    "LLUMNIX_KV_RANK",
+    "LLUMNIX_KV_PARALLEL_SIZE",
+    "LLUMNIX_KV_DECODE_ADDRESS",
+    "LLUMNIX_KV_EVENTS_ENDPOINT",
+    "LLUMNIX_KV_EVENTS_REPLAY_ENDPOINT",
+    "PYTHONHASHSEED",
+)
+
+
+def v1_kv_runtime_env(environ: dict[str, str] | None = None) -> dict[str, str]:
+    """Return connector settings suitable for Ray ``runtime_env.env_vars``."""
+    environ = os.environ if environ is None else environ
+    return {
+        key: value
+        for key in V1_KV_RUNTIME_ENV_KEYS
+        if isinstance((value := environ.get(key)), str) and value
+    }
+
 
 def default_kv_ip() -> str:
     """Return this process' routable address for a cross-host connector.

@@ -142,19 +142,27 @@ class Llumlet:
                 # placement-group GPU allocation. Legacy 0.6 used a 0.5 GPU
                 # Llumlet plus a separate Ray executor.
                 import vllm
-                num_gpus = 1 if getattr(vllm, "__version__", "").startswith("0.11") else 0.5
+                is_v1 = getattr(vllm, "__version__", "").startswith("0.11")
+                num_gpus = 1 if is_v1 else 0.5
             elif backend_type == backend_type.BLADELLM:
                 world_size = get_engine_world_size(engine_args, backend_type)
                 num_gpus = world_size
             else:  # backend_type == BackendType.SIM_VLLM
                 num_gpus = 0
-            llumlet_class = ray.remote(
+            actor_options = dict(
                 num_cpus=1,
                 num_gpus=num_gpus,
                 name=get_instance_name(instance_id),
                 namespace="llumnix",
                 lifetime="detached",
-            )(cls).options(
+            )
+            if backend_type == BackendType.VLLM and is_v1:
+                # ``serve`` and the raylet may be separate processes. Carry
+                # connector settings into the actor so LLUMNIX_KV_PORT is
+                # honored by the V1 EngineCore worker.
+                from llumnix.backends.vllm.v1_kv_transfer import v1_kv_runtime_env
+                actor_options["runtime_env"] = {"env_vars": v1_kv_runtime_env()}
+            llumlet_class = ray.remote(**actor_options)(cls).options(
                 scheduling_strategy=PlacementGroupSchedulingStrategy(
                     placement_group=placement_group,
                     placement_group_bundle_index=0,

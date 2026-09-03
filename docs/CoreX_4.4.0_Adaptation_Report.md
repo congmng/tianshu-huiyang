@@ -523,6 +523,15 @@ GCS 连接超时，head 日志没有 Llumnix 或模型错误。该现象属于�
 已有集群时不会错误地传递 head-only `--temp-dir`。跨机端口探针进一步表明需在
 网络层允许两节点间 Ray GCS、node-manager、object-manager 以及配置的 worker
 端口范围；在该条件满足前，不应将 Ray GCS 超时归因于 Llumnix V1 适配。
+## Ray worker 的 V1 connector 环境传递（2026-09-03）
+
+Ray Llumlet 是由 raylet 创建的独立 actor，不能依赖启动 `serve` 命令的 shell
+环境自动继承每个 V1 EngineCore 的 KV connector 参数。`Llumlet.from_args` 现在
+为 vLLM 0.11 V1 actor 显式传递受限的 `runtime_env.env_vars`，覆盖 KV IP、端口、
+角色/rank、并行规模、事件 endpoint 和 `PYTHONHASHSEED`；不会转发完整环境或令牌。
+这样 `LLUMNIX_KV_PORT` 等部署覆盖项在 worker 内实际生效，也避免同机多实例使用
+默认端口造成冲突。新增单元测试验证 allow-list 和空值过滤。
+
 ## Ray State API 缺失时的全局部署降级（2026-09-03）
 
 CoreX 4.4.0 环境中的精简 Ray wheel 可能不包含 dashboard HTTP 服务。此前

@@ -491,3 +491,20 @@ def test_pd_producer_sampling_stops_after_handoff():
     assert producer.max_tokens == 1
     assert params.max_tokens == 32
     assert producer.temperature == 0.7
+
+
+def test_v1_kv_runtime_env_keeps_only_connector_settings():
+    from llumnix.backends.vllm.v1_kv_transfer import v1_kv_runtime_env
+
+    env = {
+        "LLUMNIX_KV_PORT": "19073",
+        "LLUMNIX_KV_IP": "10.31.10.62",
+        "PYTHONHASHSEED": "0",
+        "HF_TOKEN": "must-not-be-forwarded",
+        "EMPTY": "",
+    }
+    assert v1_kv_runtime_env(env) == {
+        "LLUMNIX_KV_PORT": "19073",
+        "LLUMNIX_KV_IP": "10.31.10.62",
+        "PYTHONHASHSEED": "0",
+    }
