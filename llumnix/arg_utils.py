@@ -488,7 +488,14 @@ class InstanceArgs:
                             type=str,
                             choices=['cuda_ipc', 'rdma', 'SharedStorageConnector',
                                      'P2pNcclConnector', 'NixlConnector',
-                                     'LMCacheConnectorV1', 'OffloadingConnector'],
+                                     'LMCacheConnectorV1', 'OffloadingConnector',
+                                     # CoreX 4.4 redirects vLLM's generic P2P
+                                     # connector to this ABI-compatible
+                                     # implementation.  It must be accepted
+                                     # explicitly as well as produced by the
+                                     # automatic rewrite so declarative
+                                     # deployment configs remain valid.
+                                     'CoreXP2pNcclConnector'],
                             help='transfer type for legacy backends or vLLM V1 '
                                  'KV connector name')
         parser.add_argument('--grpc-migration-backend-server-address',

@@ -33,6 +33,18 @@ def test_v1_pd_rejects_legacy_backend_before_engine_startup():
     validate_v1_pd_connector(manager, instance, "0.11.2")
 
 
+def test_cli_accepts_explicit_corex_p2p_connector():
+    from llumnix.arg_utils import InstanceArgs
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    InstanceArgs.add_cli_args(parser)
+    args = parser.parse_args([
+        "--migration-backend-transfer-type", "CoreXP2pNcclConnector"
+    ])
+    assert args.migration_backend_transfer_type == "CoreXP2pNcclConnector"
+
+
 
 
 def test_kvtransfer_config_maps_llumnix_options(monkeypatch):

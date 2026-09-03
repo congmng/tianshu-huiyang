@@ -1,5 +1,11 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：显式 CoreX P2P CLI 与双机 BF16 staging 复核
+
+CLI 现在正式接受 `CoreXP2pNcclConnector`；相关配置回归 **14 passed**。以当前
+代码从 `10.31.10.62` 向 `10.31.10.210` 发送真实 BF16 `(4,4)` tensor，远端完整
+接收且均值为 `7.5`，确认跨机 ZMQ CPU-staging wire-format 与 CoreX tensor 路径可用。
+
 ## 2026-09-03：完整 Python 3.12 单元回归基线
 
 隔离 Ray runtime 下执行完整 `tests/unit_test`（排除旧 vLLM 0.6 API 生命周期测试），

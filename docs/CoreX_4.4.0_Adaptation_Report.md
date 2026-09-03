@@ -1,5 +1,18 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 显式 CoreX P2P 配置与双机 BF16 传输复核（2026-09-03）
+
+CLI 的 `--migration-backend-transfer-type` 现接受
+`CoreXP2pNcclConnector`，因此部署配置可直接声明 CoreX ABI 兼容 connector，
+不会在参数解析阶段被误拒绝；自动将上游 `P2pNcclConnector` 改写为该 connector
+的原有行为不变。新增参数解析回归后，相关 V1 KV-transfer 集为 **14 passed**。
+
+使用当前提交在 `10.31.10.62 -> 10.31.10.210` 实际执行 ZMQ CPU-staging
+BF16 tensor 探针：发送端 `send_tensor` 返回 true，接收端得到
+`torch.bfloat16`、形状 `(4, 4)`、均值 `7.5`。这复核了两机网络、Python 3.12
+CoreX torch 与 connector 的真实跨主机 KV wire-format；完整 Qwen3-14B P/D
+模型级 handoff 仍以本报告已有的 40-layer HTTP 成功证据为准。
+
 ## 最新 Python 3.12 完整单元回归（2026-09-03）
 
 在本机 CoreX 4.4/Python 3.12 环境使用隔离 Ray runtime 执行
