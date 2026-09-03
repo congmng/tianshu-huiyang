@@ -93,6 +93,27 @@ def pytest_collection_modifyitems(config, items):
 from llumnix.utils import random_uuid
 
 def cleanup_ray_env_func():
+    # CoreX's minimal Ray wheel may omit the dashboard-backed State API.
+    # Named actors are still available through the core control plane, so use
+    # that path first and do not leave actors behind between Ray-heavy tests.
+    try:
+        for actor_name in ray.util.list_named_actors(all_namespaces=True):
+            try:
+                if isinstance(actor_name, dict):
+                    namespace = actor_name.get("namespace", "llumnix")
+                    name = actor_name.get("name", "")
+                else:
+                    namespace, _, name = actor_name.partition(":")
+                    if not name:
+                        namespace, name = "llumnix", namespace
+                if not name:
+                    continue
+                ray.kill(ray.get_actor(name, namespace=namespace))
+            except Exception:
+                continue
+    except Exception:
+        pass
+
     try:
         actor_states = list_actors()
         for actor_state in actor_states:

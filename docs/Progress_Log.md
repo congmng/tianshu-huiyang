@@ -8,6 +8,13 @@
 - 修复后 Manager abort-routing、V1 connector 与 KV affinity 定向回归 **34 passed**。
   完整套件中历史 Ray-heavy 用例仍建议拆分执行，避免单次进程长期占用资源。
 
+## 2026-09-03：Ray 命名 actor 清理兼容
+
+- 测试清理器优先使用 `ray.util.list_named_actors(all_namespaces=True)`，兼容 Ray
+  2.52 返回的 `{name, namespace}` 字典，避免依赖缺失 dashboard 的 State API。
+- 与动态 ZMQ 端口及 `ray.init(address="local")` 配合后，entrypoint/GlobalScheduler
+  分组回归 **11 passed**，减少跨测试 actor 残留。
+
 ## 2026-09-03：ZMQ 端口与 legacy 测试收集修复
 
 - ZMQ 单元测试改用系统分配的空闲端口，不再与部署中的固定 `1234` 服务冲突，且

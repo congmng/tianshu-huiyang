@@ -7,6 +7,11 @@
 actor。修复后的 Manager、V1 connector、KV affinity 定向验证为 **34 passed**；
 完整套件仍包含历史 Ray-heavy 测试，需按测试选择在独立环境执行。
 
+补充修复测试夹具清理：CoreX 精简 Ray 的 `list_actors()` 依赖 dashboard，不可稳定
+返回命名 actor；清理器现在优先使用核心 API `ray.util.list_named_actors`，并兼容
+Ray 2.52 返回的字典结构。结合动态 ZMQ 端口和 `address="local"`，entrypoint、
+GlobalScheduler 与 V1/KV 分组回归可独立完成（本轮新增分组 **11 passed**）。
+
 进一步修复测试隔离：ZMQ 单元测试不再固定绑定 `127.0.0.1:1234`，改为系统分配
 空闲端口并显式清理 server。另修正 V1 环境下 legacy `entrypoints/vllm/test_api_server`
 的收集过滤顺序，避免已移除的 vLLM 0.6 API 被错误执行。完整回归已越过该失败点，
