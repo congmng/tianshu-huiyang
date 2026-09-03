@@ -15,6 +15,13 @@
 - 与动态 ZMQ 端口及 `ray.init(address="local")` 配合后，entrypoint/GlobalScheduler
   分组回归 **11 passed**，减少跨测试 actor 残留。
 
+## 2026-09-03：V1 核心回归汇总
+
+- 动态 ZMQ 端口、legacy API 收集过滤与命名 actor 清理修复后，执行 V1 KV transfer、
+  V1 API、KV affinity、GlobalScheduler、support gate 组合回归：**78 passed**。
+- 固定端口冲突和旧 vLLM 0.6 API 误执行问题均不再出现；历史 Ray-heavy migration
+  用例继续按 legacy 范围单独处理。
+
 ## 2026-09-03：ZMQ 端口与 legacy 测试收集修复
 
 - ZMQ 单元测试改用系统分配的空闲端口，不再与部署中的固定 `1234` 服务冲突，且

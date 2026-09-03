@@ -12,6 +12,11 @@ actor。修复后的 Manager、V1 connector、KV affinity 定向验证为 **34 p
 Ray 2.52 返回的字典结构。结合动态 ZMQ 端口和 `address="local"`，entrypoint、
 GlobalScheduler 与 V1/KV 分组回归可独立完成（本轮新增分组 **11 passed**）。
 
+随后将 ZMQ 动态端口、legacy API 收集顺序及命名 actor 清理修复合并验证：覆盖 V1
+KV transfer、V1 API、KV affinity、GlobalScheduler、support gate 共 **78 passed**。
+未再出现固定端口冲突或旧 API 误执行；未纳入的历史 Ray-heavy migration 用例仍
+单独保留为 legacy 范围。
+
 进一步修复测试隔离：ZMQ 单元测试不再固定绑定 `127.0.0.1:1234`，改为系统分配
 空闲端口并显式清理 server。另修正 V1 环境下 legacy `entrypoints/vllm/test_api_server`
 的收集过滤顺序，避免已移除的 vLLM 0.6 API 被错误执行。完整回归已越过该失败点，
