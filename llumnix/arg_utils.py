@@ -234,7 +234,18 @@ class ManagerArgs:
         assert not args.enable_port_offset_store or args.enable_port_increment, \
             "Set enable_port_increment when enable_port_offset_store"
 
-        assert not args.enable_scaling, "Proactive auto-scaling is deprecated now, all auto-scaling related args will not take effects."
+        # V1/CoreX supports reactive auto-scaling based on the reported
+        # heterogeneous load metrics.  The historical assertion disabled the
+        # CLI flag even though Manager and ScalingScheduler implement it.
+        # Keep basic bounds validation while allowing the feature explicitly.
+        if args.enable_scaling:
+            assert args.max_instances == -1 or args.max_instances > 0, \
+                "max_instances must be -1 or positive when scaling is enabled"
+            assert args.min_instances == -1 or args.min_instances > 0, \
+                "min_instances must be -1 or positive when scaling is enabled"
+            if args.min_instances != -1 and args.max_instances != -1:
+                assert args.min_instances <= args.max_instances, \
+                    "min_instances must not exceed max_instances"
 
     @staticmethod
     def add_cli_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:

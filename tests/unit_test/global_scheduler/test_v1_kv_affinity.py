@@ -225,3 +225,13 @@ def test_v1_virtual_usage_is_exposed_as_scaling_cli_metric():
     ManagerArgs.add_cli_args(parser)
     action = next(a for a in parser._actions if a.dest == "scaling_load_metric")
     assert "virtual_usage" in action.choices
+
+
+def test_v1_scaling_flag_is_not_rejected_by_legacy_validation():
+    """V1 reactive scaling is implemented and must remain CLI-addressable."""
+    from llumnix.arg_utils import ManagerArgs, LlumnixArgumentParser
+
+    parser = LlumnixArgumentParser()
+    ManagerArgs.add_cli_args(parser)
+    args = ManagerArgs(enable_scaling=True, min_instances=1, max_instances=2)
+    ManagerArgs.check_args(args, parser)

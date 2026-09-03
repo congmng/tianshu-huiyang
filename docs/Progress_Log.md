@@ -1,5 +1,13 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：恢复 V1 reactive auto-scaling CLI
+
+- 发现 `Manager` 和 `ScalingScheduler` 已支持 `virtual_usage` 异构负载扩缩容，
+  但参数校验仍用旧版断言拒绝 `enable_scaling=True`。
+- 移除该遗留断言，新增 min/max 实例数量边界校验，使论文中的弹性扩缩容能力可由
+  Python 3.12/CoreX V1 CLI 正式启用。
+- KV affinity、GlobalScheduler 与 scaling 组合回归 **23 passed**。
+
 ## 2026-09-03：单元测试显式本地 Ray 隔离
 
 - `tests/conftest.py` 的 session fixture 改用 `ray.init(address="local")`，避免

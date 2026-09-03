@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## V1 reactive auto-scaling CLI 兼容修复（2026-09-03）
+
+审计发现 `Manager`/`ScalingScheduler` 已实现基于 `virtual_usage` 的 V1 弹性扩缩容，
+但 `ManagerArgs.check_args` 仍保留旧版“禁止 enable_scaling”的断言，导致该论文创新
+能力无法从 CLI 启用。现移除遗留断言，保留 `min_instances`/`max_instances` 正值及
+范围校验；V1 scaling flag 回归通过，GlobalScheduler/KV 组合测试 **23 passed**。
+
 ## Python 3.12 单元测试隔离修复（2026-09-03）
 
 测试夹具的 `pytest_sessionstart` 现显式使用 `ray.init(address="local")`，确保单元
