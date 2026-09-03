@@ -532,6 +532,15 @@ Ray Llumlet 是由 raylet 创建的独立 actor，不能依赖启动 `serve` 命
 这样 `LLUMNIX_KV_PORT` 等部署覆盖项在 worker 内实际生效，也避免同机多实例使用
 默认端口造成冲突。新增单元测试验证 allow-list 和空值过滤。
 
+## 固定规模部署的 placement-group 生命周期（2026-09-03）
+
+发现全局部署在 `enable_scaling=False` 时仍启动自动扩容协程；该协程每个控制
+周期创建新的 GPU placement group，固定规模的两实例 P/D 服务因无空闲 GPU 而
+不断累积 pending group。现在自动扩容协程仅在显式启用 `enable_scaling` 时创建，
+固定规模部署不会产生额外资源请求。清理现场 237 个残留 placement group 后，
+Ray 双机资源回到 2 GPU 空闲、无 pending resource demand；Manager 定向回归及
+V1 connector 回归通过。
+
 ## Ray State API 缺失时的全局部署降级（2026-09-03）
 
 CoreX 4.4.0 环境中的精简 Ray wheel 可能不包含 dashboard HTTP 服务。此前

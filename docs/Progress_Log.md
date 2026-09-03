@@ -532,3 +532,6 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 修复 Ray Llumlet worker 不继承 `LLUMNIX_KV_PORT` 等 V1 connector 环境变量的
   部署缺口：V1 actor 现在通过受限 `runtime_env.env_vars` 接收 connector IP、端口、
   rank/role、事件端点和固定 hash seed；回归测试与 Python 3.12 `compileall` 通过。
+- 修复固定规模全局部署仍启动自动扩容循环的问题。`enable_scaling=False` 时不再
+  创建额外 placement group，避免 GPU 不足时 pending PG 无界累积；现场清理 237 个
+  残留 PG，Ray 状态恢复为无资源需求。该修复已提交并同步两机。
