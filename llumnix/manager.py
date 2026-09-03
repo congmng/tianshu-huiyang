@@ -164,6 +164,11 @@ class Manager:
         self.instances: Dict[str, Llumlet] = {}
         self.instance_migrating: Dict[str, bool] = {}
         self.pending_rebuild_migration_instances = 0
+        # Global launches used to rely on the auto-scaling loop to create
+        # their initial replicas. Keep fixed-size startup explicit and
+        # idempotent instead: the loop is correctly absent when scaling is
+        # disabled, but the configured initial instances must still exist.
+        self._global_initial_instances_launched = False
 
         # request states
         self.request_instance: Dict[str, str] = {}
@@ -478,6 +483,42 @@ class Manager:
             asyncio.create_task(instance_ready_scale_up(instance_id, instance))
 
         return instance_ids, instances
+
+    def init_global_instances(self) -> List[str]:
+        """Create the configured global-launch replicas exactly once.
+
+        Global serving owns one API actor per Llumlet, unlike local serving
+        where the caller owns the API server.  This was historically hidden
+        in ``_auto_scale_up_loop``; doing it explicitly prevents fixed-size
+        deployments from leaking placement groups or starting with zero
+        instances when autoscaling is disabled.
+        """
+        if self._global_initial_instances_launched:
+            return list(self.instances)
+        if not (hasattr(self, "launch_mode") and self.launch_mode == LaunchMode.GLOBAL):
+            raise RuntimeError("init_global_instances is only valid for global launch")
+        self._global_initial_instances_launched = True
+        instance_ids: List[str] = []
+        for _ in range(self.manager_args.initial_instances):
+            instance_id = random_uuid()
+            placement_group = self.launcher.init_placement_group(
+                get_placement_group_name(instance_id),
+                self.engine_args,
+                self.backend_type,
+                init_server=True,
+                block=True,
+            )
+            self.launcher.init_server_and_instance(
+                instance_id,
+                self.entrypoints_args,
+                self.instance_args,
+                self.engine_args,
+                self.backend_type,
+                placement_group,
+                instance_ready_cb=self.scale_up,
+            )
+            instance_ids.append(instance_id)
+        return instance_ids
 
     async def is_ready(self) -> bool:
         """Called by api server, return true when all the instances have been successfully created."""

@@ -226,7 +226,14 @@ def _setup_llumnix_local(entrypoints_args, manager_args, instance_args, engine_a
     return setup_entrypoints_context(entrypoints_args, manager, instance_ids, instances, request_output_queue)
 
 def _setup_llumnix_global(entrypoints_args, manager_args, instance_args, engine_args, launch_args) -> None:
-    _ = init_manager(manager_args, instance_args, entrypoints_args, engine_args, launch_args)
+    manager = init_manager(manager_args, instance_args, entrypoints_args, engine_args, launch_args)
+    # Fixed-size global deployments must eagerly create their configured
+    # replicas.  Do not rely on the autoscaler for this: autoscaling is often
+    # intentionally disabled for P/D deployments.
+    retry_manager_method_sync(
+        manager.init_global_instances.remote,
+        "init_global_instances",
+    )
 
 def setup_llumnix(entrypoints_args, manager_args, instance_args, engine_args, launch_args) -> Optional[EntrypointsContext]:
     if launch_args.launch_mode == LaunchMode.LOCAL:
