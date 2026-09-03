@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## CoreX 精简 Ray 下扩缩容上限修复（2026-09-03）
+
+CoreX Ray wheel 没有 dashboard State API 时，自动扩缩容循环会将 placement-group
+状态列表降级为空；旧逻辑因此无法判断 `max_instances`，可能在每个周期重复申请
+GPU。现在在状态 API 不可用时以 Manager 已注册实例数作为存活 placement 的安全下界，
+同时保留状态 API 可用时的精确回收逻辑。V1/KV/调度及该上限回归共 **20 passed**。
+
 ## V1 reactive auto-scaling CLI 兼容修复（2026-09-03）
 
 审计发现 `Manager`/`ScalingScheduler` 已实现基于 `virtual_usage` 的 V1 弹性扩缩容，

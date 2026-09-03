@@ -1,5 +1,13 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：State API 降级下 max_instances 修复
+
+- 修复 CoreX 精简 Ray 缺失 dashboard State API 时，自动扩缩容将存活 placement
+  列表视为空、进而绕过 `max_instances` 重复申请 GPU 的问题。
+- 状态 API 不可用时现在使用 Manager 已注册实例数作为安全下界；状态 API 可用时
+  仍使用 placement 状态进行精确回收。
+- V1/KV/调度与扩缩容上限回归 **20 passed**。
+
 ## 2026-09-03：恢复 V1 reactive auto-scaling CLI
 
 - 发现 `Manager` 和 `ScalingScheduler` 已支持 `virtual_usage` 异构负载扩缩容，

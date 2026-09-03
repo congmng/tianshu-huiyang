@@ -739,7 +739,12 @@ class Manager:
                     self.scale_down(instance_id)
                 if (
                     self.max_instances != -1
-                    and len(alive_pg_states) >= self.max_instances
+                    # When the optional State API is unavailable, the state
+                    # list is intentionally empty. Manager's registered
+                    # instances are the authoritative lower-bound instead;
+                    # otherwise every interval would request another PG.
+                    and max(len(alive_pg_states), self.num_instances)
+                    >= self.max_instances
                 ):
                     logger.debug(
                         "The number of alive placement groups has reached the max_instances."
