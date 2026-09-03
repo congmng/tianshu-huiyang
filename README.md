@@ -68,6 +68,7 @@ Visit our [documentation](./docs/) to get started:
 - [Fault Tolerance](./docs/Fault_Tolerance.md)
 - [Simulator](./docs/Simulator.md)
 - [Prefill-decoding Disaggregation](./docs/Prefill-decoding_Disaggregation.md)
+- [CoreX 4.4 validation matrix](./docs/CoreX_Validation.md)
 
 ## Performance
 We evaluate the performance of the KV-cache-aware load-balancing scheduler and migration mechanism of Llumnix with 16 Qwen2.5-7B instances (each using an A10-24GB GPU) and 16 Llama2-13B instances (each using an A800-80GB GPU).

@@ -832,6 +832,17 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 
 ## 2026-09-03：论文第三点基础部署验收
 
+### 2026-09-03：CoreX 多卡 TP=2 真实端到端复验
+
+- 在本机 CoreX 4.4 / Python 3.12 / vLLM 0.11.2 环境执行
+  `python tools/run_corex44_validation.py e2e --tp 2`。
+- 使用 `CUDA_VISIBLE_DEVICES=0,1`、`TENSOR_PARALLEL_SIZE=2` 启动 Qwen3-14B；
+  vLLM V1 EngineCore 成功建立 NCCL `world_size=2`，TP rank 0/1 均完成权重加载
+  与 KV cache 初始化。
+- 中文提示生成返回非空结果，端到端耗时 26.21 秒，测试输出
+  `qwen3_14b_corex_vllm: PASS`。该结果证明多卡 TP 基础推理链路可用，不代表论文
+  中的吞吐/延迟收益已复现。
+
 ### 2026-09-03：P/D 重新回归与资源隔离修复
 
 ### 2026-09-03：正式支持审计与双机 affinity 复验

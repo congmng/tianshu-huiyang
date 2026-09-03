@@ -984,3 +984,18 @@ P/D producer 的 decode endpoint 只有在 prefill/decode 两个 Llumlet 完成�
 稳定汇聚，但 Qwen3-14B 双实例启动仍出现 vLLM EngineCore 初始化失败，日志未给出
 可归因于 connector 的底层错误；因此本次不能把该轮失败宣称为 handoff 失败，模型级
 handoff 的正式证据仍以先前 `zmq_cpu` staging 验证为准。
+
+## 多卡 TP=2 真实端到端复验（2026-09-03）
+
+在本机 CoreX 4.4 / Python 3.12 / vLLM 0.11.2 环境运行：
+
+```bash
+source tools/corex44_env.sh
+python tools/run_corex44_validation.py e2e --tp 2
+```
+
+测试使用 `CUDA_VISIBLE_DEVICES=0,1` 和 `TENSOR_PARALLEL_SIZE=2` 启动
+Qwen3-14B。vLLM V1 EngineCore 建立 NCCL `world_size=2`，TP rank 0/1 均完成
+权重加载和 KV cache 初始化；中文提示生成返回非空文本，耗时 26.21 秒，输出
+`qwen3_14b_corex_vllm: PASS`。这验证了多卡 TP 基础推理链路，未宣称论文中的
+吞吐或延迟收益已复现。
