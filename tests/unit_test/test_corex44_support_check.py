@@ -25,3 +25,13 @@ def test_corex44_gate_rejects_unsupported_stack():
         "torch": "2.6.0", "ray": "2.10.0",
     })
     assert len(errors) == 4
+
+
+def test_corex44_gate_compares_two_hosts():
+    gate = _load_gate()
+    local = {"python": "3.12.13", "vllm": "0.11.2", "ray": "2.52.1",
+             "torch": "2.7.1", "affinity_hashes": ["a"], "supported": True}
+    assert gate.compare_hosts(local, dict(local)) == []
+    remote = dict(local)
+    remote["affinity_hashes"] = ["b"]
+    assert gate.compare_hosts(local, remote)

@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import platform
 import sys
+import argparse
+import subprocess
 from typing import Mapping
 
 
@@ -27,7 +29,18 @@ def validate_versions(versions: Mapping[str, str]) -> list[str]:
     return errors
 
 
-def main() -> None:
+def compare_hosts(local: Mapping[str, object], remote: Mapping[str, object]) -> list[str]:
+    """Return mismatches that invalidate a deterministic two-host gate."""
+    mismatches = []
+    for key in ("python", "vllm", "ray", "torch", "affinity_hashes"):
+        if local.get(key) != remote.get(key):
+            mismatches.append(f"{key} differs: local={local.get(key)!r} remote={remote.get(key)!r}")
+    if not remote.get("supported", False):
+        mismatches.extend(str(error) for error in remote.get("errors", []))
+    return mismatches
+
+
+def collect_result() -> dict[str, object]:
     import torch
     import vllm
     import ray
@@ -61,6 +74,33 @@ def main() -> None:
         "supported": not errors,
         "errors": errors,
     }
+    return result
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--remote-host", help="SSH host to check as a second node")
+    parser.add_argument("--remote-project", default="/data1/congmng/llumnix")
+    args = parser.parse_args()
+    result = collect_result()
+    errors = list(result["errors"])
+    if args.remote_host:
+        command = (
+            f"cd {args.remote_project} && source tools/corex44_env.sh && "
+            "PYTHONPATH=. python tools/corex44_support_check.py"
+        )
+        completed = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", args.remote_host, "bash", "-lc", command],
+            check=False, capture_output=True, text=True,
+        )
+        if completed.returncode:
+            errors.append(f"remote gate failed with exit code {completed.returncode}")
+        else:
+            remote = json.loads(completed.stdout.strip().splitlines()[-1])
+            errors.extend(compare_hosts(result, remote))
+            result["remote"] = remote
+    result["supported"] = not errors
+    result["errors"] = errors
     print(json.dumps(result, sort_keys=True))
     if errors:
         raise SystemExit(1)
