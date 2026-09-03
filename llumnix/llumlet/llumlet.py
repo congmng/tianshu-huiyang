@@ -156,7 +156,7 @@ class Llumlet:
                 namespace="llumnix",
                 lifetime="detached",
             )
-            llumlet_class = ray.remote(**actor_options)(cls).options(
+            actor_runtime_options = dict(
                 scheduling_strategy=PlacementGroupSchedulingStrategy(
                     placement_group=placement_group,
                     placement_group_bundle_index=0,
@@ -168,9 +168,12 @@ class Llumlet:
                 # submission time. Passing this dict to ``ray.remote``
                 # itself can be mis-decoded by its actor task handler.
                 from llumnix.backends.vllm.v1_kv_transfer import v1_kv_runtime_env
-                llumlet_class = llumlet_class.options(
-                    runtime_env={"env_vars": v1_kv_runtime_env()}
-                )
+                actor_runtime_options["runtime_env"] = {
+                    "env_vars": v1_kv_runtime_env()
+                }
+            llumlet_class = ray.remote(**actor_options)(cls).options(
+                **actor_runtime_options
+            )
             llumlet = llumlet_class.remote(
                 instance_id,
                 instance_args,
