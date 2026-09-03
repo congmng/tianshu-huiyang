@@ -11,6 +11,13 @@ pipeline_parallel_size`。该修复已由单元测试覆盖并提交 `569a72a`�
 本轮 TP=2 Qwen3-14B 尝试因 Ray 中仍存在旧 detached Manager 而未使用该修复，故不
 宣称模型级多卡 HTTP 通过；清理旧控制面后再进行正式验收。
 
+随后在本机两张 BI-V150 上完成原生 vLLM V1 TP=2 实测：两张卡均完成 NCCL rank
+初始化，Qwen3-14B 八个 safetensors 分片加载完成，每卡约 13.88 GiB 权重并成功
+分配 KV cache；`/health` 与 `/v1/completions` 返回成功，中文生成非空。首次尝试
+在首 token Triton 编译时因链接器找不到 `-lcuda` 退出，确认并通过 CoreX library
+path 环境修复；这同时验证了 Python 3.12/CoreX 栈的多卡编译运行要求。该证据是
+真实多卡模型运行通过，不等同于 Llumnix 跨实例 P/D KV handoff 通过。
+
 ## 全量 Python 3.12 回归复核（2026-09-03）
 
 针对“原先功能和创新均迁移到当前 CoreX 栈”的适配审计，执行了项目全量测试：

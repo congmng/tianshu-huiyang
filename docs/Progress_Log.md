@@ -13,6 +13,19 @@
   TP=2 模型级 HTTP 结果记为通过；后续实测必须先清理旧 Manager/placement group，
   确保 Ray actor 使用提交 `569a72a`。
 
+## 2026-09-03：Qwen3-14B 本机 TP=2 V1 真实推理通过
+
+- 在两张本机 BI-V150（`CUDA_VISIBLE_DEVICES=0,1`）上直接启动 vLLM 0.11.2 V1
+  `tensor_parallel_size=2`，日志确认 `world_size=2`、TP rank 0/1、NCCL 初始化，
+  8 个权重分片加载完成；每卡模型驻留约 13.88 GiB，并成功创建 193,424-token
+  KV cache。
+- `GET /health` 与 `/v1/completions` 均成功；提示“用一句话介绍 CoreX”返回非空
+  中文文本（8 tokens）。这证明 CoreX/PyTorch/NCCL/Triton 和 Qwen3-14B 的真实
+  多卡推理链路可用。首次失败原因已确定为 Triton 编译环境未找到 `-lcuda`，而非
+  显存；通过环境脚本提供的 CoreX library path 后重试成功。
+- 本次使用原生 vLLM API，不将其误记为 Llumnix Manager/P-D handoff 验收；Llumnix
+  多卡入口仍需在清理旧 detached Manager 后使用新 world-size 逻辑复验。
+
 ## 2026-09-03：Python 3.12 全量回归与跨主机 affinity 复核
 
 - 全量 Python 3.12/CoreX 4.4.0 测试首轮暴露 3 个 vLLM V1 兼容点：旧测试仍向
