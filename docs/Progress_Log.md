@@ -1,5 +1,11 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：Benchmark HTTP 端到端验收
+
+本机真实 Qwen3-14B V1 服务调用 `/generate_benchmark` 返回 HTTP 200，输入 token
+数 11、输出 token 数 8、延迟样本 8 个（最终约 538.55 ms），完成从 HTTP 到
+EngineCore 再到 benchmark JSON 的端到端验证。
+
 ## 2026-09-03：Benchmark 断连生命周期测试
 
 `/generate_benchmark` 增加客户端断连检测，执行 V1 abort 并返回 499；新增集成回归，

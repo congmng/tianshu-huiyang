@@ -1,5 +1,13 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## Benchmark 真实 HTTP 端到端验证（2026-09-03）
+
+本机以 Qwen3-14B、Python 3.12、CoreX 4.4、vLLM 0.11.2 启动独立 V1 服务后，
+调用 `/generate_benchmark`（request_id=`bench-e2e-001`、`max_tokens=8`）返回
+HTTP 200；结果包含 `num_input_tokens=11`、`num_output_tokens_cf=8` 以及 8 个
+逐输出延迟样本（最终约 538.55 ms）。这验证 benchmark JSON 契约、真实 token
+统计和 EngineCore 流式生命周期已贯通。
+
 ## Benchmark 客户端断连清理（2026-09-03）
 
 `/generate_benchmark` 现在在每个 V1 输出事件前检查客户端连接；断连时立即调用
