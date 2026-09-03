@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## Python 3.12 单元测试隔离修复（2026-09-03）
+
+测试夹具的 `pytest_sessionstart` 现显式使用 `ray.init(address="local")`，确保单元
+套件在机器已有部署 Ray head 时仍创建私有进程内控制面，不附着共享集群或复用遗留
+actor。修复后的 Manager、V1 connector、KV affinity 定向验证为 **34 passed**；
+完整套件仍包含历史 Ray-heavy 测试，需按测试选择在独立环境执行。
+
 > 回归执行边界：远端工作副本已同步包含本轮 V1 abort-routing 修复，双机支持门禁
 > 输出与本机一致。P/D 服务占用共享两张 GPU 时，全量 Ray 单元套件会因 fixture
 > 资源等待而阻塞；已主动终止该运行以保护验收服务，不将资源竞争误记为代码失败。

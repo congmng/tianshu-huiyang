@@ -142,7 +142,11 @@ def pytest_sessionstart(session):
     # in-process Ray runtime also caps CPU discovery so CoreX test nodes do
     # not eagerly create one worker per host CPU.
     os.environ.pop("RAY_ADDRESS", None)
-    ray.init(num_cpus=4, include_dashboard=False, namespace="llumnix")
+    # ``ray.init()`` without an address may attach to a pre-existing local
+    # runtime (including a deployment head) even after RAY_ADDRESS is unset.
+    # Explicit ``address=\"local\"`` gives the unit suite a private control
+    # plane and prevents stale actors/resources from another validation run.
+    ray.init(address="local", num_cpus=4, include_dashboard=False, namespace="llumnix")
 
 
 def pytest_sessionfinish(session):

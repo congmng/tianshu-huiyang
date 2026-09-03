@@ -1,5 +1,13 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：单元测试显式本地 Ray 隔离
+
+- `tests/conftest.py` 的 session fixture 改用 `ray.init(address="local")`，避免
+  `RAY_ADDRESS` 清除后仍附着宿主机已有 Ray runtime；测试不会再复用共享部署中的
+  APIServer/Queue actor。
+- 修复后 Manager abort-routing、V1 connector 与 KV affinity 定向回归 **34 passed**。
+  完整套件中历史 Ray-heavy 用例仍建议拆分执行，避免单次进程长期占用资源。
+
 ## 2026-09-03：远端同步与回归资源边界
 
 - 远端工作副本已同步包含 V1 abort-routing 修复，双机支持门禁输出仍完全一致。
