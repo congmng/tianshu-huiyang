@@ -99,16 +99,20 @@ class Llumlet:
                 # manager and therefore must not be started accidentally.
                 logger.warning(
                     "Llumnix is using the vLLM V1 serving adapter; KV-cache "
-                    "migration is disabled until its V1 port is complete."
+                    "block-manager migration is replaced by connector-driven "
+                    "P/D KV handoff."
                 )
-            self.migration_coordinator = MigrationCoordinator(
-                self.backend_engine,
-                migration_config.migration_last_stage_max_blocks,
-                migration_config.migration_max_stages,
-            )
-            self.migration_scheduler = LocalMigrationScheduler(
-                migration_config.request_migration_policy, self.backend_engine
-            )
+                self.migration_coordinator = None
+                self.migration_scheduler = None
+            else:
+                self.migration_coordinator = MigrationCoordinator(
+                    self.backend_engine,
+                    migration_config.migration_last_stage_max_blocks,
+                    migration_config.migration_max_stages,
+                )
+                self.migration_scheduler = LocalMigrationScheduler(
+                    migration_config.request_migration_policy, self.backend_engine
+                )
             self.log_requests = True
 
             asyncio.create_task(self._check_engine_state_loop())
@@ -226,8 +230,8 @@ class Llumlet:
             # legacy coordinator: it mutates vLLM 0.6 block-manager state
             # that does not exist in V1.
             logger.warning(
-                "Ignoring migration request for V1 Llumlet %s; KV-cache "
-                "migration has not been ported.", self.instance_id
+                "Ignoring legacy migration request for V1 Llumlet %s; use "
+                "connector-driven P/D KV handoff instead.", self.instance_id
             )
             return []
         migrate_out_requests = self.migration_scheduler.get_migrate_out_requests()

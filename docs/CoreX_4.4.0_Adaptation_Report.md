@@ -132,6 +132,13 @@ connector 驱动的 P/D KV handoff 取代它们。
 
 ### 正式支持审计补充（2026-09-03）
 
+为避免 V1 部署仍构造已移除的 vLLM 0.6 block-manager migration coordinator，
+Llumlet 在检测到 V1 adapter 后不再初始化 legacy coordinator/scheduler；任何旧
+`migrate_out` 调用保持安全拒绝并明确提示使用 connector-driven P/D KV handoff。
+这不会收窄已验证功能：V1 的正式替代路径仍为两机 producer/consumer connector
+handoff；它只消除未使用旧对象的隐性依赖与误导性“未完成迁移”告警。对应 API 与
+KV transfer 回归为 **46 passed**。
+
 当前本机正式环境为 Python `3.12.13`、vLLM `0.11.2`、Ray `2.52.1`、PyTorch
 `2.7.1`（CoreX 4.4）。`pip wheel . --no-deps --no-build-isolation` 成功生成
 `llumnix-0.0.2-py3-none-any.whl`。V1 transfer、placement、Manager 调度定向集

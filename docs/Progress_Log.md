@@ -604,6 +604,10 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 
 ### 2026-09-03：正式支持审计与双机 affinity 复验
 
+- V1 Llumlet 不再初始化依赖 vLLM 0.6 block-manager 的 legacy migration
+  coordinator/scheduler；旧迁移 RPC 安全拒绝并引导至 connector-driven P/D handoff。
+  API/KV transfer 回归 `46 passed`，避免当前 V1 栈携带不可用旧迁移对象。
+
 - 本机 Python `3.12.13` / CoreX 4.4 / vLLM `0.11.2` / Ray `2.52.1` /
   PyTorch `2.7.1` 环境成功执行 `pip wheel . --no-deps --no-build-isolation`。
 - V1 transfer、placement 与 Manager 调度定向回归为 `44 passed, 10 skipped`；
