@@ -1,5 +1,22 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：Python 3.12 全量回归与跨主机 affinity 复核
+
+- 全量 Python 3.12/CoreX 4.4.0 测试首轮暴露 3 个 vLLM V1 兼容点：旧测试仍向
+  `EngineArgs` 传入已删除的 `worker_use_ray`，以及 Ray 在 Llumlet placement
+  group 预留失败时序列化对象 repr 会再次访问尚未初始化的 `instance_id`。
+- 已移除测试中的旧参数；`Llumlet.__repr__` 现在安全处理半初始化对象，并将需
+  GPU 的旧引擎测试在 Ray 未登记 GPU 时明确 skip。全量回归结果为 **115 passed,
+  42 skipped**（784 warnings，均为现有 pytest/Ray 弃用或异步标记提示）。
+- 本机与 `10.31.10.210` 均运行 `tools/cross_host_kv_affinity_probe.py`，在各自
+  Python 3.12/CoreX 环境得到相同 `sha256_cbor` hashes
+  (`c9d58ba6...ef071cb`、`24125b23...54ab2d6`)，affinity 排序均为
+  `candidate-b,candidate-a`。该项再次确认论文第五章第三点的异构负载/缓存亲和
+  决策跨主机确定性；不替代 GPU KV tensor handoff 验收。
+- 本轮真实 14B 单卡服务启动因 CoreX 驱动显存不足未完成 HTTP 验证；该失败发生
+  在模型/EngineCore 显存初始化阶段，与下载源、梯子或 affinity 算法无关。此前
+  已有的双实例及 ZMQ CPU-staging P/D 证据仍按报告中的范围保留。
+
 ## 2026-09-03：Ray State API 缺失的全局扩缩容降级
 
 - 现场验证 CoreX 精简 Ray 集群没有 `127.0.0.1:8265` dashboard API；Manager 原有

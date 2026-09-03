@@ -1,5 +1,20 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 全量 Python 3.12 回归复核（2026-09-03）
+
+针对“原先功能和创新均迁移到当前 CoreX 栈”的适配审计，执行了项目全量测试：
+修复 vLLM 0.11 V1 中 `EngineArgs` 删除 `worker_use_ray` 导致的旧测试构造错误，
+并修复 Ray 在 placement group 预留失败的半初始化 Llumlet repr 路径。当前结果为
+**115 passed、42 skipped**；跳过项主要是需要真实旧版模型/引擎或多 GPU 的历史 E2E，
+不是 Python 3.12 导入失败。
+
+本机和 `10.31.10.210` 的 Python 3.12/CoreX 环境再次运行跨主机 affinity 探针，
+对同一 token blocks 得到逐字节一致的 `sha256_cbor` 哈希和候选排序。这为统一
+虚拟负载、KV event 索引和 prefix affinity 的跨域调度实现提供了当前栈证据。
+本轮尝试重新启动单卡 Qwen3-14B 服务时，CoreX 驱动报告显存分配 OOM，服务端口
+未启动；该现象仅限制本轮新增 HTTP 证据，不改变此前已记录的成功单/双实例 API
+及 ZMQ CPU-staging P/D 验证，也与网络代理或模型下载源无关。
+
 ## 全局 P/D 启动的既有 Ray 集群连接（2026-09-03）
 
 全局 `serve` 入口此前不传地址调用 `ray.init()`，可能在已有两机 head 旁创建

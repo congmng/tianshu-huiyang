@@ -119,7 +119,11 @@ class Llumlet:
             raise
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(iid={self.instance_id[:5]})"
+        # Construction can fail before ``instance_id`` is assigned (for
+        # example when a placement group cannot reserve a GPU).  Keep Ray's
+        # error serialization safe in that partial-initialization path.
+        instance_id = getattr(self, "instance_id", "unknown")
+        return f"{self.__class__.__name__}(iid={str(instance_id)[:5]})"
 
     @classmethod
     def from_args(

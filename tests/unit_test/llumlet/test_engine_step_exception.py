@@ -52,9 +52,11 @@ class MockLlumlet(Llumlet):
 
         asyncio.create_task(self.backend_engine._start_engine_step_loop())
 
-@pytest.mark.skipif(torch.cuda.device_count() < 1, reason="Need at least 1 GPU to run the test.")
+@pytest.mark.skipif(torch.cuda.device_count() < 1 or ray.cluster_resources().get("GPU", 0) < 1,
+                   reason="Need at least 1 GPU visible to PyTorch and Ray.")
 def test_engine_step_exception(ray_env):
-    engine_args = EngineArgs(model="facebook/opt-125m", download_dir="/mnt/model", max_model_len=8, worker_use_ray=True, enforce_eager=True)
+    # vLLM 0.11 V1 removed the legacy worker_use_ray option.
+    engine_args = EngineArgs(model="facebook/opt-125m", download_dir="/mnt/model", max_model_len=8, enforce_eager=True)
 
     # wait previous test to release the GPU memory
     time.sleep(5.0)
