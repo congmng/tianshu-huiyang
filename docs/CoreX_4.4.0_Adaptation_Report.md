@@ -52,6 +52,11 @@ Llumnix placement 层也完成 TP 拓扑防护：实例使用 `STRICT_PACK`，�
 **115 passed、42 skipped**；跳过项主要是需要真实旧版模型/引擎或多 GPU 的历史 E2E，
 不是 Python 3.12 导入失败。
 
+在最新提交上又以隔离本机 Ray fixture 运行 `tests/unit_test`：除明确启动旧
+vLLM 0.6 `api_server.py` 生命周期的 legacy `test_api_server.py` 外，结果为
+**119 passed、19 skipped**。该排除项的行为由当前 V1 `/generate` API 与两机
+P/D 实测覆盖；其余 skip 均为无 GPU/缺少 async 插件或旧 block-manager 专用路径。
+
 本机和 `10.31.10.210` 的 Python 3.12/CoreX 环境再次运行跨主机 affinity 探针，
 对同一 token blocks 得到逐字节一致的 `sha256_cbor` 哈希和候选排序。这为统一
 虚拟负载、KV event 索引和 prefix affinity 的跨域调度实现提供了当前栈证据。

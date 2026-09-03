@@ -67,6 +67,12 @@
 
 ## 2026-09-03：Python 3.12 全量回归与跨主机 affinity 复核
 
+- 最新提交以隔离 Ray fixture 重跑 `tests/unit_test`：排除唯一显式启动 vLLM 0.6
+  legacy `api_server.py` 生命周期的 `test_api_server.py` 后，结果为
+  **119 passed, 19 skipped**。当前 V1 `/generate` 和两机 P/D 实机链路覆盖该
+  legacy 测试不再代表的生产 API；其余 skip 为无 GPU/async 插件或旧
+  block-manager 专用路径。
+
 - 全量 Python 3.12/CoreX 4.4.0 测试首轮暴露 3 个 vLLM V1 兼容点：旧测试仍向
   `EngineArgs` 传入已删除的 `worker_use_ray`，以及 Ray 在 Llumlet placement
   group 预留失败时序列化对象 repr 会再次访问尚未初始化的 `instance_id`。
