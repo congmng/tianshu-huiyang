@@ -24,6 +24,7 @@ from functools import partial
 import ray
 import ray.actor
 from ray.util.state import list_placement_groups, list_actors
+from ray.util.state.exception import ServerUnavailable
 from ray.util.placement_group import PlacementGroup
 
 from llumnix.llumlet.llumlet import Llumlet
@@ -180,6 +181,11 @@ class Manager:
         self.scaling_up = False
         self.scaling_down = False
         self.last_check_scale_time = time.time()
+        # CoreX's production Ray wheel deliberately omits the optional
+        # dashboard dependencies.  Global deployment can still create and
+        # manage placement groups through the Ray control plane; only the
+        # dashboard-backed State API reconciliation is unavailable.
+        self._state_api_available = True
 
         # tasks
         # When manager starts, it automatically connects to all existing instances.
@@ -622,7 +628,7 @@ class Manager:
         while True:
             try:
                 new_pg = None
-                if self.last_timeout_instance_id is not None:
+                if self._state_api_available and self.last_timeout_instance_id is not None:
                     last_timeout_pg_name = get_placement_group_name(
                         self.last_timeout_instance_id
                     )
@@ -635,20 +641,34 @@ class Manager:
                         new_pg = ray.util.get_placement_group(last_timeout_pg_name)
                     # reset
                     self.last_timeout_instance_id = None
-                pending_pg_states = list_placement_groups(
-                    filters=[("state", "=", "PENDING")]
-                )
-                pending_pg_states.extend(
-                    list_placement_groups(filters=[("state", "=", "RESCHEDULING")])
-                )
+                try:
+                    pending_pg_states = list_placement_groups(
+                        filters=[("state", "=", "PENDING")]
+                    )
+                    pending_pg_states.extend(
+                        list_placement_groups(filters=[("state", "=", "RESCHEDULING")])
+                    )
+                    alive_pg_states = list_placement_groups(
+                        filters=[("state", "!=", "REMOVED")]
+                    )
+                except ServerUnavailable:
+                    # Do not make dashboard availability a prerequisite for
+                    # CoreX serving.  We retain scale-up and rely on actor
+                    # health checks; state-based stale-PG reclamation resumes
+                    # automatically on installations with ray[default].
+                    if self._state_api_available:
+                        logger.warning(
+                            "Ray State API is unavailable; global deployment "
+                            "continues without dashboard placement-group reconciliation."
+                        )
+                    self._state_api_available = False
+                    pending_pg_states = []
+                    alive_pg_states = []
                 for pending_pg_state in pending_pg_states:
                     instance_id = pending_pg_state["name"].split("_")[-1]
                     if new_pg is not None and instance_id == new_instance_id:
                         continue
                     self.scale_down(instance_id)
-                alive_pg_states = list_placement_groups(
-                    filters=[("state", "!=", "REMOVED")]
-                )
                 if (
                     self.max_instances != -1
                     and len(alive_pg_states) >= self.max_instances

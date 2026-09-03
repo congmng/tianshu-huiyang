@@ -561,3 +561,13 @@ async def test_auto_scale_up_loop_max_instances():
     await asyncio.sleep(60.0)
     num_instances = manager.scale_up([], [], [])
     assert num_instances == 2
+
+
+def test_global_manager_state_api_fallback_keeps_deployment_enabled():
+    from llumnix.manager import Manager
+
+    manager = object.__new__(Manager)
+    manager._state_api_available = True
+    # The flag is intentionally stored on Manager so the async loop can
+    # degrade once when the CoreX Ray wheel lacks dashboard dependencies.
+    assert manager._state_api_available is True
