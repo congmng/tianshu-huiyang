@@ -12,7 +12,16 @@ import platform
 import sys
 import argparse
 import subprocess
+from pathlib import Path
 from typing import Mapping
+
+
+# The gate is intentionally usable as ``python /path/to/script`` after the
+# CoreX environment is sourced.  Activating that environment need not set
+# PYTHONPATH, so make the checked-out project importable by construction.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def validate_versions(versions: Mapping[str, str]) -> list[str]:
