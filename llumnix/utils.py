@@ -70,6 +70,22 @@ def initialize_placement_group(
         raise ValueError(
             "The number of required GPUs exceeds the total number of "
             "available GPUs in the cluster.")
+    # Llumnix uses STRICT_PACK so all tensor-parallel workers stay on one
+    # node.  Ray's aggregate GPU count can therefore be sufficient while no
+    # individual node can satisfy the request; detect this before creating a
+    # long-lived pending placement group and report the topology requirement.
+    if num_gpus > 1:
+        per_node_gpu = max(
+            (node.get("Resources", {}).get("GPU", 0)
+             for node in ray.nodes() if node.get("Alive", node.get("alive", False))),
+            default=0,
+        )
+        if num_gpus > per_node_gpu:
+            raise ValueError(
+                f"Llumnix STRICT_PACK placement needs {num_gpus} GPUs on one node, "
+                f"but the largest live node advertises {per_node_gpu:g}; "
+                "start Ray with all TP GPUs on one node or use TP=1 per instance."
+            )
     # Create a new placement group
     # bundle_0: Llumlet + AsyncPutQueueActor + Worker0, bundle_1-N-1: Worker1...WorkerN-1
     if num_gpus >= 1:

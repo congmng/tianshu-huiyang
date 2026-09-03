@@ -26,6 +26,20 @@
 - 本次使用原生 vLLM API，不将其误记为 Llumnix Manager/P-D handoff 验收；Llumnix
   多卡入口仍需在清理旧 detached Manager 后使用新 world-size 逻辑复验。
 
+## 2026-09-03：Llumnix TP 拓扑门禁
+
+- 在干净的两机 Ray 集群对 Llumnix TP=2 入口实测，最新代码正确将 placement 请求
+  计算为 `CPU=2,GPU=2`；当前集群每台主机仅向 Ray 登记 1 张 GPU，无法满足
+  Llumnix 的同节点 `STRICT_PACK` 语义。该语义保证 TP worker 本地通信，不会将
+  一个 TP=2 实例错误地拆到两台服务器。
+- `initialize_placement_group` 现于创建前检查每个 live Ray 节点的 GPU 容量。若
+  aggregate GPU 足够而单节点不足，立即报出“TP GPU 必须位于同一节点”的可操作错误，
+  不再遗留 1,800 秒 pending placement group；对应回归通过。
+- 清理本轮 Manager 和 placement group 后，生产两机集群恢复 `0/2 GPU` 使用、无
+  pending demand。部署 TP=2 时需让一个 Ray 节点以 `--num-gpus 2` 或更多启动；
+  两机各 1 卡的跨域部署应使用两个 TP=1 Llumnix 实例，由 HLA/KV affinity/P-D
+  策略进行请求协同。
+
 ## 2026-09-03：Python 3.12 全量回归与跨主机 affinity 复核
 
 - 全量 Python 3.12/CoreX 4.4.0 测试首轮暴露 3 个 vLLM V1 兼容点：旧测试仍向

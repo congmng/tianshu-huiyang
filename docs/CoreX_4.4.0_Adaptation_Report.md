@@ -18,6 +18,13 @@ pipeline_parallel_size`。该修复已由单元测试覆盖并提交 `569a72a`�
 path 环境修复；这同时验证了 Python 3.12/CoreX 栈的多卡编译运行要求。该证据是
 真实多卡模型运行通过，不等同于 Llumnix 跨实例 P/D KV handoff 通过。
 
+Llumnix placement 层也完成 TP 拓扑防护：实例使用 `STRICT_PACK`，因此一个 TP=2
+实例必须落在同一 Ray 节点。两机各登记一张 GPU 时，集群总数虽为 2 但不能安全地
+组成 TP=2；现在会在创建 placement group 前报告这一条件，而不是等待超时并遗留
+资源。实测确认该集群的正确跨域形态是两个 TP=1 实例（每机一个），再由论文第五章
+的异构虚拟负载、KV affinity 和 P/D handoff 协同。对于同机 TP=2，Ray head 必须
+将同机两张物理卡都注册为 GPU 资源。
+
 ## 全量 Python 3.12 回归复核（2026-09-03）
 
 针对“原先功能和创新均迁移到当前 CoreX 栈”的适配审计，执行了项目全量测试：
