@@ -1,5 +1,11 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：独立 V1 API 真实验收
+
+本机 Qwen3-14B 独立 V1 服务真实验证：`/is_ready=200`、`/instance_list=200`（32
+GiB 显存、gpu_count=1）、`/generate=200` 且中文结果非空；确认新增运维接口已接入
+真实 EngineCore，而非仅测试 mock。
+
 ## 2026-09-03：独立 V1 API 运维接口兼容
 
 `v1_api_server` 新增 `/is_ready`、`/instance_list`，并复用 V1 实例信息路径发布

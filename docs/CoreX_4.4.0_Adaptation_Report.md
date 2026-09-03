@@ -1,5 +1,13 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 独立 V1 API 真实 Qwen3-14B 验收（2026-09-03）
+
+在本机 CoreX 4.4/Python 3.12 上启动独立 `v1_api_server`（Qwen3-14B、TP=1、
+`max_model_len=256`、`max_num_seqs=1`）完成真实接口验收：`GET /is_ready` 返回
+`true/200`，`GET /instance_list` 返回 32 GiB 总显存、TP GPU 数 1 及计算容量，
+`POST /generate` 返回 `200` 和非空文本。该结果确认新增运维端点与真实 EngineCore
+生命周期连通，而不仅是 mock 回归。
+
 ## 独立 V1 API 运维接口补齐（2026-09-03）
 
 独立 `v1_api_server` 现提供与主 Llumnix API 一致的 `/is_ready` 和
