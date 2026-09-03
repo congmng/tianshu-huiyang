@@ -1,5 +1,24 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：多卡部署前置条件与支持门禁复核
+
+- 复核共享 Ray 集群 `10.31.10.62:6408`：两节点、8 CPU、2 GPU，当前正确的
+  跨主机形态为每节点一个 TP=1 实例；单机 TP=2 必须使用同节点两 GPU 的隔离
+  Ray head，避免 TP worker 跨节点通信。
+- 发现重复启动的历史 serve/actor 会占用 GPU 并关闭/抢占 37120 前端；已仅清理
+  遗留 Llumnix actor，未对共享集群执行广泛 `ray stop`。该现象属于运行态资源
+  残留，不是 CoreX、模型下载源或 KV affinity 算法错误。
+- 全局 serve 连接已有集群时确认必须同时设置 `RAY_ADDRESS=<head>:<port>` 与
+  `--no-launch-ray-cluster`；否则可能误建本地 Ray runtime，导致 placement 报
+  “可用 GPU 不足”。
+- 在本机 Python 3.12/CoreX 环境运行支持门禁并通过 SSH 对远端比较：两端均为
+  Python 3.12.13、vLLM 0.11.2、PyTorch 2.7.1、Ray 2.52.1，V1 connector 导入
+  成功，affinity hashes/排序一致；定向回归 **36 passed**。
+- 当前正式能力边界保持不变：V1 单实例、单机 TP=2、双机 TP=1 异构调度、KV
+  event/hash affinity，以及 ZMQ CPU-staging P/D handoff 均支持；旧 vLLM 0.6
+  block-manager 任意时刻 request migration 不适用于 V1，native NCCL 仍为非默认
+  诊断路径。
+
 ## 2026-09-03：Llumnix V1 TP=2 本机双卡基础推理通过
 
 - 在不影响现有两机 `10.31.10.62:6408` P/D 集群的隔离 Ray head

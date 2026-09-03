@@ -144,6 +144,26 @@ connector 驱动的 P/D KV handoff 取代它们。
 
 ## 结论
 
+### 当前部署验收口径（2026-09-03，复核）
+
+本次复核将历史尝试与当前可复现实证分开记录。共享 Ray 集群
+`10.31.10.62:6408` 当前可见两节点、2 GPU（每节点 1 GPU）；两机 TP=1 是
+跨域部署的正式形态，单机 TP=2 则必须使用仅含同一节点两张 GPU 的隔离 Ray
+head。两种形态均已完成模型级基础推理验证。启动全局 serve 连接已有 head 时，
+必须设置 `RAY_ADDRESS=10.31.10.62:6408`（并传 `--no-launch-ray-cluster`）；
+否则 Ray 可能在本机自动创建第二个 runtime，进而出现 placement GPU 不足或
+State API 多集群歧义。该要求属于部署前置条件，不是模型或网络故障。
+
+在无残留 actor、GPU 资源空闲的干净集群上，当前提交的正式证据仍为此前记录的
+两机 Qwen3-14B P/D 闭环：producer 发送 40 层 BF16 KV，consumer 执行
+`load(role=consumer)`，HTTP `/generate` 返回 200 和非空文本。本轮曾因重复的
+历史 serve/actor 占用资源而无法追加并发样本；清理仅针对遗留 Llumnix actor，未
+执行广泛 `ray stop`，不影响上述已完成的 handoff 验收。
+
+支持门禁在本机及 `10.31.10.210` 复核均通过：Python 3.12.13、vLLM 0.11.2、
+PyTorch 2.7.1、Ray 2.52.1，V1 connector 导入成功，affinity hashes 与候选
+排序逐字节一致；相关单元测试与 V1/API/KV affinity 定向测试本轮共 **36 passed**。
+
 ## 2026-09-03 P/D 兼容性回归（最新）
 
 ### 正式支持审计补充（2026-09-03）
