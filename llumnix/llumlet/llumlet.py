@@ -156,12 +156,6 @@ class Llumlet:
                 namespace="llumnix",
                 lifetime="detached",
             )
-            if backend_type == BackendType.VLLM and is_v1:
-                # ``serve`` and the raylet may be separate processes. Carry
-                # connector settings into the actor so LLUMNIX_KV_PORT is
-                # honored by the V1 EngineCore worker.
-                from llumnix.backends.vllm.v1_kv_transfer import v1_kv_runtime_env
-                actor_options["runtime_env"] = {"env_vars": v1_kv_runtime_env()}
             llumlet_class = ray.remote(**actor_options)(cls).options(
                 scheduling_strategy=PlacementGroupSchedulingStrategy(
                     placement_group=placement_group,
@@ -169,6 +163,14 @@ class Llumlet:
                     placement_group_capture_child_tasks=True,
                 )
             )
+            if backend_type == BackendType.VLLM and is_v1:
+                # CoreX Ray accepts runtime environments at ``.options``
+                # submission time. Passing this dict to ``ray.remote``
+                # itself can be mis-decoded by its actor task handler.
+                from llumnix.backends.vllm.v1_kv_transfer import v1_kv_runtime_env
+                llumlet_class = llumlet_class.options(
+                    runtime_env={"env_vars": v1_kv_runtime_env()}
+                )
             llumlet = llumlet_class.remote(
                 instance_id,
                 instance_args,
