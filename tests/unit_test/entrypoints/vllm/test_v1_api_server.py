@@ -186,7 +186,11 @@ def _route(app, path, method):
     )
 
 
-def test_v1_api_exposes_readiness_and_single_instance_topology():
+def test_v1_api_exposes_readiness_and_single_instance_topology(monkeypatch):
+    import llumnix.entrypoints.vllm.v1_api_server as v1_api
+
+    monkeypatch.setattr(v1_api.socket, "gethostname", lambda: "corex-node")
+    monkeypatch.setattr(v1_api.socket, "gethostbyname", lambda _: "10.31.10.62")
     app = build_app(_Engine())
     assert asyncio.run(_route(app, "/is_ready", "GET")()) is True
     response = asyncio.run(_route(app, "/instance_list", "GET")())
@@ -197,6 +201,8 @@ def test_v1_api_exposes_readiness_and_single_instance_topology():
     assert payload["total_gpu_blocks_count"] == 0
     assert payload["used_gpu_blocks_count"] == 0
     assert payload["waiting_gpu_blocks_count"] == 0
+    assert payload["node_id"] == "corex-node"
+    assert payload["node_ip"] == "10.31.10.62"
 
 
 def test_main_api_validates_requests_and_preserves_public_request_id(monkeypatch):

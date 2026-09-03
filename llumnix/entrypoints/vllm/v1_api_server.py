@@ -11,6 +11,7 @@ responsibility.
 import argparse
 import asyncio
 import json
+import socket
 import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -57,6 +58,15 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
 
         info = InstanceInfo(instance_id=getattr(engine, "instance_id", "v1-api"))
         engine.update_instance_info(info)
+        # Standalone V1 uses no Ray actor, so it cannot populate topology from
+        # Ray's runtime context. Publish the local node identity explicitly;
+        # this keeps independent per-host V1 servers observable by the same
+        # cross-domain tooling as Manager/Llumlet deployments.
+        info.node_id = socket.gethostname()
+        try:
+            info.node_ip = socket.gethostbyname(info.node_id)
+        except OSError:
+            info.node_ip = ""
         return JSONResponse({"data": [{
             "instance_id": info.instance_id,
             "node_id": getattr(info, "node_id", ""),

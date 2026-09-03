@@ -1,5 +1,10 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：独立 V1 节点身份发布
+
+独立 `v1_api_server /instance_list` 从 socket 解析 hostname/IP，补齐无 Ray actor
+场景的拓扑可观测性；入口回归 **16 passed**。
+
 ## 2026-09-03：独立 V1 实例列表契约补齐
 
 `v1_api_server /instance_list` 新增 node 拓扑和兼容 GPU block 字段；V1 无旧 block

@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 独立入口节点身份可观测性（2026-09-03）
+
+独立 V1 server 不依赖 Ray actor context 时，`/instance_list` 现在从本机 socket
+解析发布 hostname 与可路由 IP；Manager/Llumlet 入口仍优先使用 Ray node metadata。
+这样单机 TP=2、每节点独立 TP=1 以及跨机 P/D 三种部署形态都能使用统一拓扑字段。
+入口回归 **16 passed**，并通过源码编译检查。
+
 ## 独立 V1 `/instance_list` 契约完整性（2026-09-03）
 
 独立入口的实例列表现在补齐主 API 的兼容字段：`node_id`/`node_ip`、GPU block
