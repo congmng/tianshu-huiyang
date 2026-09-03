@@ -515,3 +515,17 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 在本机与 `10.31.10.210` 使用当前基线、`PYTHONHASHSEED=0` 对相同 token blocks
   `[1,2,3,4]`、`[5,6,7,8]` 重新计算 `sha256_cbor`，两端 hash 逐字节一致，
   进一步确认 KV-cache affinity 算法在双机 Python 3.12/CoreX 栈上可复现。
+
+## 2026-09-03：论文第三点基础部署验收
+
+- 对照论文第五章“基于异构负载感知的跨域请求调度技术”，在本机
+  `10.31.10.62` 与远端 `10.31.10.210` 的双机 Ray/P-D 服务上完成基础验收。
+- `/health` 返回 HTTP 200；`/instance_list` 返回 Prefill、Decode 两个实例，
+  节点信息与 KV endpoint 已注册；普通 `/generate` 请求连续两次返回 HTTP 200 和
+  正常文本。
+- 请求 `pd-smoke-001` 经 Manager 分发至 Decode；Decode 日志确认收到共享请求 ID
+  携带的 Prefill/Decode endpoint metadata（`requests=1`），并执行
+  `load role=consumer metadata_requests=1`；Prefill 侧记录 KV block save。
+  由此确认当前 CoreX 兼容路径已完成模型级 P/D KV handoff 基础闭环。
+- 本次仅验证功能可用性，不宣称论文中的 QPS/延迟收益已复现；论文原生 vLLM
+  0.6 block-manager 与 native NCCL GPU handoff 仍属于后续适配范围。
