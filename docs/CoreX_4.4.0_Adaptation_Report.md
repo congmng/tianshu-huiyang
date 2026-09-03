@@ -532,3 +532,13 @@ CoreX 4.4.0 环境中的精简 Ray wheel 可能不包含 dashboard HTTP 服务�
 Ray 控制面上的 placement-group 创建、actor 健康检查和实例注册流程。安装了
 `ray[default]` 的环境仍使用原有状态回收逻辑；该降级不改变调度算法，只移除对可选
 dashboard 的硬依赖。
+
+## P/D endpoint 时序修复与两机复验边界（2026-09-03）
+
+P/D producer 的 decode endpoint 只有在 prefill/decode 两个 Llumlet 完成初始化并
+上报 `InstanceInfo.kv_endpoint` 后才能由 Manager 注入共享 request ID。此前初始化
+阶段强制要求 `LLUMNIX_KV_DECODE_ADDRESS`，会在 endpoint 尚未发现时错误终止 actor；
+现改为延迟到请求编排阶段校验，仍会拒绝显式非法 endpoint。两机 Ray 控制面已重新
+稳定汇聚，但 Qwen3-14B 双实例启动仍出现 vLLM EngineCore 初始化失败，日志未给出
+可归因于 connector 的底层错误；因此本次不能把该轮失败宣称为 handoff 失败，模型级
+handoff 的正式证据仍以先前 `zmq_cpu` staging 验证为准。

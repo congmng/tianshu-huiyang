@@ -9,6 +9,16 @@
 - Python 3.12 编译及调度/KV/API 定向回归已通过；下一步继续在干净两机集群复验 P/D
   实例和 KV handoff。
 
+## 2026-09-03：P/D endpoint 延迟校验
+
+- 干净两机 Ray 集群重新建立并验证为 2 节点、8 CPU、2 GPU；State API 缺失不再使
+  Manager 扩缩容线程报错。
+- 发现 producer 在 Llumlet 初始化阶段要求 `LLUMNIX_KV_DECODE_ADDRESS`，与 Manager
+  运行后发现 peer endpoint 的实际时序冲突；现改为初始化允许缺省，请求编排时由
+  共享 P/D request ID 携带并严格校验 host:port。
+- 该修复后的双机启动仍遇 EngineCore 初始化失败，当前证据不足以归因于 KV connector；
+  本轮不更新“两机 handoff 已通过”的正式结论。V1/KV/调度回归为 **47 passed**。
+
 ## 2026-09-03：全局 P/D 启动连接修复
 
 - P/D 首次启动发现 `llumnix.entrypoints.vllm.serve` 在全局模式下未指定地址调用
