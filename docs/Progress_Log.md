@@ -1,5 +1,18 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：TP=2 placement 规划兼容修复与双卡实测
+
+- 在两机 Ray 集群上完成真实双卡 CoreX 探针：任务分别落到 `u62`、`u210` 的
+  BI-V150，每卡 CUDA 张量求和结果均为 `8386560.0`，证明 Python 3.12/Ray
+  GPU 调度和两节点设备运行正常。
+- 发现 vLLM V1 TP=2 启动在 CPU Manager actor 中提前失败：Manager 调用
+  `create_engine_config()` 时自身无 GPU，vLLM 将可见 GPU 数判为 0，即使 Ray
+  placement group 可提供两张卡也会拒绝 TP=2。`get_engine_world_size` 已改为仅由
+  TP×PP 计算 placement 所需 world size，并新增回归测试。
+- 本次重试命中了此前残留的 detached Manager（未加载最新代码），因此尚未把
+  TP=2 模型级 HTTP 结果记为通过；后续实测必须先清理旧 Manager/placement group，
+  确保 Ray actor 使用提交 `569a72a`。
+
 ## 2026-09-03：Python 3.12 全量回归与跨主机 affinity 复核
 
 - 全量 Python 3.12/CoreX 4.4.0 测试首轮暴露 3 个 vLLM V1 兼容点：旧测试仍向

@@ -1,5 +1,16 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## TP=2 多卡适配增量（2026-09-03）
+
+两节点真实 GPU 探针已分别在 `10.31.10.62` 与 `10.31.10.210` 的 BI-V150 上
+执行成功，Ray 能将任务分配到两台 Python 3.12/CoreX 设备并返回一致计算结果。
+针对 TP>1 的 V1 部署，修复了 CPU Manager actor 调用 vLLM `create_engine_config()`
+导致的错误 GPU 可见性校验：placement 规划现在直接使用 `tensor_parallel_size ×
+pipeline_parallel_size`。该修复已由单元测试覆盖并提交 `569a72a`。
+
+本轮 TP=2 Qwen3-14B 尝试因 Ray 中仍存在旧 detached Manager 而未使用该修复，故不
+宣称模型级多卡 HTTP 通过；清理旧控制面后再进行正式验收。
+
 ## 全量 Python 3.12 回归复核（2026-09-03）
 
 针对“原先功能和创新均迁移到当前 CoreX 栈”的适配审计，执行了项目全量测试：
