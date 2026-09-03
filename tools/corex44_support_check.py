@@ -90,7 +90,7 @@ def main() -> None:
             "PYTHONPATH=. python tools/corex44_support_check.py"
         )
         completed = subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", args.remote_host, "bash", "-lc", command],
+            ["ssh", "-o", "BatchMode=yes", args.remote_host, command],
             check=False, capture_output=True, text=True,
         )
         if completed.returncode:
