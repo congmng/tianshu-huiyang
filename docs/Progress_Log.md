@@ -622,6 +622,10 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   路径、native NCCL 为非默认诊断项、旧 vLLM 0.6 任意时刻迁移不适用于 V1；避免
   历史实现与当前正式支持范围混淆。
 
+- 新增 `tools/corex44_support_check.py` 双机预检门禁（不启动 Ray、不分配 GPU、
+  不下载模型）。提交 `0031298` 上本机与远端均通过，版本和两个 affinity hashes
+  完全一致。
+
 - 本机 Python `3.12.13` / CoreX 4.4 / vLLM `0.11.2` / Ray `2.52.1` /
   PyTorch `2.7.1` 环境成功执行 `pip wheel . --no-deps --no-build-isolation`。
 - V1 transfer、placement 与 Manager 调度定向回归为 `44 passed, 10 skipped`；
