@@ -15,6 +15,7 @@ import asyncio
 import signal
 import pytest
 import ray
+import socket
 
 from vllm.outputs import CompletionOutput, RequestOutput
 
@@ -107,5 +108,7 @@ async def benchmark_queue(qps, ip=None, port=None):
 @pytest.mark.parametrize("qps", [128.0, 256.0, 512.0, 1024.0])
 async def test_queue_zmq(ray_env, qps):
     ip = '127.0.0.1'
-    port = 1234
+    with socket.socket() as sock:
+        sock.bind((ip, 0))
+        port = sock.getsockname()[1]
     await benchmark_queue(qps, ip, port)

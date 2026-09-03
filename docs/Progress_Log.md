@@ -8,6 +8,15 @@
 - 修复后 Manager abort-routing、V1 connector 与 KV affinity 定向回归 **34 passed**。
   完整套件中历史 Ray-heavy 用例仍建议拆分执行，避免单次进程长期占用资源。
 
+## 2026-09-03：ZMQ 端口与 legacy 测试收集修复
+
+- ZMQ 单元测试改用系统分配的空闲端口，不再与部署中的固定 `1234` 服务冲突，且
+  `test_init_zmq` 显式清理 server。
+- 修正 V1 环境下 legacy `entrypoints/vllm/test_api_server` 的收集过滤顺序；此前
+  该文件错误执行并因旧 API 统计字段失败，现在会在收集阶段跳过。
+- 完整回归已通过前 53% 测试；剩余历史 Ray-heavy 用例仍需拆分执行，未将未结束
+  的长测记为整体通过。
+
 ## 2026-09-03：远端同步与回归资源边界
 
 - 远端工作副本已同步包含 V1 abort-routing 修复，双机支持门禁输出仍完全一致。

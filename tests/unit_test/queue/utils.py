@@ -14,10 +14,18 @@
 from llumnix.utils import random_uuid
 from llumnix.server_info import ServerInfo
 from llumnix.queue.utils import init_request_output_queue_server, QueueType
+import socket
+
+
+def free_tcp_port() -> int:
+    """Reserve no fixed service port for tests running beside deployments."""
+    with socket.socket() as sock:
+        sock.bind(('127.0.0.1', 0))
+        return int(sock.getsockname()[1])
 
 def request_output_queue_server(request_output_queue_type: QueueType):
     ip = '127.0.0.1'
-    port = 1234
+    port = free_tcp_port()
     output_queue = init_request_output_queue_server(ip, port, request_output_queue_type)
     server_id = random_uuid()
     server_info = ServerInfo(server_id, request_output_queue_type, output_queue, ip, port)

@@ -16,6 +16,7 @@ import subprocess
 import sys
 import pytest
 import ray
+import socket
 
 from llumnix.arg_utils import (ManagerArgs, EntrypointsArgs, InstanceArgs, LaunchArgs,
                                LlumnixArgumentParser)
@@ -92,9 +93,12 @@ def test_init_manager(ray_env):
 
 def test_init_zmq(ray_env):
     ip = '127.0.0.1'
-    port = 1234
+    with socket.socket() as sock:
+        sock.bind((ip, 0))
+        port = sock.getsockname()[1]
     request_output_queue = init_request_output_queue_server(ip, port, 'zmq')
     assert request_output_queue is not None
+    request_output_queue.cleanup()
 
 
 def test_local_setup_forwards_complete_manager_context(monkeypatch):

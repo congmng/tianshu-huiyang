@@ -7,6 +7,11 @@
 actor。修复后的 Manager、V1 connector、KV affinity 定向验证为 **34 passed**；
 完整套件仍包含历史 Ray-heavy 测试，需按测试选择在独立环境执行。
 
+进一步修复测试隔离：ZMQ 单元测试不再固定绑定 `127.0.0.1:1234`，改为系统分配
+空闲端口并显式清理 server。另修正 V1 环境下 legacy `entrypoints/vllm/test_api_server`
+的收集过滤顺序，避免已移除的 vLLM 0.6 API 被错误执行。完整回归已越过该失败点，
+并在 143 个测试中通过前半段；剩余历史 Ray-heavy 用例仍需拆分运行。
+
 > 回归执行边界：远端工作副本已同步包含本轮 V1 abort-routing 修复，双机支持门禁
 > 输出与本机一致。P/D 服务占用共享两张 GPU 时，全量 Ray 单元套件会因 fixture
 > 资源等待而阻塞；已主动终止该运行以保护验收服务，不将资源竞争误记为代码失败。
