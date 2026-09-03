@@ -147,7 +147,8 @@ class Llumlet:
                 # Llumlet plus a separate Ray executor.
                 import vllm
                 is_v1 = getattr(vllm, "__version__", "").startswith("0.11")
-                num_gpus = 1 if is_v1 else 0.5
+                num_gpus = (get_engine_world_size(engine_args, backend_type)
+                            if is_v1 else 0.5)
             elif backend_type == backend_type.BLADELLM:
                 world_size = get_engine_world_size(engine_args, backend_type)
                 num_gpus = world_size

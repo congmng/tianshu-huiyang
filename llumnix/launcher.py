@@ -17,6 +17,7 @@ import traceback
 from typing import Callable, List, Tuple
 
 import ray
+import vllm
 from ray.util.placement_group import PlacementGroup
 
 from llumnix.logging.logger import init_logger
@@ -71,8 +72,13 @@ class Launcher:
         if not BackendType.is_sim_backend(backend_type):
             # num_gpus=world_size, for world_size Workers
             world_size = get_engine_world_size(engine_args, backend_type)
-            placement_group = initialize_placement_group(placement_group_name, num_cpus=2+int(init_server),
-                                                         num_gpus=world_size, detached=True, block=block)
+            is_v1 = (backend_type == BackendType.VLLM
+                     and getattr(vllm, "__version__", "").startswith("0.11"))
+            placement_group = initialize_placement_group(
+                placement_group_name, num_cpus=2+int(init_server),
+                num_gpus=world_size, detached=True, block=block,
+                pack_gpus_in_first_bundle=is_v1,
+            )
         else:
             placement_group = initialize_placement_group(placement_group_name, num_cpus=2+int(init_server),
                                                          num_gpus=0, detached=True, block=block)

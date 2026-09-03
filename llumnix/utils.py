@@ -43,7 +43,8 @@ def initialize_placement_group(
     num_cpus: int,
     num_gpus: int,
     detached: bool = False,
-    block: bool = True
+    block: bool = True,
+    pack_gpus_in_first_bundle: bool = False,
 ) -> PlacementGroup:
     """Initialize the distributed cluster probably with Ray.
 
@@ -87,8 +88,13 @@ def initialize_placement_group(
                 "start Ray with all TP GPUs on one node or use TP=1 per instance."
             )
     # Create a new placement group
+    # V1 AsyncLLM is launched by Llumlet and needs all TP devices visible to
+    # that parent actor.  Keep them in bundle 0.  The legacy executor instead
+    # assigns one Ray worker per bundle.
+    if num_gpus >= 1 and pack_gpus_in_first_bundle:
+        placement_group_specs = [{"CPU": num_cpus, "GPU": num_gpus}]
     # bundle_0: Llumlet + AsyncPutQueueActor + Worker0, bundle_1-N-1: Worker1...WorkerN-1
-    if num_gpus >= 1:
+    elif num_gpus >= 1:
         placement_group_specs = ([{"CPU": num_cpus, "GPU": 1}] + [{"GPU": 1}] * (num_gpus - 1))
     else:
         placement_group_specs = ([{"CPU": num_cpus}])

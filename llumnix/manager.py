@@ -25,7 +25,7 @@ import ray
 import ray.actor
 from ray.util.state import list_placement_groups, list_actors
 from ray.util.state.exception import ServerUnavailable
-from ray.util.placement_group import PlacementGroup
+from ray.util.placement_group import PlacementGroup, placement_group_table
 
 from llumnix.llumlet.llumlet import Llumlet
 from llumnix.logging.logger import init_logger
@@ -1043,14 +1043,35 @@ class Manager:
         curr_servers: Dict[str, PlacementGroup] = {}
         curr_instances: Dict[str, Llumlet] = {}
 
-        created_pg_states = list_placement_groups(filters=[("state", "=", "CREATED")])
+        # The State API otherwise autodetects a local Ray address.  That is
+        # ambiguous when an isolated validation head and the production head
+        # run on the same host.  Actors inherit RAY_ADDRESS from their
+        # launcher, so use it explicitly when it is available.
+        state_api_kwargs = {"address": os.environ["RAY_ADDRESS"]} \
+            if os.environ.get("RAY_ADDRESS") else {}
+        try:
+            created_pg_states = list_placement_groups(
+                filters=[("state", "=", "CREATED")], **state_api_kwargs)
+            alive_actor_states = list_actors(
+                filters=[("state", "=", "ALIVE")], **state_api_kwargs)
+        except Exception as exc:  # Minimal CoreX Ray dashboards omit State API.
+            logger.warning("Ray State API unavailable; using control-plane fallback: %s", exc)
+            created_pg_states = [
+                {"name": info["name"]}
+                for info in placement_group_table().values()
+                if info.get("state") == "CREATED"
+            ]
+            alive_actor_states = [
+                {"name": actor["name"]}
+                for actor in ray.util.list_named_actors(all_namespaces=True)
+                if actor.get("namespace") == "llumnix"
+            ]
         for created_pg_state in created_pg_states:
             instance_id = created_pg_state["name"].split("_")[-1]
             curr_pgs[instance_id] = ray.util.get_placement_group(
                 created_pg_state["name"]
             )
 
-        alive_actor_states = list_actors(filters=[("state", "=", "ALIVE")])
         for alive_actor_state in alive_actor_states:
             if alive_actor_state["name"].startswith(SERVER_NAME_PREFIX):
                 instance_id = alive_actor_state["name"].split("_")[-1]
@@ -1066,17 +1087,34 @@ class Manager:
         return curr_pgs, curr_servers, curr_instances
 
     def _get_instance_deployment_states(self, instance_id: str):
-        pg_state = list_placement_groups(
-            filters=[("name", "=", get_placement_group_name(instance_id))]
-        )
+        state_api_kwargs = {"address": os.environ["RAY_ADDRESS"]} \
+            if os.environ.get("RAY_ADDRESS") else {}
+        try:
+            pg_state = list_placement_groups(
+                filters=[("name", "=", get_placement_group_name(instance_id))],
+                **state_api_kwargs,
+            )
+            server_state = list_actors(
+                filters=[("name", "=", get_server_name(instance_id))],
+                **state_api_kwargs,
+            )
+            instance_state = list_actors(
+                filters=[("name", "=", get_instance_name(instance_id))],
+                **state_api_kwargs,
+            )
+        except Exception as exc:
+            logger.warning("Ray State API unavailable; using control-plane fallback: %s", exc)
+            pgs = placement_group_table()
+            pg_state = ([{"state": info.get("state")} for info in pgs.values()
+                         if info.get("name") == get_placement_group_name(instance_id)])
+            names = {actor["name"] for actor in ray.util.list_named_actors(all_namespaces=True)
+                     if actor.get("namespace") == "llumnix"}
+            server_state = ([{"state": "ALIVE"}]
+                            if get_server_name(instance_id) in names else [])
+            instance_state = ([{"state": "ALIVE"}]
+                              if get_instance_name(instance_id) in names else [])
         pg_created = len(pg_state) == 1 and pg_state[0]["state"] == "CREATED"
-        server_state = list_actors(
-            filters=[("name", "=", get_server_name(instance_id))]
-        )
         server_alive = len(server_state) == 1 and server_state[0]["state"] == "ALIVE"
-        instance_state = list_actors(
-            filters=[("name", "=", get_instance_name(instance_id))]
-        )
         instance_alive = (
             len(instance_state) == 1 and instance_state[0]["state"] == "ALIVE"
         )
