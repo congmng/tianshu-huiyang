@@ -64,6 +64,9 @@ P/D 实测覆盖；其余 skip 均为无 GPU/缺少 async 插件或旧 block-man
 `0.11.2`、Ray `2.52.1`、PyTorch `2.7.1` 及相同两个 SHA256-CBOR hashes。
 该脚本现为严格门禁：Python、vLLM、PyTorch 或 Ray 版本偏离正式支持范围时以非零
 状态退出，并输出具体错误；门禁自身单元测试为 `2 passed`。
+支持 `--remote-host congmng@10.31.10.210` 的一键双机比较，自动通过 SSH 执行
+远端预检并比较版本与 affinity hashes；当前两机结果为 `supported=true`，门禁测试
+增至 `3 passed`。
 
 本机和 `10.31.10.210` 的 Python 3.12/CoreX 环境再次运行跨主机 affinity 探针，
 对同一 token blocks 得到逐字节一致的 `sha256_cbor` 哈希和候选排序。这为统一
