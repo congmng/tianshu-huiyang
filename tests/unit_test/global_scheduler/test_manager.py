@@ -306,6 +306,17 @@ def test_reconcile_request_instances_tracks_pd_and_completion():
     assert manager.request_instance["pd-request"] in {"prefill", "decode"}
     assert manager.request_instance["ordinary-request"] == "single"
 
+
+def test_request_bookkeeping_is_independent_of_logging():
+    """Disabling logs must not make a live request impossible to abort."""
+    manager = object.__new__(Manager)
+    manager.log_requests = False
+    manager.request_instance = {}
+    manager.request_instances = {}
+    manager.request_instance["request"] = "instance"
+    manager.request_instances.setdefault("request", {"instance"})
+    assert manager.request_instances["request"] == {"instance"}
+
     # The next authoritative actor snapshot must remove completed P/D state.
     manager._reconcile_request_instances(["single"], [["ordinary-request"]])
     assert manager.request_instances == {"ordinary-request": {"single"}}

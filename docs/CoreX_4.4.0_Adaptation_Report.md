@@ -11,6 +11,14 @@ P/D request ID，同时包含 decode/prefill 两端地址，consumer metadata/lo
 producer metadata/load 均被触发。该结果是当前 Python 3.12/CoreX 4.4/vLLM
 0.11.2 代码的最新模型级跨机 KV handoff 证据。
 
+## V1 P/D 请求取消语义修复（2026-09-03）
+
+`disable_log_requests_manager` 过去会连同 request-to-instance bookkeeping 一起
+关闭，导致请求日志被关闭时 Manager 无法在后续 abort 中找到实例；对 V1 P/D 而言
+这可能只取消一端或遗留 producer/consumer 流。现在日志开关只影响输出，路由表始终
+维护公开 request ID 到单实例或 P/D 双实例集合的映射，因此取消会继续 fan-out 到
+两端。新增回归并执行 V1 connector、KV affinity、调度定向集，结果 **50 passed**。
+
 ## Llumnix V1 TP=2 本机双卡基础验证（2026-09-03）
 
 在隔离的单机 Ray head（2 GPU）上启动 Llumnix global serve，使用本地

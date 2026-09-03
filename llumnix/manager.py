@@ -368,13 +368,16 @@ class Manager:
                 await self.instances[instance_id].generate.remote(
                     request_id, server_info, request_expected_steps, *args, **kwargs
                 )
+            # Request bookkeeping is functional state, not merely logging.
+            # In particular V1 P/D requests must remain addressable for abort
+            # fan-out even when request logging is disabled.
+            self.request_instance[request_id] = instance_id
+            self.request_instances.setdefault(request_id, {instance_id})
             if self.log_requests:
                 logger.info("manager receive request {}".format(request_id))
                 logger.info(
                     "dispath request {} to instance {}".format(request_id, instance_id)
                 )
-                self.request_instance[request_id] = instance_id
-                self.request_instances.setdefault(request_id, {instance_id})
         except (ray.exceptions.RayActorError, KeyError):
             logger.info(
                 "Instance {} is dead, regenerate request {}.".format(

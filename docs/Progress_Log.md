@@ -11,6 +11,14 @@
   两端地址；consumer 与 producer 的 metadata/load 路径均触发。该项是当前提交
   在 Python 3.12/CoreX 4.4/vLLM 0.11.2 上的最新模型级跨机 KV handoff 证据。
 
+## 2026-09-03：V1 P/D 取消路由与日志解耦
+
+- 修复 `--disable-log-requests-manager` 同时跳过功能性 request bookkeeping 的问题。
+  日志关闭后，Manager 仍维护公开 request ID 到实例集合的映射。
+- 对 P/D 请求，该集合包含 prefill 和 decode，后续 abort 可继续 fan-out 至两端，
+  防止 connector 等待或 KV buffer 遗留。
+- 新增回归；V1 connector、KV affinity 与调度定向集 **50 passed**。
+
 ## 2026-09-03：多卡部署前置条件与支持门禁复核
 
 - 复核共享 Ray 集群 `10.31.10.62:6408`：两节点、8 CPU、2 GPU，当前正确的
