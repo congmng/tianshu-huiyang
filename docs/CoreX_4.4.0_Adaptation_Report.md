@@ -147,6 +147,14 @@ Llumnix actors 也已清理。P/D 端到端 handoff 的历史 ZMQ CPU-staging �
 有效，但需在无其他 GPU 进程的干净集群上重新执行本轮模型级验收后，才能将其
 作为当前提交的最新复现证据。
 
+修复后在干净两机集群重新执行 `pd-bf16-001`：两台 BI-V150 各运行一个 TP=1
+Qwen3-14B 实例（Prefill 位于 `10.31.10.210`，Decode 位于 `10.31.10.62`）。
+两端均完成模型加载、KV cache 创建和 `CoreXP2pNcclConnector` ZMQ staging 初始化。
+请求日志确认 producer 发送 40 层 BF16 KV（shape `(2, 298, 8, 16, 128)`），
+consumer 收到共享 request metadata 并执行 `load role=consumer`；HTTP
+`POST /generate` 返回 200 和非空中文文本。这是当前提交在 Python 3.12/CoreX
+4.4 上的模型级两机 P/D KV handoff 闭环证据。
+
 CoreX 驱动、PyTorch、Ray 和 Llumnix 控制面已验证可用，整个过程未修改驱动或
 系统级 CoreX 安装。
 

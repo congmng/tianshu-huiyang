@@ -607,6 +607,12 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   ZMQ staging 改为 uint8 原始字节视图/声明 dtype 重建，并加入 BF16 跨端 round-trip
   测试。V1 KV-transfer 定向测试 `31 passed`，提交 `ae81d39` 已推送。
 
+- 在同步 `4ee79e3` 的干净两机集群上重新执行 `pd-bf16-001` 成功：两台 BI-V150
+  各运行一个 TP=1 Qwen3-14B（Prefill=`10.31.10.210`、Decode=`10.31.10.62`）。
+  producer 日志显示 40 层 BF16 KV 已发送，consumer 显示共享 metadata 和
+  `load role=consumer`，HTTP `/generate` 返回 200 非空中文结果。此前 BF16
+  序列化故障已闭环解决，当前提交获得模型级两机 P/D handoff 证据。
+
 - 现场日志定位到 CoreX Ray 特有的 `ActorOptionWrapper` 不支持 `.options()`，
   导致 Llumlet 在 actor 创建阶段退出；提交 `fa05a26` 增加兼容回退，并同步到
   `tianshu-huiyang/main`。
