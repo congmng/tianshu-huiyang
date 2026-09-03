@@ -198,7 +198,13 @@ class Manager:
         if hasattr(self, "launch_mode") and self.launch_mode == LaunchMode.GLOBAL:
             assert self.entrypoints_args is not None and self.engine_args is not None
             self.last_timeout_instance_id = None
-            asyncio.create_task(self._auto_scale_up_loop(AUTO_SCALE_UP_INTERVAL))
+            # The auto-scale loop allocates a new placement group on every
+            # cycle. It must not run for a fixed-size deployment
+            # (``enable_scaling=False``), otherwise a two-instance P/D launch
+            # accumulates pending GPU placement groups when no capacity is
+            # available.
+            if self.enable_scaling:
+                asyncio.create_task(self._auto_scale_up_loop(AUTO_SCALE_UP_INTERVAL))
             asyncio.create_task(
                 self._check_deployment_states_loop(CHECK_DEPLOYMENT_STATES_INTERVAL)
             )
