@@ -1,5 +1,10 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：双机集成测试地址参数化
+
+分层 runner 的 integration 层新增 `--local-ip`/`--remote-ip`；使用显式两机地址
+实跑版本/hash 门禁及 BF16 GPU staging 均通过，避免测试脚本依赖固定拓扑。
+
 ## 2026-09-03：分层入口 E2E TP=2 实测
 
 执行 `run_corex44_validation.py e2e --tp 2`，两张 BI-V150 完成 Qwen3-14B V1

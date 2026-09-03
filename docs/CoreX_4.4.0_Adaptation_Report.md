@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 分层集成测试参数化（2026-09-03）
+
+`run_corex44_validation.py integration` 新增 `--local-ip`/`--remote-ip`，不再将
+两机地址耦合在数据面命令中；默认值仍对应 `10.31.10.62` 与 `10.31.10.210`。
+当前以显式参数实际运行：双机版本/affinity 门禁通过，动态端口 BF16 GPU staging
+producer/consumer 均 PASS。该改动使相同集成测试可迁移到其他 CoreX 节点组合。
+
 ## 分层验证入口的真实 E2E 执行（2026-09-03）
 
 通过 `tools/run_corex44_validation.py e2e --tp 2` 实际启动两张 BI-V150 上的

@@ -47,7 +47,8 @@ def unit_commands() -> list[list[str]]:
              "tests/unit_test/entrypoints/vllm/test_v1_api_server.py"]]
 
 
-def run_integration(remote_host: str, remote_project: str, dry_run: bool) -> None:
+def run_integration(local_ip: str, remote_ip: str, remote_host: str,
+                    remote_project: str, dry_run: bool) -> None:
     run([sys.executable, "tools/corex44_support_check.py", "--remote-host", remote_host,
          "--remote-project", remote_project], dry_run)
     consumer_port = free_port()
@@ -55,11 +56,11 @@ def run_integration(remote_host: str, remote_project: str, dry_run: bool) -> Non
     remote_cmd = (
         f"cd {remote_project} && source tools/corex44_env.sh && "
         f"CUDA_VISIBLE_DEVICES=0 python tools/corex44_zmq_kv_probe.py "
-        f"--role consumer --host 10.31.10.210 --port {consumer_port} --timeout 30"
+        f"--role consumer --host {remote_ip} --port {consumer_port} --timeout 30"
     )
     local_cmd = [sys.executable, "tools/corex44_zmq_kv_probe.py", "--role", "producer",
-                 "--host", "10.31.10.62", "--port", str(producer_port),
-                 "--peer", f"10.31.10.210:{consumer_port}", "--timeout", "30"]
+                 "--host", local_ip, "--port", str(producer_port),
+                 "--peer", f"{remote_ip}:{consumer_port}", "--timeout", "30"]
     print("+ ssh", remote_host, remote_cmd, flush=True)
     if dry_run:
         print("+", " ".join(local_cmd), flush=True)
@@ -80,6 +81,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("level", choices=("unit", "integration", "e2e"))
     parser.add_argument("--remote-host", default="congmng@10.31.10.210")
+    parser.add_argument("--local-ip", default="10.31.10.62")
+    parser.add_argument("--remote-ip", default="10.31.10.210")
     parser.add_argument("--remote-project", default="/data1/congmng/llumnix")
     parser.add_argument("--tp", type=int, default=1, choices=(1, 2))
     parser.add_argument("--dry-run", action="store_true")
@@ -88,7 +91,8 @@ def main() -> None:
         for command in unit_commands():
             run(command, args.dry_run)
     elif args.level == "integration":
-        run_integration(args.remote_host, args.remote_project, args.dry_run)
+        run_integration(args.local_ip, args.remote_ip, args.remote_host,
+                        args.remote_project, args.dry_run)
     else:
         visible = "0" if args.tp == 1 else "0,1"
         command = ["env", f"CUDA_VISIBLE_DEVICES={visible}",
