@@ -612,6 +612,10 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   `10.31.10.62` 和 `10.31.10.210`，`pd-topology-001` 的 `/generate` 返回 HTTP
   200 非空中文；两端 producer/consumer 日志确认共享 endpoint request ID。
 
+- 完成当前 V1 支持边界审计：报告新增能力矩阵，明确 ZMQ CPU-staging P/D 为正式
+  路径、native NCCL 为非默认诊断项、旧 vLLM 0.6 任意时刻迁移不适用于 V1；避免
+  历史实现与当前正式支持范围混淆。
+
 - 本机 Python `3.12.13` / CoreX 4.4 / vLLM `0.11.2` / Ray `2.52.1` /
   PyTorch `2.7.1` 环境成功执行 `pip wheel . --no-deps --no-build-isolation`。
 - V1 transfer、placement 与 Manager 调度定向回归为 `44 passed, 10 skipped`；

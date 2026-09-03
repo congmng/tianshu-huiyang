@@ -193,6 +193,15 @@ Llumnix 的旧 vLLM `0.6.3.post1` 私有 block-manager 后端不能直接运行�
 Ray/Llumlet 队列桥接、KV event/hash affinity、GlobalScheduler 缓存亲和调度，
 以及两机 Qwen3-14B P/D KV handoff 均可运行。**
 
+| 能力 | Python 3.12/CoreX 4.4 V1 状态 | 当前验证 |
+| --- | --- | --- |
+| 单实例与本机 TP=2 推理 | 正式支持 | Qwen3-14B HTTP 200；TP rank 0/1 实测 |
+| 双机异构负载与 topology 可观测性 | 正式支持 | 两节点 GPU/显存/算力、node IP 实测 |
+| KV event/hash affinity | 正式支持 | 双机 hash、affinity、候选排序逐字节一致 |
+| Prefill/Decode KV handoff | 正式支持（ZMQ CPU staging） | 两机 BF16 40 层 KV、consumer load、HTTP 200 |
+| native NCCL P2P transport | 非默认诊断/优化项 | CoreX rank-1 communicator 不作为生产路径 |
+| vLLM 0.6 任意时刻 request migration | 不适用于 V1 | 明确拒绝；由 P/D handoff 提供 V1 替代语义 |
+
 旧式任意时刻 block-manager request migration 没有被声明为 V1 功能；在 V1 架构
 中，其可安全替代路径是 connector 驱动的 prefill/decode KV handoff。原生 NCCL
 rank-1 communicator 在该 CoreX 栈仍会 native abort，因此生产默认 transport 为
