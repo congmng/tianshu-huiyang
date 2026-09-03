@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## Integration runner 启动失败快速检测（2026-09-03）
+
+双机 integration runner 现在在启动 producer 前检查远端 consumer 是否已提前退出，
+并在异常或超时路径通过 `finally` 回收 SSH 子进程；避免远端环境错误被掩盖成一次
+无意义的本地发送超时。该改动已通过 runner 单测与实际双机 integration（版本/源码
+指纹门禁、BF16 GPU staging）复验。
+
 ## 双机源码指纹严格门禁（2026-09-03）
 
 CoreX 支持检查现在对 V1 adapter、KV event/transfer、CoreX connector 和

@@ -64,3 +64,4 @@ def test_layered_corex_validation_runner_has_all_required_levels():
     assert "run_qwen3_14b_smoke.py" in source
     assert "--local-ip" in source
     assert "--remote-ip" in source
+    assert "exited during startup" in source

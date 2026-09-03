@@ -68,6 +68,11 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
     remote = subprocess.Popen(["ssh", remote_host, remote_cmd])
     try:
         time.sleep(2)
+        if remote.poll() is not None:
+            raise RuntimeError(
+                f"remote CoreX KV consumer exited during startup "
+                f"(exit_code={remote.returncode})"
+            )
         run(local_cmd, False)
         if remote.wait(timeout=40) != 0:
             raise RuntimeError("remote CoreX KV consumer failed")

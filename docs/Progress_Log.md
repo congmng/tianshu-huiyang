@@ -1,5 +1,10 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：双机 integration 启动失败检测
+
+runner 在 producer 启动前检查远端 consumer 状态，异常时快速报错并清理 SSH 子进程；
+实际双机 integration 复验通过（版本/源码指纹与 BF16 GPU staging）。
+
 ## 2026-09-03：双机源码指纹门禁
 
 支持检查新增关键 V1/KV/CoreX/调度源码 SHA256 指纹比较；首次运行发现远端漂移并
