@@ -30,11 +30,22 @@ def test_corex44_gate_rejects_unsupported_stack():
 def test_corex44_gate_compares_two_hosts():
     gate = _load_gate()
     local = {"python": "3.12.13", "vllm": "0.11.2", "ray": "2.52.1",
-             "torch": "2.7.1", "affinity_hashes": ["a"], "supported": True}
+             "torch": "2.7.1", "affinity_hashes": ["a"],
+             "source_fingerprint": "same", "supported": True}
     assert gate.compare_hosts(local, dict(local)) == []
     remote = dict(local)
     remote["affinity_hashes"] = ["b"]
     assert gate.compare_hosts(local, remote)
+    remote = dict(local)
+    remote["source_fingerprint"] = "different"
+    assert gate.compare_hosts(local, remote)
+
+
+def test_corex44_source_fingerprint_is_sha256():
+    gate = _load_gate()
+    fingerprint = gate.source_fingerprint()
+    assert len(fingerprint) == 64
+    assert int(fingerprint, 16) >= 0
 
 
 def test_qwen_smoke_exposes_multi_gpu_tensor_parallelism():

@@ -1,5 +1,14 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 双机源码指纹严格门禁（2026-09-03）
+
+CoreX 支持检查现在对 V1 adapter、KV event/transfer、CoreX connector 和
+GlobalScheduler 五个关键源码文件计算 SHA256 指纹，并在双机比较时强制一致。
+首次运行正确发现远端旧脚本（`source_fingerprint=None`）并拒绝支持结论；同步
+门禁后两端指纹均为
+`90c9c87ef8be1dcfc4a2b861d14747217324d68bd9bfcf56e3b2be39f574603d`，版本、
+affinity hashes、候选排序均一致，最终 `supported=true`。门禁单测 **6 passed**。
+
 ## 分层集成测试参数化（2026-09-03）
 
 `run_corex44_validation.py integration` 新增 `--local-ip`/`--remote-ip`，不再将

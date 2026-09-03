@@ -12,6 +12,7 @@ import platform
 import sys
 import argparse
 import subprocess
+import hashlib
 from pathlib import Path
 from typing import Mapping
 
@@ -22,6 +23,22 @@ from typing import Mapping
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+SOURCE_FINGERPRINT_FILES = (
+    "llumnix/backends/vllm/v1_engine.py",
+    "llumnix/backends/vllm/v1_kv.py",
+    "llumnix/backends/vllm/v1_kv_transfer.py",
+    "llumnix/backends/vllm/corex_p2p_connector.py",
+    "llumnix/global_scheduler/global_scheduler.py",
+)
+
+
+def source_fingerprint() -> str:
+    digest = hashlib.sha256()
+    for relative in SOURCE_FINGERPRINT_FILES:
+        digest.update(relative.encode())
+        digest.update((PROJECT_ROOT / relative).read_bytes())
+    return digest.hexdigest()
 
 
 def validate_versions(versions: Mapping[str, str]) -> list[str]:
@@ -41,7 +58,7 @@ def validate_versions(versions: Mapping[str, str]) -> list[str]:
 def compare_hosts(local: Mapping[str, object], remote: Mapping[str, object]) -> list[str]:
     """Return mismatches that invalidate a deterministic two-host gate."""
     mismatches = []
-    for key in ("python", "vllm", "ray", "torch", "affinity_hashes"):
+    for key in ("python", "vllm", "ray", "torch", "affinity_hashes", "source_fingerprint"):
         if local.get(key) != remote.get(key):
             mismatches.append(f"{key} differs: local={local.get(key)!r} remote={remote.get(key)!r}")
     if not remote.get("supported", False):
@@ -80,6 +97,7 @@ def collect_result() -> dict[str, object]:
         "affinity_rank": index.rank(hashes, ("candidate-a", "candidate-b")),
         "connector": CoreXP2pNcclConnector.__name__,
         "adapter": V1EngineAdapter.__name__,
+        "source_fingerprint": source_fingerprint(),
         "supported": not errors,
         "errors": errors,
     }
