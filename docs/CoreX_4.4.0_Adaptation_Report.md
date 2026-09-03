@@ -25,6 +25,11 @@ Llumnix placement 层也完成 TP 拓扑防护：实例使用 `STRICT_PACK`，�
 的异构虚拟负载、KV affinity 和 P/D handoff 协同。对于同机 TP=2，Ray head 必须
 将同机两张物理卡都注册为 GPU 资源。
 
+最新提交 `c3a0c8c` 已同步至 `10.31.10.210` 并在远端 Python 3.12/CoreX 环境
+复验：V1 KV transfer、affinity 和 TP topology 定向集 **41 passed**，源码编译通过。
+两端的 affinity 探针输出同一组 `sha256_cbor` hashes 和候选排序，说明本报告中的
+跨机缓存亲和结论覆盖当前源码，而非仅覆盖历史提交。
+
 ## 全量 Python 3.12 回归复核（2026-09-03）
 
 针对“原先功能和创新均迁移到当前 CoreX 栈”的适配审计，执行了项目全量测试：

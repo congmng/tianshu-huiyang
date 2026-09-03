@@ -40,6 +40,16 @@
   两机各 1 卡的跨域部署应使用两个 TP=1 Llumnix 实例，由 HLA/KV affinity/P-D
   策略进行请求协同。
 
+## 2026-09-03：远端最新代码复验
+
+- 将当前 `c3a0c8c` 通过 Git bundle 同步到 `10.31.10.210`，远端工作副本已从
+  `2176773` fast-forward 到相同提交；模型目录和系统 CoreX 安装均未改动。
+- 远端 Python 3.12/CoreX 环境的 V1 KV-transfer、KV affinity、TP placement
+  规划回归共 **41 passed**，`compileall` 通过。
+- 两端分别运行跨机 affinity 探针，得到相同 hashes
+  `c9d58ba6...ef071cb`、`24125b23...54ab2d6` 与相同排序
+  `candidate-b,candidate-a`，再次证明最新代码在两台正式运行时具有确定性。
+
 ## 2026-09-03：Python 3.12 全量回归与跨主机 affinity 复核
 
 - 全量 Python 3.12/CoreX 4.4.0 测试首轮暴露 3 个 vLLM V1 兼容点：旧测试仍向
