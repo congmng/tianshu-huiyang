@@ -1,5 +1,11 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## V1 benchmark 输入 token 统计修复（2026-09-03）
+
+`/generate_benchmark` 现在从 V1 `RequestOutput.prompt_token_ids` 计算真实
+`num_input_tokens`，不再固定报告 0；输出 token 数继续来自 completion token IDs。
+这使迁移后的 benchmark 可用于 TTFT/输入长度分桶分析，接口回归保持 **17 passed**。
+
 ## 独立 V1 benchmark API 兼容（2026-09-03）
 
 独立 `v1_api_server` 已恢复 `/generate_benchmark`：以 AsyncLLM 输出流记录每个

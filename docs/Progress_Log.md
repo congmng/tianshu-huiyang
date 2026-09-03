@@ -1,5 +1,10 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：V1 benchmark 输入 token 统计
+
+`/generate_benchmark` 现读取 V1 `prompt_token_ids` 返回真实输入 token 数，恢复
+输入长度统计语义；入口回归 **17 passed**。
+
 ## 2026-09-03：独立 V1 benchmark API
 
 `v1_api_server` 恢复 `/generate_benchmark`，返回生成文本、token 计数及逐输出事件

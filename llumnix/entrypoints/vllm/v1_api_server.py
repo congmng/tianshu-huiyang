@@ -178,11 +178,12 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
             return JSONResponse({"error": "engine returned no output"}, status_code=500)
         completion = final.outputs[0]
         token_ids = getattr(completion, "token_ids", ()) or ()
+        prompt_token_ids = getattr(final, "prompt_token_ids", ()) or ()
         return JSONResponse({
             "request_id": request_id,
             "generated_text": completion.text,
             "num_output_tokens_cf": len(token_ids),
-            "num_input_tokens": 0,
+            "num_input_tokens": len(prompt_token_ids),
             "per_token_latency": timestamps,
         })
 

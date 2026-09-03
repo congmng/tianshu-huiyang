@@ -12,6 +12,7 @@ from llumnix.entrypoints.vllm.v1_api_server import build_arg_parser
 class _Output:
     def __init__(self, text):
         self.outputs = [type("Completion", (), {"text": text})()]
+        self.prompt_token_ids = [1, 2, 3]
 
 
 class _Engine:
@@ -215,6 +216,7 @@ def test_v1_benchmark_endpoint_returns_latency_contract():
     assert response.status_code == 200
     assert payload["request_id"] == "bench-id"
     assert payload["generated_text"] == " world"
+    assert payload["num_input_tokens"] == 3
     assert isinstance(payload["per_token_latency"], list)
 
 
