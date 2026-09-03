@@ -1,5 +1,11 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：统一 Qwen3-14B TP=1/TP=2 smoke
+
+`run_qwen3_14b_smoke.py` 通过 `TENSOR_PARALLEL_SIZE` 支持 TP=1/2 并校验可见卡数。
+两张 BI-V150 上的 TP=2 实测完成 NCCL rank 0/1、KV cache 初始化和中文生成，输出
+`qwen3_14b_corex_vllm: PASS`（25.50 秒）；脚本门禁回归 **4 passed**。
+
 ## 2026-09-03：TP/PP 多卡实例信息修复
 
 `InstanceInfo.gpu_count` 现由 V1 并行配置计算，`/instance_list` 正确展示 TP/PP

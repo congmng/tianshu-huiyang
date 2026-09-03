@@ -35,3 +35,10 @@ def test_corex44_gate_compares_two_hosts():
     remote = dict(local)
     remote["affinity_hashes"] = ["b"]
     assert gate.compare_hosts(local, remote)
+
+
+def test_qwen_smoke_exposes_multi_gpu_tensor_parallelism():
+    script = Path(__file__).parents[2] / "tools" / "run_qwen3_14b_smoke.py"
+    source = script.read_text(encoding="utf-8")
+    assert 'TENSOR_PARALLEL_SIZE' in source
+    assert 'tensor_parallel_size=TENSOR_PARALLEL_SIZE' in source

@@ -4,6 +4,7 @@
 Usage:
   source tools/corex44_env.sh
   CUDA_VISIBLE_DEVICES=0 python tools/run_qwen3_14b_smoke.py
+  CUDA_VISIBLE_DEVICES=0,1 TENSOR_PARALLEL_SIZE=2 python tools/run_qwen3_14b_smoke.py
 """
 
 import pathlib
@@ -18,16 +19,27 @@ from vllm import LLM, SamplingParams
 MODEL = pathlib.Path(__file__).resolve().parents[1] / ".models" / "Qwen3-14B"
 GPU_MEMORY_UTILIZATION = float(os.getenv("GPU_MEMORY_UTILIZATION", "0.96"))
 MAX_MODEL_LEN = int(os.getenv("MAX_MODEL_LEN", "512"))
+TENSOR_PARALLEL_SIZE = int(os.getenv("TENSOR_PARALLEL_SIZE", "1"))
 
 
 def main() -> None:
     if not (MODEL / "model.safetensors.index.json").is_file():
         raise SystemExit(f"Qwen3-14B weights are incomplete: {MODEL}")
+    visible_gpus = len(
+        [value for value in os.getenv("CUDA_VISIBLE_DEVICES", "").split(",") if value.strip()]
+    ) if os.getenv("CUDA_VISIBLE_DEVICES") else 0
+    if TENSOR_PARALLEL_SIZE < 1:
+        raise SystemExit("TENSOR_PARALLEL_SIZE must be positive")
+    if visible_gpus and visible_gpus < TENSOR_PARALLEL_SIZE:
+        raise SystemExit(
+            f"TENSOR_PARALLEL_SIZE={TENSOR_PARALLEL_SIZE} requires at least "
+            f"{TENSOR_PARALLEL_SIZE} visible GPUs, found {visible_gpus}"
+        )
 
     started = time.monotonic()
     llm = LLM(
         model=str(MODEL),
-        tensor_parallel_size=1,
+        tensor_parallel_size=TENSOR_PARALLEL_SIZE,
         dtype="float16",
         gpu_memory_utilization=GPU_MEMORY_UTILIZATION,
         max_model_len=MAX_MODEL_LEN,
@@ -50,6 +62,7 @@ def main() -> None:
     print(f"model={MODEL}")
     print(f"gpu_memory_utilization={GPU_MEMORY_UTILIZATION}")
     print(f"max_model_len={MAX_MODEL_LEN}")
+    print(f"tensor_parallel_size={TENSOR_PARALLEL_SIZE}")
     print(f"elapsed_seconds={time.monotonic() - started:.2f}")
     print(f"completion={text}")
     print("qwen3_14b_corex_vllm: PASS")

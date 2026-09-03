@@ -1,5 +1,15 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 统一 Qwen3-14B 单机/TP=2 验证入口（2026-09-03）
+
+`tools/run_qwen3_14b_smoke.py` 不再固定单卡：通过
+`TENSOR_PARALLEL_SIZE` 选择并行度，并在启动前检查 `CUDA_VISIBLE_DEVICES`
+是否足够，避免将 TP=2 错误提交到单卡。以
+`CUDA_VISIBLE_DEVICES=0,1 TENSOR_PARALLEL_SIZE=2 MAX_MODEL_LEN=256` 实测，
+Qwen3-14B 完成 CoreX NCCL world size 2、TP rank 0/1、模型与 KV cache 初始化，
+并返回非空中文生成；脚本报告 `qwen3_14b_corex_vllm: PASS`，耗时 25.50 秒。
+同一入口可继续用于 TP=1 基础验证，相关脚本回归为 **4 passed**。
+
 ## TP/PP 多卡拓扑可观测性修复（2026-09-03）
 
 V1 `InstanceInfo` 现在根据 `tensor_parallel_size × pipeline_parallel_size` 发布
