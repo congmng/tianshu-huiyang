@@ -37,6 +37,13 @@ class _Engine:
     def release_request(self, request_id):
         self.released.append(request_id)
 
+    def update_instance_info(self, info):
+        info.gpu_count = 2
+        info.gpu_memory_total_bytes = 64
+        info.gpu_memory_free_bytes = 32
+        info.compute_capacity = 2.0
+        info.kv_cache_block_hashes = frozenset({b"a"})
+
 
 class _FailingEngine(_Engine):
     def generate(self, prompt, params, request_id):
@@ -177,6 +184,16 @@ def _route(app, path, method):
         for route in app.routes
         if getattr(route, "path", None) == path and method in route.methods
     )
+
+
+def test_v1_api_exposes_readiness_and_single_instance_topology():
+    app = build_app(_Engine())
+    assert asyncio.run(_route(app, "/is_ready", "GET")()) is True
+    response = asyncio.run(_route(app, "/instance_list", "GET")())
+    payload = json.loads(response.body)["data"][0]
+    assert payload["gpu_count"] == 2
+    assert payload["gpu_memory_total_bytes"] == 64
+    assert payload["kv_cache_affinity_blocks"] == 1
 
 
 def test_main_api_validates_requests_and_preserves_public_request_id(monkeypatch):

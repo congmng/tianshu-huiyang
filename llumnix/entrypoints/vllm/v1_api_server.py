@@ -37,6 +37,38 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
     async def health() -> Response:
         return Response(status_code=200)
 
+    @app.get("/is_ready")
+    async def is_ready() -> bool:
+        """Keep the main Llumnix API's readiness contract for V1 deployments."""
+        from llumnix.backends.backend_interface import EngineState
+
+        return getattr(engine, "state", None) != EngineState.STOPPED
+
+    @app.get("/instance_list")
+    async def instance_list() -> JSONResponse:
+        """Expose the same CoreX topology/load fields as the managed API.
+
+        The standalone V1 server has one logical instance, but it can own a
+        TP/PP group.  Build the response from the adapter's normal
+        ``update_instance_info`` path so memory, GPU count and cached-prefix
+        state stay consistent with Manager/Llumlet deployments.
+        """
+        from llumnix.instance_info import InstanceInfo
+
+        info = InstanceInfo(instance_id=getattr(engine, "instance_id", "v1-api"))
+        engine.update_instance_info(info)
+        return JSONResponse({"data": [{
+            "instance_id": info.instance_id,
+            "gpu_count": max(int(getattr(info, "gpu_count", 1)), 1),
+            "request_count": info.num_running_requests + info.num_waiting_requests,
+            "running_request_count": info.num_running_requests,
+            "waiting_request_count": info.num_waiting_requests,
+            "gpu_memory_total_bytes": info.gpu_memory_total_bytes,
+            "gpu_memory_free_bytes": info.gpu_memory_free_bytes,
+            "compute_capacity": info.compute_capacity,
+            "kv_cache_affinity_blocks": len(info.kv_cache_block_hashes),
+        }]})
+
     @app.post("/generate")
     async def generate(request: Request) -> Response:
         try:

@@ -1,5 +1,10 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：独立 V1 API 运维接口兼容
+
+`v1_api_server` 新增 `/is_ready`、`/instance_list`，并复用 V1 实例信息路径发布
+GPU 数、显存/算力、请求和 KV affinity 状态；入口回归 **16 passed**。
+
 ## 2026-09-03：双机源码基线同步
 
 远端工作副本无 Git remote 且历史不同，改用 `git archive main` 同步受控源码快照；

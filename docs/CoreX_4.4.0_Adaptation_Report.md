@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 独立 V1 API 运维接口补齐（2026-09-03）
+
+独立 `v1_api_server` 现提供与主 Llumnix API 一致的 `/is_ready` 和
+`/instance_list`。后者通过 V1 adapter 的统一实例信息更新路径发布 TP/PP GPU 数、
+显存、计算容量、请求计数和 KV affinity block 数，避免单实例入口在迁移到 CoreX
+后丢失拓扑与负载可观测性。新增接口回归后该入口测试为 **16 passed**。
+
 ## 双机源码基线同步复核（2026-09-03）
 
 审计发现远端工作副本没有配置 Git remote，且原提交历史与本机镜像历史不同，不能以
