@@ -1,5 +1,15 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 最新 Python 3.12 完整单元回归（2026-09-03）
+
+在本机 CoreX 4.4/Python 3.12 环境使用隔离 Ray runtime 执行
+`tests/unit_test`（排除仅启动旧 vLLM 0.6 API 生命周期的 legacy
+`entrypoints/vllm/test_api_server.py`），结果为 **119 passed、19 skipped**。
+跳过项均为明确标注的旧引擎、缺少 async 插件或需要额外多 GPU/真实服务的路径；
+V1 adapter、KV transfer、affinity、GlobalScheduler、API 和 CoreX placement
+相关测试均执行通过。该结果与双机支持门禁及此前模型级 P/D handoff 证据共同构成
+当前正式 Python 3.12/CoreX 栈的回归基线。
+
 ## 双机正式支持门禁可移植性修复（2026-09-03）
 
 `tools/corex44_support_check.py` 现在自行定位项目根目录并加入模块搜索路径，因而

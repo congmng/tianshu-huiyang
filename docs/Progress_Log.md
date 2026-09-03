@@ -1,5 +1,11 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：完整 Python 3.12 单元回归基线
+
+隔离 Ray runtime 下执行完整 `tests/unit_test`（排除旧 vLLM 0.6 API 生命周期测试），
+结果 **119 passed、19 skipped**。V1、KV affinity、GlobalScheduler、API 和 CoreX
+placement 路径全部通过；剩余跳过项为显式 legacy/资源依赖范围。
+
 ## 2026-09-03：双机 CoreX 支持门禁部署修复
 
 修复 `corex44_support_check.py` 对外部 `PYTHONPATH` 的隐式依赖；本机和
