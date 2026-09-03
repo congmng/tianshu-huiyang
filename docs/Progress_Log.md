@@ -608,6 +608,10 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   coordinator/scheduler；旧迁移 RPC 安全拒绝并引导至 connector-driven P/D handoff。
   API/KV transfer 回归 `46 passed`，避免当前 V1 栈携带不可用旧迁移对象。
 
+- 最新提交 `36e5b77` 的两机 P/D 实机复验：`/instance_list` 正确显示
+  `10.31.10.62` 和 `10.31.10.210`，`pd-topology-001` 的 `/generate` 返回 HTTP
+  200 非空中文；两端 producer/consumer 日志确认共享 endpoint request ID。
+
 - 本机 Python `3.12.13` / CoreX 4.4 / vLLM `0.11.2` / Ray `2.52.1` /
   PyTorch `2.7.1` 环境成功执行 `pip wheel . --no-deps --no-build-isolation`。
 - V1 transfer、placement 与 Manager 调度定向回归为 `44 passed, 10 skipped`；

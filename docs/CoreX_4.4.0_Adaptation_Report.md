@@ -153,6 +153,12 @@ KV transfer 回归为 **46 passed**。
 node-table 的 `NodeManagerAddress` 回退；这不会改变调度决策，仅保证
 `/instance_list` 正确暴露实际跨主机位置。
 
+使用最新提交 `36e5b77` 重启两机 P/D 服务后，`/instance_list` 已实测返回
+`10.31.10.62` 与 `10.31.10.210`（每节点一个 TP=1 Qwen3-14B）。请求
+`pd-topology-001` 返回 HTTP 200 和非空中文文本；日志同时确认本机 consumer 与
+远端 producer 收到同一含两端 endpoint 的 request ID。该复验确认 topology
+observability 回退不会改变已验证的 P/D handoff。
+
 本次真实请求进一步暴露 CoreX PyTorch 的 `bfloat16.numpy()` 限制：producer 在
 保存 KV 时因 NumPy bridge 不支持 BF16 而退出。提交 `ae81d39` 将 staging wire
 protocol 改为 uint8 原始字节视图并按 dtype/shape 重建，新增 BF16 round-trip
