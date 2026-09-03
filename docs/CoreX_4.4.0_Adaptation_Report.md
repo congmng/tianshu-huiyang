@@ -1,5 +1,13 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 双机源码基线同步复核（2026-09-03）
+
+审计发现远端工作副本没有配置 Git remote，且原提交历史与本机镜像历史不同，不能以
+`git pull` 保证两机运行相同代码。现通过 `git archive main | ssh ... tar -x` 同步当前
+受版本控制源码；远端以本地提交形式记录为 `6d0a700`，随后在 Python 3.12/CoreX
+环境运行 CoreX connector/CLI 定向集 **14 passed**。两机后续 P/D、KV affinity 和
+多卡验收均应先同步同一源码快照；运行环境、模型与 `.ray-*` 目录不在该同步范围。
+
 ## 统一 Qwen3-14B 单机/TP=2 验证入口（2026-09-03）
 
 `tools/run_qwen3_14b_smoke.py` 不再固定单卡：通过

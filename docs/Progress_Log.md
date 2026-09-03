@@ -1,5 +1,11 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：双机源码基线同步
+
+远端工作副本无 Git remote 且历史不同，改用 `git archive main` 同步受控源码快照；
+远端记录同步提交 `6d0a700`，CoreX connector/CLI 定向回归 **14 passed**。模型、环境
+和 Ray 临时目录不参与同步，后续双机验收先确保源码快照一致。
+
 ## 2026-09-03：统一 Qwen3-14B TP=1/TP=2 smoke
 
 `run_qwen3_14b_smoke.py` 通过 `TENSOR_PARALLEL_SIZE` 支持 TP=1/2 并校验可见卡数。
