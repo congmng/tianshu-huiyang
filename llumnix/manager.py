@@ -209,6 +209,21 @@ class Manager:
                     )
                 )
 
+    def _disable_state_api_reconciliation(self) -> None:
+        """Disable dashboard-only reconciliation after an unavailable State API.
+
+        Placement groups and named actors remain usable through the Ray control
+        plane in CoreX's minimal Ray build.  Retrying dashboard requests in
+        each background loop only consumes a CPU core and hides real startup
+        errors, so each loop must stop its optional reconciliation work.
+        """
+        if self._state_api_available:
+            logger.warning(
+                "Ray State API is unavailable; global deployment continues "
+                "without dashboard placement-group reconciliation."
+            )
+        self._state_api_available = False
+
     async def generate(
         self,
         request_id: str,
@@ -643,29 +658,28 @@ class Manager:
                         # reset
                         self.last_timeout_instance_id = None
                 except ServerUnavailable:
-                    self._state_api_available = False
+                    self._disable_state_api_reconciliation()
                     self.last_timeout_instance_id = None
                 try:
-                    pending_pg_states = list_placement_groups(
-                        filters=[("state", "=", "PENDING")]
-                    )
-                    pending_pg_states.extend(
-                        list_placement_groups(filters=[("state", "=", "RESCHEDULING")])
-                    )
-                    alive_pg_states = list_placement_groups(
-                        filters=[("state", "!=", "REMOVED")]
-                    )
+                    if self._state_api_available:
+                        pending_pg_states = list_placement_groups(
+                            filters=[("state", "=", "PENDING")]
+                        )
+                        pending_pg_states.extend(
+                            list_placement_groups(filters=[("state", "=", "RESCHEDULING")])
+                        )
+                        alive_pg_states = list_placement_groups(
+                            filters=[("state", "!=", "REMOVED")]
+                        )
+                    else:
+                        pending_pg_states = []
+                        alive_pg_states = []
                 except ServerUnavailable:
                     # Do not make dashboard availability a prerequisite for
                     # CoreX serving.  We retain scale-up and rely on actor
                     # health checks; state-based stale-PG reclamation resumes
                     # automatically on installations with ray[default].
-                    if self._state_api_available:
-                        logger.warning(
-                            "Ray State API is unavailable; global deployment "
-                            "continues without dashboard placement-group reconciliation."
-                        )
-                    self._state_api_available = False
+                    self._disable_state_api_reconciliation()
                     pending_pg_states = []
                     alive_pg_states = []
                 for pending_pg_state in pending_pg_states:
@@ -720,6 +734,10 @@ class Manager:
                 )
             # pylint: disable=broad-except
             except Exception as e:
+                if isinstance(e, ServerUnavailable):
+                    self._disable_state_api_reconciliation()
+                    await asyncio.sleep(interval)
+                    continue
                 logger.error("Unexpected exception: {}".format(e))
                 logger.error("Exception traceback: {}".format(traceback.format_exc()))
 
@@ -858,6 +876,8 @@ class Manager:
 
         while True:
             try:
+                if not self._state_api_available:
+                    return
                 curr_pgs, curr_servers, curr_instances = (
                     self._get_cluster_deployment_states()
                 )
@@ -877,6 +897,9 @@ class Manager:
                 await asyncio.sleep(interval)
             # pylint: disable=broad-except
             except Exception as e:
+                if isinstance(e, ServerUnavailable):
+                    self._disable_state_api_reconciliation()
+                    return
                 logger.error("Unexpected exception: {}".format(e))
                 logger.error("Exception traceback: {}".format(traceback.format_exc()))
 
@@ -887,6 +910,8 @@ class Manager:
 
         while True:
             try:
+                if not self._state_api_available:
+                    return
                 pending_pg_states = list_placement_groups(
                     filters=[("state", "=", "PENDING")]
                 )
@@ -916,6 +941,9 @@ class Manager:
                 await asyncio.sleep(interval)
             # pylint: disable=broad-except
             except Exception as e:
+                if isinstance(e, ServerUnavailable):
+                    self._disable_state_api_reconciliation()
+                    return
                 logger.error("Unexpected exception: {}".format(e))
                 logger.error("Exception traceback: {}".format(traceback.format_exc()))
 
