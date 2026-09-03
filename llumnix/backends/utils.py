@@ -137,8 +137,15 @@ def init_backend_engine(instance_id: str,
 
 def get_engine_world_size(engine_args, backend_type: BackendType):
     if backend_type == BackendType.VLLM:
-        engine_config = engine_args.create_engine_config()
-        world_size = engine_config.parallel_config.world_size
+        # vLLM V1 validates ParallelConfig against the *driver*'s visible
+        # accelerator count.  Llumnix computes placement groups in its CPU
+        # Manager actor, where that count is zero, so constructing an engine
+        # config here incorrectly rejects valid TP deployments.  World size
+        # is purely the product of TP and PP and can be derived without
+        # triggering accelerator validation.
+        tensor_parallel_size = getattr(engine_args, "tensor_parallel_size", 1)
+        pipeline_parallel_size = getattr(engine_args, "pipeline_parallel_size", 1)
+        world_size = tensor_parallel_size * pipeline_parallel_size
     else: # BLADE_LLM
         world_size = engine_args.tensor_parallel_size * engine_args.pipeline_parallel_size
     return world_size
