@@ -626,6 +626,10 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   不下载模型）。提交 `0031298` 上本机与远端均通过，版本和两个 affinity hashes
   完全一致。
 
+- 支持预检升级为严格版本门禁：偏离 Python 3.12、vLLM 0.11.x、CoreX PyTorch
+  2.7.x 或 Ray 2.52.x 时返回非零状态并列出错误；门禁单测 `2 passed`，当前环境
+  输出 `supported=true`。
+
 - 本机 Python `3.12.13` / CoreX 4.4 / vLLM `0.11.2` / Ray `2.52.1` /
   PyTorch `2.7.1` 环境成功执行 `pip wheel . --no-deps --no-build-isolation`。
 - V1 transfer、placement 与 Manager 调度定向回归为 `44 passed, 10 skipped`；
