@@ -954,22 +954,24 @@ class Manager:
     # which prevents the cluster from consisting entirely of prefill or decode instances.
     async def _check_pd_deployment_states_loop(self, interval: float) -> None:
         previous_penging_pg_names = None
+        state_api_kwargs = ({"address": os.environ["RAY_ADDRESS"]}
+                            if os.environ.get("RAY_ADDRESS") else {})
 
         while True:
             try:
                 if not self._state_api_available:
                     return
                 pending_pg_states = list_placement_groups(
-                    filters=[("state", "=", "PENDING")]
+                    filters=[("state", "=", "PENDING")], **state_api_kwargs
                 )
                 rescheduling_pg_states = list_placement_groups(
-                    filters=[("state", "=", "RESCHEDULING")]
+                    filters=[("state", "=", "RESCHEDULING")], **state_api_kwargs
                 )
                 all_penging_pg_names = [pg.name for pg in pending_pg_states]
 
                 if previous_penging_pg_names and len(rescheduling_pg_states) == 0:
                     new_pending_pg_states = list_placement_groups(
-                        filters=[("state", "=", "PENDING")]
+                        filters=[("state", "=", "PENDING")], **state_api_kwargs
                     )
                     all_new_penging_pg_names = [pg.name for pg in new_pending_pg_states]
                     if (
@@ -988,9 +990,14 @@ class Manager:
                 await asyncio.sleep(interval)
             # pylint: disable=broad-except
             except Exception as e:
+                # Dashboard State API is optional in the CoreX Ray wheel.
+                # Any failure here must not be treated as a P/D instance
+                # failure; disable this best-effort reconciliation loop.
+                self._disable_state_api_reconciliation()
                 if isinstance(e, ServerUnavailable):
-                    self._disable_state_api_reconciliation()
                     return
+                logger.warning("Disabling P/D placement-group reconciliation: %s", e)
+                return
                 logger.error("Unexpected exception: {}".format(e))
                 logger.error("Exception traceback: {}".format(traceback.format_exc()))
 

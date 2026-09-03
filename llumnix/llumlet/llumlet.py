@@ -176,9 +176,19 @@ class Llumlet:
                 actor_runtime_options["runtime_env"] = {
                     "env_vars": v1_kv_runtime_env()
                 }
-            llumlet_class = ray.remote(**actor_options)(cls).options(
-                **actor_runtime_options
-            )
+            # Some CoreX Ray builds return an ``ActorOptionWrapper`` from
+            # ``ray.remote(**opts)(cls)`` which does not expose the usual
+            # ``.options`` method.  Keep the normal path for upstream Ray,
+            # but fall back to supplying scheduling/runtime options directly
+            # to ``ray.remote`` on those builds.
+            try:
+                llumlet_class = ray.remote(**actor_options)(cls).options(
+                    **actor_runtime_options
+                )
+            except AttributeError:
+                llumlet_class = ray.remote(
+                    **actor_options, **actor_runtime_options
+                )(cls)
             llumlet = llumlet_class.remote(
                 instance_id,
                 instance_args,
