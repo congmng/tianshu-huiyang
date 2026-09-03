@@ -146,10 +146,18 @@ def validate_p2p_environment(engine_args: Any) -> None:
     if int(getattr(config, "kv_parallel_size", 0)) != 2:
         raise ValueError("P2pNcclConnector requires kv_parallel_size=2")
     if getattr(config, "kv_role", None) in ("kv_producer", "kv_both"):
+        # In Llumnix P/D mode the peer endpoint is learned after both Llumlets
+        # have initialized (via ``Manager`` instance metadata) and is then
+        # embedded in the shared request ID.  Requiring the environment
+        # variable during engine construction races that discovery and makes
+        # every producer fail before its model is ready.  Standalone callers
+        # still get a clear error from ``decorate_p2p_request_id`` when they
+        # submit a request without an endpoint; an explicit value is checked
+        # here for early validation.
         address = os.getenv("LLUMNIX_KV_DECODE_ADDRESS")
-        if not address:
+        if address is not None and not valid_p2p_endpoint(address):
             raise ValueError(
-                "P2pNcclConnector producer requires LLUMNIX_KV_DECODE_ADDRESS=host:port"
+                "LLUMNIX_KV_DECODE_ADDRESS must be a concrete host:port"
             )
 
 

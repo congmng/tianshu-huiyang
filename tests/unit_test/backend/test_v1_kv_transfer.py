@@ -171,7 +171,11 @@ def test_p2p_environment_validation(monkeypatch):
     with pytest.raises(ValueError, match="kv_parallel_size=2"):
         validate_p2p_environment(args)
     args.kv_transfer_config.kv_parallel_size = 2
-    with pytest.raises(ValueError, match="DECODE_ADDRESS"):
+    # Llumnix discovers the decode endpoint only after both P/D actors have
+    # started, then carries it in the shared request ID.
+    validate_p2p_environment(args)
+    monkeypatch.setenv("LLUMNIX_KV_DECODE_ADDRESS", "invalid")
+    with pytest.raises(ValueError, match="host:port"):
         validate_p2p_environment(args)
     monkeypatch.setenv("LLUMNIX_KV_DECODE_ADDRESS", "10.31.10.62:17000")
     validate_p2p_environment(args)
