@@ -1,5 +1,11 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：分层入口 E2E TP=2 实测
+
+执行 `run_corex44_validation.py e2e --tp 2`，两张 BI-V150 完成 Qwen3-14B V1
+NCCL world size 2、TP rank 0/1、KV cache 初始化和中文生成，输出 PASS，耗时
+26.40 秒；unit、integration、e2e 三层门禁均已实际运行。
+
 ## 2026-09-03：分层测试入口与实际回归
 
 新增 `tools/run_corex44_validation.py`：`unit`/`integration`/`e2e` 分别覆盖回归、

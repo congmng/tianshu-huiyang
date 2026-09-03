@@ -1,5 +1,13 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 分层验证入口的真实 E2E 执行（2026-09-03）
+
+通过 `tools/run_corex44_validation.py e2e --tp 2` 实际启动两张 BI-V150 上的
+Qwen3-14B：vLLM V1 报告 `world_size=2`、TP rank 0/1，8 个权重分片加载完成，
+KV cache 初始化成功，并返回非空中文结果；最终脚本输出
+`qwen3_14b_corex_vllm: PASS`（26.40 秒）。至此分层入口的 unit、integration、
+e2e 三层均有当前代码的实际执行证据。
+
 ## 分层 CoreX 验证入口（2026-09-03）
 
 新增 `tools/run_corex44_validation.py`，将适配验证固化为可重复的三层门禁：
