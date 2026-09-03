@@ -199,6 +199,14 @@ class V1EngineAdapter:
         info.num_running_requests = len(self.running)
         info.num_waiting_requests = len(self.waiting)
         info.num_seqs = info.num_running_requests
+        try:
+            parallel = self.engine.vllm_config.parallel_config
+            info.gpu_count = max(
+                int(getattr(parallel, "tensor_parallel_size", 1))
+                * int(getattr(parallel, "pipeline_parallel_size", 1)), 1
+            )
+        except Exception:
+            info.gpu_count = 1
         info.num_total_gpu_blocks = 0
         info.num_used_gpu_blocks = 0
         info.num_free_gpu_blocks = 0

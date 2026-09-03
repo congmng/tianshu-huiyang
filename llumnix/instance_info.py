@@ -39,6 +39,9 @@ class InstanceInfo:
     # Legacy backends leave it empty, preserving wire compatibility.
     node_id: str = ""
     node_ip: str = ""
+    # Number of accelerator partitions owned by this logical instance. V1
+    # tensor/pipeline parallel deployments may consume multiple GPUs.
+    gpu_count: int = 1
 
     step_id: int = None
     timestamp: float = None

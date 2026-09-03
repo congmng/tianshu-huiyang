@@ -219,7 +219,7 @@ async def get_instance_list() -> Response:
             instance_id=instance_info.instance_id,
             node_id=getattr(instance_info, "node_id", ""),
             node_ip=getattr(instance_info, "node_ip", ""),
-            gpu_count=1,
+            gpu_count=max(int(getattr(instance_info, "gpu_count", 1)), 1),
             request_count=instance_info.num_running_requests
             + instance_info.num_waiting_requests,
             running_request_count=instance_info.num_running_requests,

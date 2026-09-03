@@ -1,5 +1,10 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：TP/PP 多卡实例信息修复
+
+`InstanceInfo.gpu_count` 现由 V1 并行配置计算，`/instance_list` 正确展示 TP/PP
+逻辑实例的 GPU 数量；旧后端默认仍为 1。新增 API 回归覆盖 TP=2。
+
 ## 2026-09-03：双机 GPU BF16 KV-staging 可重复门禁
 
 新增 `tools/corex44_zmq_kv_probe.py`，实际验证本机 GPU BF16 tensor 经 ZMQ

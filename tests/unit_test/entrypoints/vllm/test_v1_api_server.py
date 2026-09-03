@@ -208,6 +208,7 @@ def test_main_api_instance_list_exposes_v1_heterogeneous_state(monkeypatch):
         compute_capacity=1.5,
         dispatch_load_metric=0.25,
         kv_cache_block_hashes=frozenset({b"a", b"b"}),
+        gpu_count=2,
     )
 
     class _InstanceClient:
@@ -225,6 +226,7 @@ def test_main_api_instance_list_exposes_v1_heterogeneous_state(monkeypatch):
     assert instance["kv_cache_affinity_blocks"] == 2
     assert instance["node_id"] == "node-corex"
     assert instance["node_ip"] == "10.31.10.62"
+    assert instance["gpu_count"] == 2
 
 
 def test_main_api_instance_list_serializes_idle_load_sentinel(monkeypatch):

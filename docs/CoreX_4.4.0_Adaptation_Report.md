@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## TP/PP 多卡拓扑可观测性修复（2026-09-03）
+
+V1 `InstanceInfo` 现在根据 `tensor_parallel_size × pipeline_parallel_size` 发布
+逻辑实例实际占用的 GPU 数量；主 API `/instance_list` 不再将 TP=2 实例错误报告
+为单卡。默认值仍为 1 以保持旧引擎和模拟器兼容。异构状态 API 回归已覆盖 TP=2
+序列化，源码编译及 V1/KV 定向测试保持通过。
+
 ## 可重复的双机 GPU KV-staging 门禁（2026-09-03）
 
 新增 `tools/corex44_zmq_kv_probe.py`，以 consumer-first 方式直接使用生产
