@@ -1,5 +1,14 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 双机正式支持门禁可移植性修复（2026-09-03）
+
+`tools/corex44_support_check.py` 现在自行定位项目根目录并加入模块搜索路径，因而
+在仅执行 `source tools/corex44_env.sh`、未额外设置 `PYTHONPATH` 时也能从任意工作
+目录运行。当前本机与 `10.31.10.210` 以该真实部署方式运行双机门禁均为
+`supported=true`：Python 3.12.13、vLLM 0.11.2、PyTorch 2.7.1、Ray 2.52.1，且
+V1 adapter、CoreX connector、两个 SHA256-CBOR affinity hash 与候选排序完全一致。
+该脚本单测为 **3 passed**。
+
 ## 多卡弹性扩缩容 pending 保护（2026-09-03）
 
 针对 CoreX 精简 Ray 缺失 State API 的场景，Manager 现在跟踪尚未完成 Llumlet

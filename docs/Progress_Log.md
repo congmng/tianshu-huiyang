@@ -1,5 +1,11 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：双机 CoreX 支持门禁部署修复
+
+修复 `corex44_support_check.py` 对外部 `PYTHONPATH` 的隐式依赖；本机和
+`10.31.10.210` 仅激活 CoreX 环境即可完成正式双机版本、V1 导入和 KV affinity
+一致性门禁，结果 `supported=true`，脚本回归 **3 passed**。
+
 ## 2026-09-03：多卡弹性扩缩容 pending 保护
 
 placement group 在 Llumlet 注册前现在计入本地 pending 集合，`max_instances`
