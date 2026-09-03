@@ -128,6 +128,19 @@ connector 驱动的 P/D KV handoff 取代它们。
 
 ## 结论
 
+## 2026-09-03 P/D 兼容性回归（最新）
+
+在共享两机 Ray 集群重新拉起 `initial_instances=2` 的 P/D 部署时，首个实例已
+成功创建并开始加载 Qwen3-14B；此前 CoreX Ray `ActorOptionWrapper` 不支持
+`.options()` 的兼容性错误已由提交 `fa05a26` 修复，Llumlet 能够进入 vLLM V1
+EngineCore 初始化。第二个实例失败的直接原因是本机隔离 TP=2 基线残留的
+EngineCore 占用两张卡，vLLM 报告每卡仅剩 `0.93/32.0 GiB`，低于
+`gpu_memory_utilization=0.90` 所需的约 `28.8 GiB`；该次失败不是模型下载、代理
+或 P/D 网络错误。清理残留进程后共享集群已恢复为 `2 GPU` 空闲，旧 detached
+Llumnix actors 也已清理。P/D 端到端 handoff 的历史 ZMQ CPU-staging 证据仍然
+有效，但需在无其他 GPU 进程的干净集群上重新执行本轮模型级验收后，才能将其
+作为当前提交的最新复现证据。
+
 CoreX 驱动、PyTorch、Ray 和 Llumnix 控制面已验证可用，整个过程未修改驱动或
 系统级 CoreX 安装。
 

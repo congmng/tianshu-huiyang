@@ -600,6 +600,18 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 
 ## 2026-09-03：论文第三点基础部署验收
 
+### 2026-09-03：P/D 重新回归与资源隔离修复
+
+- 现场日志定位到 CoreX Ray 特有的 `ActorOptionWrapper` 不支持 `.options()`，
+  导致 Llumlet 在 actor 创建阶段退出；提交 `fa05a26` 增加兼容回退，并同步到
+  `tianshu-huiyang/main`。
+- P/D 状态检查现在显式使用 `RAY_ADDRESS`；State API/dashboard 不可用时仅停用
+  placement-group reconciliation，不再把该异常当作 P/D 实例故障。
+- 修复后部署已进入 vLLM V1 EngineCore 初始化。最新失败日志显示另一实例启动时
+  被隔离 TP=2 基线残留进程耗尽显存（`0.93/32 GiB`），已释放该进程并清理共享
+  集群中的 detached actors。下一轮需保持两张卡无其他模型进程，再复现模型级
+  producer/consumer KV handoff。
+
 - 对照论文第五章“基于异构负载感知的跨域请求调度技术”，在本机
   `10.31.10.62` 与远端 `10.31.10.210` 的双机 Ray/P-D 服务上完成基础验收。
 - `/health` 返回 HTTP 200；`/instance_list` 返回 Prefill、Decode 两个实例，
