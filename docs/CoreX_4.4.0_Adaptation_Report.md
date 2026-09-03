@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 最新分层 Unit 回归基线（2026-09-03）
+
+在包含源码指纹门禁、地址参数化和远端 consumer 提前退出检测的当前提交上，执行
+`tools/run_corex44_validation.py unit`，结果为 **68 passed**。该层覆盖 V1 HTTP/
+benchmark 生命周期、KV transfer 与 affinity、异构调度、CoreX 支持检查及分层
+runner 自身的契约；集成和 E2E 证据仍按本文对应章节的实机结果执行。
+
 ## Integration runner 启动失败快速检测（2026-09-03）
 
 双机 integration runner 现在在启动 producer 前检查远端 consumer 是否已提前退出，

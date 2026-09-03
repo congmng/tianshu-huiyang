@@ -1,5 +1,10 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：最新分层 Unit 回归
+
+当前源码执行 `run_corex44_validation.py unit` 为 **68 passed**，覆盖 V1 API/
+benchmark、KV transfer/affinity、调度、支持门禁和 integration runner 契约。
+
 ## 2026-09-03：双机 integration 启动失败检测
 
 runner 在 producer 启动前检查远端 consumer 状态，异常时快速报错并清理 SSH 子进程；
