@@ -602,6 +602,17 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 
 ### 2026-09-03：P/D 重新回归与资源隔离修复
 
+### 2026-09-03：正式支持审计与双机 affinity 复验
+
+- 本机 Python `3.12.13` / CoreX 4.4 / vLLM `0.11.2` / Ray `2.52.1` /
+  PyTorch `2.7.1` 环境成功执行 `pip wheel . --no-deps --no-build-isolation`。
+- V1 transfer、placement 与 Manager 调度定向回归为 `44 passed, 10 skipped`；
+  单独 API/transfer 复验为 `46 passed`。
+- 本机与 `10.31.10.210` 对 KV-affinity probe 得到完全一致的 hash、affinity
+  (`0.5/1.0`) 与排序 (`candidate-b,candidate-a`)。
+- 修复 CoreX Ray worker context 返回空 node IP 时的 node-table 回退，确保跨机
+  `/instance_list` 可观测性不依赖 dashboard State API。
+
 - 真实 P/D 请求已到达两端 connector：producer 保存 KV、consumer 收到 metadata
   并执行 load。请求随后因 CoreX torch 的 `bfloat16.numpy()` 不支持而失败；已将
   ZMQ staging 改为 uint8 原始字节视图/声明 dtype 重建，并加入 BF16 跨端 round-trip

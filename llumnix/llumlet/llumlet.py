@@ -322,6 +322,17 @@ class Llumlet:
                 instance_info.node_ip = ray.get_runtime_context().get_node_ip_address()
             except (AttributeError, RuntimeError):
                 instance_info.node_ip = ""
+            # CoreX's Ray worker context can expose an empty address even
+            # though the control plane has the node manager address.  Keep
+            # topology observability usable for cross-host KV affinity/P-D
+            # deployments by falling back to the authoritative node table.
+            if not instance_info.node_ip:
+                for node in ray.nodes():
+                    if node.get("NodeID") == self.node_id:
+                        instance_info.node_ip = node.get(
+                            "NodeManagerAddress", ""
+                        )
+                        break
             self.backend_engine.update_instance_info(instance_info)
             instance_info.kv_endpoint = self.backend_engine.get_kv_endpoint()
         else:

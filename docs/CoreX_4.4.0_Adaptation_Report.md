@@ -130,6 +130,22 @@ connector 驱动的 P/D KV handoff 取代它们。
 
 ## 2026-09-03 P/D 兼容性回归（最新）
 
+### 正式支持审计补充（2026-09-03）
+
+当前本机正式环境为 Python `3.12.13`、vLLM `0.11.2`、Ray `2.52.1`、PyTorch
+`2.7.1`（CoreX 4.4）。`pip wheel . --no-deps --no-build-isolation` 成功生成
+`llumnix-0.0.2-py3-none-any.whl`。V1 transfer、placement、Manager 调度定向集
+为 **44 passed、10 skipped**；跳过项是依赖历史 async/旧 block-manager 的测试，
+不属于当前 V1 生产路径。
+
+同一提交在两台服务器重新运行 `cross_host_kv_affinity_probe.py`，两端输出逐字节
+一致：两个 `sha256_cbor` block hash 分别为
+`c9d58ba6...28ef071cb`、`24125b23...154ab2d6`，`candidate-a/b` affinity 为
+`0.5/1.0`，排序为 `candidate-b,candidate-a`。为使 API 实机拓扑信息在 CoreX Ray
+最小 worker context 中稳定可见，Llumlet 对空 `get_node_ip_address()` 增加 Ray
+node-table 的 `NodeManagerAddress` 回退；这不会改变调度决策，仅保证
+`/instance_list` 正确暴露实际跨主机位置。
+
 本次真实请求进一步暴露 CoreX PyTorch 的 `bfloat16.numpy()` 限制：producer 在
 保存 KV 时因 NumPy bridge 不支持 BF16 而退出。提交 `ae81d39` 将 staging wire
 protocol 改为 uint8 原始字节视图并按 dtype/shape 重建，新增 BF16 round-trip
