@@ -194,6 +194,9 @@ def test_v1_api_exposes_readiness_and_single_instance_topology():
     assert payload["gpu_count"] == 2
     assert payload["gpu_memory_total_bytes"] == 64
     assert payload["kv_cache_affinity_blocks"] == 1
+    assert payload["total_gpu_blocks_count"] == 0
+    assert payload["used_gpu_blocks_count"] == 0
+    assert payload["waiting_gpu_blocks_count"] == 0
 
 
 def test_main_api_validates_requests_and_preserves_public_request_id(monkeypatch):

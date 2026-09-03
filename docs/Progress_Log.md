@@ -1,5 +1,10 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：独立 V1 实例列表契约补齐
+
+`v1_api_server /instance_list` 新增 node 拓扑和兼容 GPU block 字段；V1 无旧 block
+manager 计数时明确返回 0，保持主 API schema。入口回归 **16 passed**。
+
 ## 2026-09-03：独立 V1 API 真实验收
 
 本机 Qwen3-14B 独立 V1 服务真实验证：`/is_ready=200`、`/instance_list=200`（32

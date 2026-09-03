@@ -59,10 +59,15 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
         engine.update_instance_info(info)
         return JSONResponse({"data": [{
             "instance_id": info.instance_id,
+            "node_id": getattr(info, "node_id", ""),
+            "node_ip": getattr(info, "node_ip", ""),
             "gpu_count": max(int(getattr(info, "gpu_count", 1)), 1),
             "request_count": info.num_running_requests + info.num_waiting_requests,
             "running_request_count": info.num_running_requests,
             "waiting_request_count": info.num_waiting_requests,
+            "total_gpu_blocks_count": info.num_total_gpu_blocks,
+            "used_gpu_blocks_count": info.num_used_gpu_blocks,
+            "waiting_gpu_blocks_count": info.num_blocks_all_waiting_requests,
             "gpu_memory_total_bytes": info.gpu_memory_total_bytes,
             "gpu_memory_free_bytes": info.gpu_memory_free_bytes,
             "compute_capacity": info.compute_capacity,

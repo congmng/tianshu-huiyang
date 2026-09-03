@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 独立 V1 `/instance_list` 契约完整性（2026-09-03）
+
+独立入口的实例列表现在补齐主 API 的兼容字段：`node_id`/`node_ip`、GPU block
+总数/已用数/等待数，以及已有的显存、GPU 数、算力、请求和 KV affinity 字段。
+V1 当前没有旧 block-manager 计数时以 0 返回，保持 JSON schema 稳定并避免客户端
+分支处理。入口测试仍为 **16 passed**。
+
 ## 独立 V1 API 真实 Qwen3-14B 验收（2026-09-03）
 
 在本机 CoreX 4.4/Python 3.12 上启动独立 `v1_api_server`（Qwen3-14B、TP=1、
