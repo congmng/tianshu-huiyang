@@ -535,3 +535,7 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 修复固定规模全局部署仍启动自动扩容循环的问题。`enable_scaling=False` 时不再
   创建额外 placement group，避免 GPU 不足时 pending PG 无界累积；现场清理 237 个
   残留 PG，Ray 状态恢复为无资源需求。该修复已提交并同步两机。
+- 修复全局固定规模入口依赖自动扩容创建初始副本的问题：新增幂等
+  `Manager.init_global_instances`，由 setup 显式创建初始 API/Llumlet 实例；并修正
+  CoreX Ray actor runtime-env 的提交方式，避免 raylet 内部兼容错误。Python 3.12
+  编译与 39 项 V1/KV/affinity 回归通过。

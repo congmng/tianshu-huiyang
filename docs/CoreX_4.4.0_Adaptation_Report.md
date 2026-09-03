@@ -543,6 +543,18 @@ V1 connector 回归通过。
 
 ## Ray State API 缺失时的全局部署降级（2026-09-03）
 
+## 全局固定实例显式初始化与 Ray actor 兼容（2026-09-03）
+
+关闭固定部署中的自动扩容循环后，进一步发现全局入口过去实际上依赖该循环来
+创建初始实例，导致 `enable_scaling=False` 时只启动 Manager 而没有 Llumlet。现已
+增加幂等的 `Manager.init_global_instances`，由全局 setup 显式创建配置数量的
+placement group、API actor 和 Llumlet；自动扩容仍只负责后续弹性副本。
+
+在 CoreX Ray 2.52 上验证 runtime-env API 时发现 actor 选项必须在同一次
+`ActorClass.options(...)` 调用中提交；当前实现将调度策略与受限 connector
+runtime-env 合并后一次提交，避免 raylet 内部兼容错误。Python 3.12 编译和
+V1/KV/affinity 回归已通过，真实双机重启需在清理旧 detached actor 后继续验收。
+
 CoreX 4.4.0 环境中的精简 Ray wheel 可能不包含 dashboard HTTP 服务。此前
 `Manager._auto_scale_up_loop` 在 placement-group 状态查询失败时会进入异常重试，
 使全局实例扩缩容无法继续。现已捕获 `ray.util.state.exception.ServerUnavailable`，
