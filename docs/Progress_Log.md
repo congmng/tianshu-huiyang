@@ -1,5 +1,11 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：多卡弹性扩缩容 pending 保护
+
+placement group 在 Llumlet 注册前现在计入本地 pending 集合，`max_instances`
+同时覆盖已注册与待注册实例；State API 不可用时复用待 ready 的 PG，避免每个
+扩缩容周期重复申请 GPU。新增回归测试覆盖“1 个已注册 + 1 个 pending”达到上限。
+
 ## 2026-09-03：State API 降级下 max_instances 修复
 
 - 修复 CoreX 精简 Ray 缺失 dashboard State API 时，自动扩缩容将存活 placement

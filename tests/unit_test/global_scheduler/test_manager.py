@@ -587,6 +587,20 @@ def test_state_api_fallback_uses_registered_instances_for_scale_cap():
     assert max(len(alive_pg_states), manager.num_instances) >= manager.max_instances
 
 
+def test_state_api_fallback_counts_pending_instances_for_scale_cap():
+    """A PG awaiting Llumlet registration must consume the scaling budget."""
+    manager = object.__new__(Manager)
+    manager.max_instances = 2
+    manager.instances = {"ready": object()}
+    manager._pending_instance_ids = {"pending"}
+    manager._state_api_available = False
+    alive_pg_states = []
+    assert max(
+        len(alive_pg_states),
+        len(manager.instances) + len(manager._pending_instance_ids),
+    ) >= manager.max_instances
+
+
 def test_global_manager_state_api_fallback_keeps_deployment_enabled():
     from llumnix.manager import Manager
 

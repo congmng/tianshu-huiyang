@@ -1,5 +1,11 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 多卡弹性扩缩容 pending 保护（2026-09-03）
+
+针对 CoreX 精简 Ray 缺失 State API 的场景，Manager 现在跟踪尚未完成 Llumlet
+注册的 placement group，并将其纳入 `max_instances` 上限；超时 PG 会在后续周期
+复用，避免重复申请多卡资源。新增单元回归验证注册实例与 pending 实例合计达到上限。
+
 ## CoreX 精简 Ray 下扩缩容上限修复（2026-09-03）
 
 CoreX Ray wheel 没有 dashboard State API 时，自动扩缩容循环会将 placement-group

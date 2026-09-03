@@ -162,6 +162,14 @@ class Manager:
         # instance states
         self.num_instances = 0
         self.instances: Dict[str, Llumlet] = {}
+        # A placement group is already capacity reserved before its Llumlet
+        # calls scale_up().  Track that gap locally because the CoreX Ray
+        # wheel can lack the optional dashboard State API.
+        self._pending_instance_ids = set()
+        # Retain the handle for asynchronously-created PGs too.  Without the
+        # State API there is no reliable way to look up a timed-out PG by
+        # name on the next scaling interval.
+        self._pending_placement_groups: Dict[str, PlacementGroup] = {}
         self.instance_migrating: Dict[str, bool] = {}
         self.pending_rebuild_migration_instances = 0
         # Global launches used to rely on the auto-scaling loop to create
@@ -473,6 +481,7 @@ class Manager:
             placement_group = self.launcher.init_placement_group(
                 get_placement_group_name(instance_id), engine_args, backend_type
             )
+            self._pending_instance_ids.add(instance_id)
             instance = self.launcher.init_instance(
                 instance_id,
                 instance_args,
@@ -511,6 +520,7 @@ class Manager:
                 init_server=True,
                 block=True,
             )
+            self._pending_instance_ids.add(instance_id)
             self.launcher.init_server_and_instance(
                 instance_id,
                 self.entrypoints_args,
@@ -693,6 +703,7 @@ class Manager:
         while True:
             try:
                 new_pg = None
+                new_instance_id = None
                 try:
                     if self._state_api_available and self.last_timeout_instance_id is not None:
                         last_timeout_pg_name = get_placement_group_name(
@@ -710,6 +721,12 @@ class Manager:
                 except ServerUnavailable:
                     self._disable_state_api_reconciliation()
                     self.last_timeout_instance_id = None
+                if not self._state_api_available and self._pending_placement_groups:
+                    # Resume the locally retained pending PG rather than
+                    # allocating another one every scaling interval.
+                    new_instance_id, new_pg = next(
+                        iter(self._pending_placement_groups.items())
+                    )
                 try:
                     if self._state_api_available:
                         pending_pg_states = list_placement_groups(
@@ -743,7 +760,15 @@ class Manager:
                     # list is intentionally empty. Manager's registered
                     # instances are the authoritative lower-bound instead;
                     # otherwise every interval would request another PG.
-                    and max(len(alive_pg_states), self.num_instances)
+                    # State API counts PGs cluster-wide, while the local
+                    # count covers the registered instances plus PGs still
+                    # awaiting Llumlet registration.  Use the larger value:
+                    # adding these counts would double-count the same PG on
+                    # full Ray installations.
+                    and max(
+                        len(alive_pg_states),
+                        len(self.instances) + len(self._pending_instance_ids),
+                    )
                     >= self.max_instances
                 ):
                     logger.debug(
@@ -760,6 +785,8 @@ class Manager:
                         init_server=True,
                         block=False,
                     )
+                    self._pending_instance_ids.add(new_instance_id)
+                    self._pending_placement_groups[new_instance_id] = new_pg
                 try:
                     await asyncio.wait_for(new_pg.ready(), WAIT_PLACEMENT_GROUP_TIMEOUT)
                 except asyncio.TimeoutError:
@@ -822,6 +849,8 @@ class Manager:
         no_pending_instance = self.pending_rebuild_migration_instances == 0
 
         for idx, ins_id in enumerate(instance_ids):
+            self._pending_instance_ids.discard(ins_id)
+            self._pending_placement_groups.pop(ins_id, None)
             if ins_id not in self.instances:
                 indeed_update = True
                 self.instances[ins_id] = instance_actor_handles[idx]
@@ -861,6 +890,8 @@ class Manager:
         no_pending_instance = self.pending_rebuild_migration_instances == 0
 
         for ins_id in instance_ids:
+            self._pending_instance_ids.discard(ins_id)
+            self._pending_placement_groups.pop(ins_id, None)
             self.launcher.clear_instance_ray_resources(ins_id)
             if ins_id in self.instances:
                 indeed_update = True
