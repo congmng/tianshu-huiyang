@@ -272,6 +272,36 @@ def test_corex_zmq_staging_round_trip_cpu_tensor():
         consumer.shutdown()
 
 
+def test_corex_zmq_staging_round_trip_bfloat16_tensor():
+    import time
+    import torch
+    from llumnix.backends.vllm.corex_p2p_connector import CoreXZmqP2pEngine
+
+    producer = CoreXZmqP2pEngine(
+        local_rank=0,
+        config=SimpleNamespace(kv_ip="127.0.0.1", kv_port=39111),
+    )
+    consumer = CoreXZmqP2pEngine(
+        local_rank=0,
+        config=SimpleNamespace(kv_ip="127.0.0.1", kv_port=39112),
+    )
+    try:
+        expected = torch.arange(12, dtype=torch.bfloat16).reshape(3, 4)
+        assert producer.send_tensor(
+            "bf16-round-trip#layer", expected, "127.0.0.1:39112"
+        )
+        deadline = time.monotonic() + 2
+        while "bf16-round-trip#layer" not in consumer.recv_store:
+            assert time.monotonic() < deadline
+            time.sleep(0.01)
+        torch.testing.assert_close(
+            consumer.recv_store["bf16-round-trip#layer"], expected
+        )
+    finally:
+        producer.shutdown()
+        consumer.shutdown()
+
+
 def test_corex_zmq_staging_send_timeout_without_peer():
     import pytest
     import torch

@@ -184,9 +184,21 @@ class CoreXZmqP2pEngine:
                 meta = msgpack.loads(packed)
                 if meta.get("cmd") != "PUT_CPU":
                     continue
-                tensor = torch.frombuffer(
-                    bytearray(payload), dtype=getattr(torch, meta["dtype"])
-                ).reshape(tuple(meta["shape"]))
+                dtype = getattr(torch, meta["dtype"])
+                # ``Tensor.numpy()`` does not support bfloat16 on the
+                # Python 3.12/CoreX torch build.  The wire format is raw
+                # bytes, so reconstruct through uint8 and reinterpret the
+                # storage as the declared dtype (works for all scalar types).
+                storage = torch.frombuffer(bytearray(payload), dtype=torch.uint8)
+                itemsize = torch.empty((), dtype=dtype).element_size()
+                expected_bytes = itemsize
+                for dim in tuple(meta["shape"]):
+                    expected_bytes *= int(dim)
+                if storage.numel() != expected_bytes:
+                    raise ValueError(
+                        f"payload size {storage.numel()} != expected {expected_bytes}"
+                    )
+                tensor = storage.view(dtype).reshape(tuple(meta["shape"]))
                 tensor_id = meta["tensor_id"]
                 with self.recv_store_cv:
                     self.recv_store[tensor_id] = tensor
@@ -226,7 +238,10 @@ class CoreXZmqP2pEngine:
             "dtype": str(cpu.dtype).replace("torch.", ""),
         }
         sock = self._socket(remote_address)
-        sock.send_multipart([msgpack.dumps(meta), cpu.numpy().tobytes()])
+        # Use a byte view instead of ``cpu.numpy()`` so bfloat16 tensors are
+        # supported by torch builds whose NumPy bridge lacks bfloat16.
+        payload = cpu.view(torch.uint8).numpy().tobytes()
+        sock.send_multipart([msgpack.dumps(meta), payload])
         try:
             response = sock.recv()
         except zmq.Again as exc:
