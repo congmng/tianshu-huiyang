@@ -159,6 +159,11 @@ class _RawRequest(_Request):
         return ["not", "an", "object"]
 
 
+class _DisconnectedRequest(_Request):
+    async def is_disconnected(self):
+        return True
+
+
 class _LegacyClient:
     def __init__(self):
         self.calls = []
@@ -218,6 +223,16 @@ def test_v1_benchmark_endpoint_returns_latency_contract():
     assert payload["generated_text"] == " world"
     assert payload["num_input_tokens"] == 3
     assert isinstance(payload["per_token_latency"], list)
+
+
+def test_v1_benchmark_aborts_on_client_disconnect():
+    engine = _Engine()
+    endpoint = _route(build_app(engine), "/generate_benchmark", "POST")
+    response = asyncio.run(endpoint(_DisconnectedRequest({
+        "prompt": "hello", "request_id": "disconnect-id", "max_tokens": 1,
+    })))
+    assert response.status_code == 499
+    assert ("abort", "disconnect-id") in engine.calls
 
 
 def test_main_api_validates_requests_and_preserves_public_request_id(monkeypatch):

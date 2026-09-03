@@ -164,6 +164,9 @@ def build_app(engine: V1EngineAdapter) -> FastAPI:
         results = engine.generate(prompt, params, request_id)
         try:
             async for output in results:
+                if await request.is_disconnected():
+                    await engine.abort(request_id)
+                    return Response(status_code=499)
                 now = time.monotonic()
                 timestamps.append([now, (now - started) * 1000.0])
                 final = output

@@ -1,5 +1,10 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：Benchmark 断连生命周期测试
+
+`/generate_benchmark` 增加客户端断连检测，执行 V1 abort 并返回 499；新增集成回归，
+独立入口测试 **18 passed**。
+
 ## 2026-09-03：V1 benchmark 输入 token 统计
 
 `/generate_benchmark` 现读取 V1 `prompt_token_ids` 返回真实输入 token 数，恢复

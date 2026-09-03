@@ -1,5 +1,11 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## Benchmark 客户端断连清理（2026-09-03）
+
+`/generate_benchmark` 现在在每个 V1 输出事件前检查客户端连接；断连时立即调用
+adapter abort 并返回 HTTP 499，正常结束仍执行 request release。新增断连集成回归，
+入口测试提升为 **18 passed**，覆盖 benchmark 正常响应与异常生命周期。
+
 ## V1 benchmark 输入 token 统计修复（2026-09-03）
 
 `/generate_benchmark` 现在从 V1 `RequestOutput.prompt_token_ids` 计算真实
