@@ -4,6 +4,10 @@
 > 输出与本机一致。P/D 服务占用共享两张 GPU 时，全量 Ray 单元套件会因 fixture
 > 资源等待而阻塞；已主动终止该运行以保护验收服务，不将资源竞争误记为代码失败。
 > V1/KV/调度定向套件保持 **50 passed**；完整套件应在隔离 Ray head 上运行。
+> 本轮停止了验收用的 Llumnix serve/Llumlet 以释放两张 GPU；共享 Ray head 本身未被
+> 停止。即使 GPU 已空闲，全量套件仍会自动复用该共享 runtime 中遗留的 APIServer/
+> Queue actor 并在 fixture 初始化等待，因此完整测试需要使用全新的独立 Ray 地址，
+> 而非仅释放 GPU。
 
 ## 当前提交双机 P/D 复验（2026-09-03）
 

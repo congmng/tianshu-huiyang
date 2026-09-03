@@ -6,6 +6,9 @@
 - 在真实 P/D 服务占用两张 GPU 时运行全量 Ray 单元套件会因 fixture 等待共享 GPU
   资源而无进展；为保护运行中的验收服务已终止该测试。该现象是资源竞争，不是
   断言失败。V1/KV/调度定向回归保持 **50 passed**；完整套件需隔离 Ray head。
+- 随后停止验收用 serve/Llumlet（未停止共享 Ray head）并释放两张 GPU 后重试，
+  全量套件仍自动复用共享 runtime 的遗留 APIServer/Queue actor 而阻塞。因此完整
+  回归的前置条件是新建独立 Ray 地址与干净 namespace，不是单纯释放 GPU。
 
 ## 2026-09-03：当前提交双机 P/D KV handoff 复验通过
 
