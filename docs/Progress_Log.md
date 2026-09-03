@@ -1,5 +1,16 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：当前提交双机 P/D KV handoff 复验通过
+
+- 清理历史 detached Manager/actor 后，共享 Ray `10.31.10.62:6408` 重新以两
+  个 TP=1 Qwen3-14B 实例启动：decode 在 `10.31.10.62`，prefill 在
+  `10.31.10.210`。
+- `/instance_list` 正确显示两个节点及 connector endpoint：
+  `10.31.10.62:14579`、`10.31.10.210:14579`。短中文请求返回 HTTP 200 和非空文本。
+- 两端 EngineCore 日志确认 producer/consumer 使用同一 P/D request ID，并携带
+  两端地址；consumer 与 producer 的 metadata/load 路径均触发。该项是当前提交
+  在 Python 3.12/CoreX 4.4/vLLM 0.11.2 上的最新模型级跨机 KV handoff 证据。
+
 ## 2026-09-03：多卡部署前置条件与支持门禁复核
 
 - 复核共享 Ray 集群 `10.31.10.62:6408`：两节点、8 CPU、2 GPU，当前正确的

@@ -1,5 +1,16 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 当前提交双机 P/D 复验（2026-09-03）
+
+在清理历史 detached Manager/actor 且两张 GPU 均空闲后，以当前提交启动共享
+Ray 集群 `10.31.10.62:6408` 的两个 TP=1 Qwen3-14B 实例。`/instance_list`
+确认 decode 位于 `10.31.10.62`、prefill 位于 `10.31.10.210`，并分别发布
+`10.31.10.62:14579` 与 `10.31.10.210:14579` connector endpoint。发送短中文
+请求后，HTTP `/generate` 返回 200 和非空文本；两端 EngineCore 日志记录同一
+P/D request ID，同时包含 decode/prefill 两端地址，consumer metadata/load 与
+producer metadata/load 均被触发。该结果是当前 Python 3.12/CoreX 4.4/vLLM
+0.11.2 代码的最新模型级跨机 KV handoff 证据。
+
 ## Llumnix V1 TP=2 本机双卡基础验证（2026-09-03）
 
 在隔离的单机 Ray head（2 GPU）上启动 Llumnix global serve，使用本地
