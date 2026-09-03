@@ -338,7 +338,9 @@ class Llumlet:
                         )
                         break
             self.backend_engine.update_instance_info(instance_info)
-            instance_info.kv_endpoint = self.backend_engine.get_kv_endpoint()
+            instance_info.kv_endpoint = self.backend_engine.get_kv_endpoint(
+                instance_info.node_ip or None
+            )
         else:
             instance_info: InstanceInfo = self.backend_engine.engine.instance_info
         instance_info.instance_type = self.instance_args.instance_type

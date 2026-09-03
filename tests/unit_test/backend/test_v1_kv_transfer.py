@@ -512,6 +512,20 @@ def test_v1_adapter_uses_explicit_vllm_kv_ip(monkeypatch):
     assert adapter.get_kv_endpoint() == "10.31.10.62:19052"
 
 
+def test_v1_adapter_prefers_ray_actor_node_for_default_advertisement(monkeypatch):
+    """A remote Llumlet must not publish the global serve driver's address."""
+    from llumnix.backends.vllm.v1_engine import V1EngineAdapter
+
+    adapter = object.__new__(V1EngineAdapter)
+    adapter.engine_args = SimpleNamespace(
+        kv_transfer_config=SimpleNamespace(
+            kv_connector="P2pNcclConnector", kv_ip="10.31.10.62", kv_port=19052
+        )
+    )
+    monkeypatch.delenv("LLUMNIX_KV_IP", raising=False)
+    assert adapter.get_kv_endpoint("10.31.10.210") == "10.31.10.210:19052"
+
+
 def test_pd_producer_sampling_stops_after_handoff():
     from llumnix.backends.vllm.v1_kv_transfer import producer_sampling_params
 

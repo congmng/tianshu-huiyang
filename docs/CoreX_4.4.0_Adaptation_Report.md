@@ -16,6 +16,14 @@ Llumnix global API 的基础多卡功能；跨实例 P/D KV handoff 仍按本文
 
 ## TP=2 多卡适配增量（2026-09-03）
 
+### 跨机 P/D Ray actor endpoint 归属修复（2026-09-03）
+
+V1 connector endpoint 现在优先使用 Llumlet 所在 Ray 节点的实际地址，而不是全局
+serve driver 或可能从另一台机器继承的 `kv_ip`。显式 `LLUMNIX_KV_IP` 仍可覆盖，
+用于多网卡部署。这样当 driver 在 `10.31.10.62`、actor 在 `10.31.10.210` 时，
+远端 actor 会正确发布 `10.31.10.210:<port>`，保证 P/D request-id 路由可达。
+对应 connector/serve 回归为 **33 passed**。
+
 两节点真实 GPU 探针已分别在 `10.31.10.62` 与 `10.31.10.210` 的 BI-V150 上
 执行成功，Ray 能将任务分配到两台 Python 3.12/CoreX 设备并返回一致计算结果。
 针对 TP>1 的 V1 部署，修复了 CPU Manager actor 调用 vLLM `create_engine_config()`

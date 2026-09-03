@@ -19,6 +19,15 @@
   block-manager 任意时刻 request migration 不适用于 V1，native NCCL 仍为非默认
   诊断路径。
 
+## 2026-09-03：跨机 P/D Ray actor endpoint 归属修复
+
+- V1 adapter 现在优先接收 Llumlet 从 Ray node table 获得的实际 node IP，避免全局
+  serve driver 与远端 actor 分属不同主机时错误发布 driver 的 connector 地址。
+- `LLUMNIX_KV_IP` 保持最高优先级，供多网卡部署显式指定；未设置时使用 actor 节点
+  地址，再回退 connector/hostname 值。
+- 新增跨主机 endpoint 单测（driver `10.31.10.62`、actor `10.31.10.210`），
+  V1 connector 与 serve 回归 **33 passed**。
+
 ## 2026-09-03：Llumnix V1 TP=2 本机双卡基础推理通过
 
 - 在不影响现有两机 `10.31.10.62:6408` P/D 集群的隔离 Ray head

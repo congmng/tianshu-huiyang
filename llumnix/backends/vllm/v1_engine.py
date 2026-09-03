@@ -140,7 +140,7 @@ class V1EngineAdapter:
             self.release_request(request_id)
             raise
 
-    def get_kv_endpoint(self) -> str | None:
+    def get_kv_endpoint(self, advertise_host: str | None = None) -> str | None:
         """Return this connector's routable host:port endpoint.
 
         P2pNcclEngine binds one port per KV rank.  An explicit environment
@@ -150,7 +150,15 @@ class V1EngineAdapter:
         config = getattr(self.engine_args, "kv_transfer_config", None)
         if not p2p_connector_enabled(self.engine_args) or config is None:
             return None
-        host = os.getenv("LLUMNIX_KV_IP") or getattr(config, "kv_ip", None)
+        # The EngineCore is created inside a Ray Llumlet actor.  When the
+        # global serve driver runs on a different host, its hostname (or a
+        # stale connector default copied from it) is not a valid advertised
+        # endpoint for this actor.  Prefer the authoritative Ray node address
+        # supplied by Llumlet, while retaining an explicit per-node override
+        # for multi-NIC deployments.
+        host = os.getenv("LLUMNIX_KV_IP") or advertise_host or getattr(
+            config, "kv_ip", None
+        )
         if not host or host in {"0.0.0.0", "127.0.0.1"}:
             try:
                 host = socket.gethostbyname(socket.gethostname())
