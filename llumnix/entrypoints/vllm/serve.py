@@ -1,4 +1,5 @@
 
+import os
 import time
 from ray.util.queue import Queue as RayQueue
 
@@ -28,8 +29,17 @@ if __name__ == "__main__":
     backend_type = BackendType.VLLM if not instance_args.simulator_mode else BackendType.SIM_VLLM
     launch_args = LaunchArgs(launch_mode=LaunchMode.GLOBAL, backend_type=backend_type)
 
-    # Assume that there is an existing ray cluster when using centralized deployment.
-    connect_to_ray_cluster()
+    # Centralized launch must join the caller-selected cluster.  Calling
+    # ``ray.init()`` without an address can create a second local Ray runtime
+    # beside the cross-host head, which makes the State API ambiguous and
+    # prevents P/D placement.  Reuse the same explicit address contract as
+    # the local API entrypoint.
+    connect_to_ray_cluster(
+        head_node_ip=os.getenv("HEAD_NODE_IP"),
+        port=entrypoints_args.ray_cluster_port,
+        namespace="llumnix",
+        log_to_driver=not entrypoints_args.disable_log_to_driver,
+    )
 
     # magic actor to avoid fast api server actor initialization error
     request_output_queue = RayQueue(actor_options={"namespace": "llumnix",

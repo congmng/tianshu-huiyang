@@ -1,5 +1,13 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 全局 P/D 启动的既有 Ray 集群连接（2026-09-03）
+
+全局 `serve` 入口此前不传地址调用 `ray.init()`，可能在已有两机 head 旁创建
+第二个本机 runtime，令 Ray State API 无法选择集群并阻断 P/D 编排。现在入口
+显式连接 `HEAD_NODE_IP:ray_cluster_port`，并由回归测试覆盖。使用已有集群的
+全局启动还必须传 `--no-launch-ray-cluster`；该修复消除了 P/D connector 验收前的
+控制面歧义。
+
 ## V1 P/D endpoint 跨机修复（2026-09-02）
 
 V1 KV-transfer 配置不再在未设置环境变量时默认使用 `127.0.0.1`；配置器会

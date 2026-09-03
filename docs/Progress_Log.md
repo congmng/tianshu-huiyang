@@ -1,5 +1,14 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-03：全局 P/D 启动连接修复
+
+- P/D 首次启动发现 `llumnix.entrypoints.vllm.serve` 在全局模式下未指定地址调用
+  `ray.init()`，会额外创建本机 Ray runtime，使 `State API` 报 multiple active
+  Ray instances，阻断实例编排。这是入口连接问题，不是 connector 数据面错误。
+- `serve` 现显式使用 `HEAD_NODE_IP` 和 `--ray-cluster-port` 连接既有 head，行为
+  与主 API 入口一致；新增 AST 回归测试避免退化。后续 P/D 启动必须同时使用
+  `--no-launch-ray-cluster`，防止默认配置重建集群。
+
 ## 2026-09-02：V1 P/D connector 默认地址修复
 
 - 修复 `configure_v1_kv_transfer` 在跨机部署中的默认地址：此前无
