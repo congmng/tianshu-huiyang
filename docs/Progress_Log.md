@@ -1,5 +1,11 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-04：V1 自动扩缩容故障窗口保护
+
+补强 `ScalingScheduler` 在 CoreX Ray actor 故障/缩容期间的快照一致性：instance
+membership 与 `InstanceInfo` 短暂不同步时不再触发 KeyError，也不会基于空或陈旧快照
+错误扩缩容。新增空快照、stale instance 回归，并纳入统一 unit gate。
+
 ## 2026-09-04：CoreX 厂商运行时支持门禁
 
 扩展 `corex44_support_check.py` 的只读检查：除 Python/vLLM/PyTorch/Ray 版本、源码

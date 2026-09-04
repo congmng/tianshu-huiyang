@@ -248,3 +248,15 @@ def test_v1_scaling_flag_is_not_rejected_by_legacy_validation():
     ManagerArgs.add_cli_args(parser)
     args = ManagerArgs(enable_scaling=True, min_instances=1, max_instances=2)
     ManagerArgs.check_args(args, parser)
+
+
+def test_scaling_scheduler_ignores_empty_or_stale_instance_snapshots():
+    from llumnix.global_scheduler.scaling_scheduler import ScalingScheduler
+
+    scheduler = ScalingScheduler(10, 60, "avg_load", "virtual_usage", False)
+    scheduler.num_instances = 1
+    scheduler.instance_id_set = {"gone"}
+    scheduler.update_instance_infos({})
+    assert scheduler.check_scale() == (0, 0)
+    scheduler.update_instance_infos({"other": InstanceInfo(instance_id="other")})
+    assert scheduler.check_scale() == (0, 0)

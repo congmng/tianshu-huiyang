@@ -48,9 +48,17 @@ class ScalingScheduler:
         scale_up_num = 0
         scale_down_num = 0
         # if not all instances have returned instance_info, not scale
+        if not self.instance_info or self.num_instances == 0:
+            return scale_up_num, scale_down_num
         if len(self.instance_info.keys()) < self.num_instances:
             return scale_up_num, scale_down_num
-        now_instances = [self.instance_info[instance_id] for instance_id in self.instance_id_set]
+        now_instances = [
+            self.instance_info[instance_id]
+            for instance_id in self.instance_id_set
+            if instance_id in self.instance_info
+        ]
+        if len(now_instances) < self.num_instances:
+            return scale_up_num, scale_down_num
         load_metric_up = self.scaling_policy.compute_load_metric_up(now_instances)
         load_metric_down = self.scaling_policy.compute_load_metric_down(now_instances)
         if load_metric_up > self.scale_up_threshold:

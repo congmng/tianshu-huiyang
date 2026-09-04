@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 自动扩缩容故障窗口保护（2026-09-04）
+
+CoreX 精简 Ray 下 actor 故障、scale-down 与 info polling 可能短暂交错。V1
+`ScalingScheduler` 现在对空快照及 membership/info 不一致显式返回“不扩缩容”，避免
+后台协程因 KeyError 退出或使用陈旧显存/虚拟负载作出错误决策；相关回归已纳入统一
+CoreX unit 门禁。
+
 ## CoreX 厂商运行时门禁（2026-09-04）
 
 正式支持检查现在不只依赖 Python 包版本。它在不分配模型/GPU 工作负载的前提下读取
