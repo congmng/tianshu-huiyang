@@ -9,6 +9,13 @@ Prefill/Decode 角色选择收敛为 `_select_v1_pd_instances`，继续调用生
 请求 prefix 命中缓存的实例会分别被选中；定向 Manager + dispatch 集为 **13 passed**。
 该测试已纳入统一 `unit` gate。
 
+同一源码提交随后完成三层复验：统一 unit 为 **69 passed**；`10.31.10.62` 与
+`10.31.10.210` 的 support/source gate 均通过（fingerprint
+`46a2e367...91c4ea01`），跨机实际发送 16 个 `BlockStored` event 后远端得到
+`affinity=1.0` 和 `remote-cached` 优先排序，BF16 GPU staging `(4,4)` 传输也通过。
+本机 Qwen3-14B TP=2 E2E 再次完成 NCCL rank 0/1、8 个权重分片、KV cache 初始化和
+非空中文生成，耗时 **26.11 s**。
+
 ## 2026-09-04：双机 KV-affinity / BF16 集成复验
 
 在 `10.31.10.62` 与 `10.31.10.210` 重新执行分层 integration gate。两端 Python

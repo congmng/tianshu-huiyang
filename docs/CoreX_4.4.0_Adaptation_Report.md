@@ -8,6 +8,10 @@ Decode 两个受限候选池分别调用生产 `DispatchScheduler.dispatch_candi
 Prefill 和两个 Decode 实例，在每个池负载差不超过 `0.10` 时验证拥有请求 prefix
 的实例被选中，并验证 Decode-only 实例仍不进入普通 dispatch。该门禁已纳入
 `tools/run_corex44_validation.py unit`，当前统一结果为 **69 passed**。
+随后以同一提交实测双机 integration 与本机 TP=2 Qwen3-14B E2E：两端源码
+fingerprint 为 `46a2e3673016d06d059aa8df963817c4aa7c3e04f4b37fce43730a5e91c4ea01`，
+16 个真实 vLLM KV events 使远端缓存候选获得 `affinity=1.0`，BF16 `(4,4)` staging
+KV transfer 成功；TP=2 完成 NCCL ranks、模型/KV 初始化并生成非空中文输出（26.11 s）。
 
 ## 最新分层 Unit 回归基线（2026-09-03）
 
