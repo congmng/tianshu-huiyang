@@ -187,6 +187,7 @@ class Manager:
         # failed role is being replaced. Keep this separate from routed
         # requests so HTTP disconnect/abort can cancel that pre-dispatch wait.
         self._waiting_pd_request_ids: set[str] = set()
+        self._pd_wait_events: Dict[str, asyncio.Event] = {}
 
         # migration states
         self.num_instance_info_updates = 0
@@ -254,14 +255,35 @@ class Manager:
         *args,
         **kwargs,
     ) -> None:
+        pd_v1 = self.is_vllm_v1 and self.enable_pd_disagg
+        if pd_v1:
+            waiting_pd_requests = getattr(self, "_waiting_pd_request_ids", None)
+            if waiting_pd_requests is None:
+                self._waiting_pd_request_ids = waiting_pd_requests = set()
+            if not hasattr(self, "_pd_wait_events"):
+                self._pd_wait_events = {}
+            waiting_pd_requests.add(request_id)
+            wait_event = self._pd_wait_events.setdefault(request_id, asyncio.Event())
         while self.num_instances == 0:
+            if pd_v1 and request_id not in self._waiting_pd_request_ids:
+                logger.info("V1 P/D request %s cancelled while no instances are registered", request_id)
+                self._pd_wait_events.pop(request_id, None)
+                return
             logger.warning(
                 "No instance available now, sleep {}s, "
                 "and regenerate request {}.".format(
                     NO_INSTANCE_RETRY_GENERATE_INTERVAL, request_id
                 )
             )
-            await asyncio.sleep(NO_INSTANCE_RETRY_GENERATE_INTERVAL)
+            if pd_v1:
+                try:
+                    await asyncio.wait_for(
+                        wait_event.wait(), NO_INSTANCE_RETRY_GENERATE_INTERVAL
+                    )
+                except asyncio.TimeoutError:
+                    pass
+            else:
+                await asyncio.sleep(NO_INSTANCE_RETRY_GENERATE_INTERVAL)
 
         # V1 prompt token hashes are intentionally optional: normal requests
         # retain the established load/queue policies, while callers that have
@@ -290,14 +312,9 @@ class Manager:
                         break
                 except (ray.exceptions.RayActorError, AttributeError):
                     continue
-        pd_v1 = self.is_vllm_v1 and self.enable_pd_disagg
         prefill_id = decode_id = None
         if pd_v1:
             prefill_id, decode_id = self._select_v1_pd_instances(block_hashes)
-            waiting_pd_requests = getattr(self, "_waiting_pd_request_ids", None)
-            if waiting_pd_requests is None:
-                self._waiting_pd_request_ids = waiting_pd_requests = set()
-            waiting_pd_requests.add(request_id)
             while prefill_id is None or decode_id is None:
                 # A P/D deployment can briefly lose an entire role while Ray
                 # replaces a failed actor.  Do not fall through to ordinary
@@ -308,16 +325,28 @@ class Manager:
                     "V1 P/D role pool incomplete for request %s; retrying in %ss",
                     request_id, NO_INSTANCE_RETRY_GENERATE_INTERVAL,
                 )
-                await asyncio.sleep(NO_INSTANCE_RETRY_GENERATE_INTERVAL)
+                try:
+                    await asyncio.wait_for(
+                        wait_event.wait(), NO_INSTANCE_RETRY_GENERATE_INTERVAL
+                    )
+                except asyncio.TimeoutError:
+                    pass
+                if wait_event.is_set():
+                    self._waiting_pd_request_ids.discard(request_id)
+                    self._pd_wait_events.pop(request_id, None)
+                    return
                 if request_id not in self._waiting_pd_request_ids:
                     logger.info("V1 P/D request %s cancelled while waiting for roles", request_id)
+                    self._pd_wait_events.pop(request_id, None)
                     return
                 prefill_id, decode_id = self._select_v1_pd_instances(block_hashes)
             # Abort may race with the final role-pool refresh. Do not submit
             # either half of a P/D pair after the public request was cancelled.
             if request_id not in self._waiting_pd_request_ids:
+                self._pd_wait_events.pop(request_id, None)
                 return
             self._waiting_pd_request_ids.discard(request_id)
+            self._pd_wait_events.pop(request_id, None)
         if prefill_id is None:
             instance_id, request_expected_steps = self.global_scheduler.dispatch(block_hashes)
         else:
@@ -459,6 +488,9 @@ class Manager:
         # Removing the ID is the cancellation signal observed by ``generate``.
         for req_id in request_ids:
             getattr(self, "_waiting_pd_request_ids", set()).discard(req_id)
+            event = getattr(self, "_pd_wait_events", {}).get(req_id)
+            if event is not None:
+                event.set()
         instance_requests = defaultdict(list)
         for req_id in request_ids:
             # Requests will be free by instance when finished, so it is acceptable to miss aborted requests.

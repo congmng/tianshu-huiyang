@@ -388,6 +388,24 @@ def test_manager_abort_removes_pd_role_waiter_without_actor_abort():
     assert manager._waiting_pd_request_ids == set()
 
 
+def test_manager_pd_waiter_can_cancel_before_first_instance_registers():
+    manager = object.__new__(Manager)
+    manager.is_vllm_v1 = True
+    manager.enable_pd_disagg = True
+    manager.num_instances = 0
+    manager._waiting_pd_request_ids = set()
+    manager.request_instance = {}
+    manager.request_instances = {}
+    async def scenario():
+        task = asyncio.create_task(manager.generate("early", None))
+        await asyncio.sleep(0)
+        assert "early" in manager._waiting_pd_request_ids
+        await manager.abort("early")
+        await asyncio.wait_for(task, timeout=1.0)
+    asyncio.run(scenario())
+    assert "early" not in manager._waiting_pd_request_ids
+
+
 def test_pd_state_check_does_not_treat_no_constraints_as_prefill():
     """Role recovery must not infer P/D types from dispatch eligibility."""
     manager = object.__new__(Manager)
