@@ -1,5 +1,17 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-04：双机 KV-affinity / BF16 集成复验
+
+在 `10.31.10.62` 与 `10.31.10.210` 重新执行分层 integration gate。两端 Python
+`3.12.13`、vLLM `0.11.2`、PyTorch `2.7.1`、Ray `2.52.1` 和适配源码 fingerprint
+一致并通过支持检查。真实 vLLM `BlockStored` 事件经 SSH reverse tunnel 在远端重建
+affinity index，得到 `affinity=1.0`、排序 `remote-cached, local-empty`，共发送 16
+个事件；随后真实 CoreX GPU BF16 staging 传输通过（shape `(4, 4)`、均值 `7.5`）。
+
+integration 最后执行的统一单测首次遇到 ZMQ replay 临时端口被并发进程抢占，属端口
+探测后的瞬态 TOCTOU 竞争而非功能错误。测试已在 publisher 实际 bind 失败时重试临时
+端口，复跑 `python tools/run_corex44_validation.py unit` 为 **68 passed**。
+
 ## 2026-09-03：最新分层 Unit 回归
 
 ## 2026-09-04：全量 Python 3.12/CoreX 回归基线

@@ -100,20 +100,33 @@ def test_vllm_zmq_replay_rebuilds_affinity_index():
     )
     from llumnix.backends.vllm.v1_kv import KVEventSubscriber
 
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        pub_port = probe.getsockname()[1]
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        replay_port = probe.getsockname()[1]
-    endpoint = f"tcp://*:{pub_port}"
-    replay_endpoint = f"tcp://*:{replay_port}"
-    publisher = EventPublisherFactory.create(KVEventsConfig(
-        enable_kv_cache_events=True,
-        publisher="zmq",
-        endpoint=endpoint,
-        replay_endpoint=replay_endpoint,
-    ))
+    # Port probing has a small TOCTOU window (another Ray/ZMQ test may claim
+    # the port after the probe socket closes).  Retry the complete publisher
+    # bind instead of making the suite fail on transient EADDRINUSE.
+    publisher = None
+    endpoint = replay_endpoint = None
+    for _ in range(10):
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            pub_port = probe.getsockname()[1]
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            replay_port = probe.getsockname()[1]
+        endpoint = f"tcp://*:{pub_port}"
+        replay_endpoint = f"tcp://*:{replay_port}"
+        try:
+            publisher = EventPublisherFactory.create(KVEventsConfig(
+                enable_kv_cache_events=True,
+                publisher="zmq",
+                endpoint=endpoint,
+                replay_endpoint=replay_endpoint,
+            ))
+            break
+        except Exception:
+            if publisher is not None:
+                publisher.shutdown()
+            publisher = None
+    assert publisher is not None, "unable to bind temporary ZMQ publisher ports"
     block_hash = b"vllm-replay-block-hash"
     publisher.publish(KVEventBatch(
         ts=time.time(),

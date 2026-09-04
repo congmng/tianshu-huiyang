@@ -23,7 +23,9 @@ TP=2 generation.
 
 The integration runner allocates ephemeral ports and cleans its SSH child on
 failure. It never runs `ray stop`, deletes model weights, or removes `.ray-*`
-directories. Use `--dry-run` to inspect commands without allocating GPUs.
+directories. The replay-event unit test also retries publisher binds to absorb
+the unavoidable probe-to-bind race when an unrelated local ZMQ/Ray process
+claims an ephemeral port. Use `--dry-run` to inspect commands without allocating GPUs.
 
 The legacy vLLM 0.6 block-manager migration tests are intentionally excluded
 from this V1 gate because those private APIs do not exist in vLLM 0.11.2. V1
