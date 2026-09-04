@@ -1024,6 +1024,12 @@ ZMQ `BlockStored` 事件跨机传递 16 次，远端 consumer 重建索引并报
 
 ## P/D 的 KV-cache-aware 选址（2026-09-04）
 
+为防止双机某一端仍运行旧 P/D 选址/abort 编排代码，CoreX support gate 的源码
+指纹范围已纳入 `llumnix/manager.py`。实测门禁先正确拒绝不同 fingerprint，archive
+同步后两端 `source_fingerprint=35b8b868...018868a78`、`supported=true`。因此后续
+双机 KV-event/P/D 集成在启动前能够确认 Manager 逻辑一致，而不仅验证 connector
+和 affinity primitives。
+
 补充修复 Decode-only 实例的调度记账：Decode 角色不加入普通 dispatch 集合时，首次
 通过 `dispatch_candidates` 选中可能不存在计数键；现在受限角色池选择使用默认零值
 幂等累加，确保 P/D 负载统计稳定。dispatch scheduler 回归 `11 passed`，统一

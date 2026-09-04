@@ -18,6 +18,13 @@ runner 在 producer 启动前检查远端 consumer 状态，异常时快速报�
 
 ## 2026-09-03：双机源码指纹门禁
 
+## 2026-09-04：P/D Manager 源码一致性门禁
+
+支持门禁的 SHA256 范围纳入 `llumnix/manager.py`，使 V1 P/D affinity 角色池选址、
+双请求编排和 abort fan-out 都不再是未校验的远端差异。实测先检测到远端指纹漂移并
+拒绝，通过 archive 同步当前源码后两端恢复相同指纹
+`35b8b868...018868a78` 与 `supported=true`。统一 unit runner 同时为 `68 passed`。
+
 支持检查新增关键 V1/KV/CoreX/调度源码 SHA256 指纹比较；首次运行发现远端漂移并
 正确拒绝，完成同步后两端指纹为 `90c9c87e...f574603d`，双机门禁恢复
 `supported=true`，单测 **6 passed**。
