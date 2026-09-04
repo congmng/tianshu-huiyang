@@ -148,6 +148,18 @@ def test_dispatch_candidates_applies_kv_affinity_inside_pd_role_pool():
     scheduler.instance_num_requests = {instance_id: 0 for instance_id in scheduler.instance_info}
     assert scheduler.dispatch_candidates(("prefill-cached", "prefill-empty"), [b"prefix"]) == "prefill-cached"
 
+
+def test_dispatch_candidates_accounts_for_decode_only_pd_instance():
+    """Decode is not in the normal dispatch set but must remain selectable."""
+    scheduler = init_dispatch_scheduler('load')
+    decode = InstanceInfo(instance_id="decode-cached", dispatch_load_metric=0.02,
+                          kv_cache_block_hashes=frozenset({b"prefix"}))
+    scheduler.instance_info = {decode.instance_id: decode}
+    scheduler.available_dispatch_instance_set = set()
+    scheduler.instance_num_requests = {}
+    assert scheduler.dispatch_candidates((decode.instance_id,), [b"prefix"]) == decode.instance_id
+    assert scheduler.instance_num_requests == {decode.instance_id: 1}
+
 def test_dispatch_queue():
     num_tests = 100
     instance_num = 4

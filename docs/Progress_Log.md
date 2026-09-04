@@ -2,6 +2,12 @@
 
 ## 2026-09-03：最新分层 Unit 回归
 
+## 2026-09-04：Decode-only P/D 调度记账修复
+
+`dispatch_candidates` 对不在普通 dispatch 集合中的 Decode 实例使用默认零值幂等
+累加，避免首次 P/D 选址因计数键缺失失败。dispatch scheduler 回归 `11 passed`，
+统一 CoreX V1 unit runner `68 passed`。
+
 当前源码执行 `run_corex44_validation.py unit` 为 **68 passed**，覆盖 V1 API/
 benchmark、KV transfer/affinity、调度、支持门禁和 integration runner 契约。
 

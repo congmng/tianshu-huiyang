@@ -1024,6 +1024,11 @@ ZMQ `BlockStored` 事件跨机传递 16 次，远端 consumer 重建索引并报
 
 ## P/D 的 KV-cache-aware 选址（2026-09-04）
 
+补充修复 Decode-only 实例的调度记账：Decode 角色不加入普通 dispatch 集合时，首次
+通过 `dispatch_candidates` 选中可能不存在计数键；现在受限角色池选择使用默认零值
+幂等累加，确保 P/D 负载统计稳定。dispatch scheduler 回归 `11 passed`，统一
+CoreX V1 unit runner 仍为 `68 passed`。
+
 此前 V1 P/D 编排会在 Prefill 和 Decode 角色池中分别选择最小负载实例，而普通
 请求才使用 KV affinity。这会使已从双机 `BlockStored` 事件得到的缓存信息没有参与
 P/D 请求的实际选址。现在 `DispatchScheduler.dispatch_candidates` 提供受限候选池的

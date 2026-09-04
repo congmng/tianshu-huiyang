@@ -86,7 +86,13 @@ class DispatchScheduler:
             dispatch_instance_id = self.dispatch_policy.dispatch(self.instance_num_requests,
                                                                  available,
                                                                  self.topk_random_dispatch)
-        self.instance_num_requests[dispatch_instance_id] += 1
+        # Decode-only P/D instances intentionally do not join the regular
+        # dispatch set, so they may not have a counter until selected through
+        # ``dispatch_candidates``. Keep P/D accounting independent from that
+        # legacy registration detail.
+        self.instance_num_requests[dispatch_instance_id] = (
+            self.instance_num_requests.get(dispatch_instance_id, 0) + 1
+        )
         if self.total_num_requests % DISPATCH_LOG_FREQUENCY == 0:
             logger.info("dispatch scheduler total_dispatched_requests: {}".format(self.total_num_requests))
             for instance_id, num_requests in self.instance_num_requests.items():
