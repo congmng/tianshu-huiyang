@@ -1,5 +1,11 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 单角色池故障窗口的取消验证（2026-09-04）
+
+新增有 Prefill、无 Decode 的真实等待场景回归，验证 V1 Manager 不会误降级请求，且
+abort 能立即唤醒角色恢复等待协程。该场景覆盖 Ray 仅替换一类 actor 时的 P/D 高可用
+边界，并纳入统一 CoreX unit gate。
+
 ## 零实例 P/D 启动窗口的取消安全性（2026-09-04）
 
 在全局 P/D 初始 actor 尚未注册或两类 actor 同时重启期间，Manager 可能暂时没有

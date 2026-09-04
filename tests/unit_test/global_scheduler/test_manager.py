@@ -406,6 +406,36 @@ def test_manager_pd_waiter_can_cancel_before_first_instance_registers():
     assert "early" not in manager._waiting_pd_request_ids
 
 
+def test_manager_pd_waiter_can_cancel_when_one_role_pool_is_missing():
+    from llumnix.global_scheduler.dispatch_scheduler import DispatchScheduler
+
+    scheduler = DispatchScheduler("load", 1)
+    info = InstanceInfo(instance_id="prefill", instance_type=InstanceType.PREFILL)
+    scheduler.instance_info = {"prefill": info}
+    scheduler.available_dispatch_instance_set = {"prefill"}
+    scheduler.instance_num_requests = {"prefill": 0}
+    manager = object.__new__(Manager)
+    manager.is_vllm_v1 = True
+    manager.enable_pd_disagg = True
+    manager.num_instances = 1
+    manager._waiting_pd_request_ids = set()
+    manager._pd_wait_events = {}
+    manager.request_instance = {}
+    manager.request_instances = {}
+    manager.global_scheduler = SimpleNamespace(
+        instance_info={"prefill": info}, dispatch_scheduler=scheduler
+    )
+
+    async def scenario():
+        task = asyncio.create_task(manager.generate("role-wait", None))
+        await asyncio.sleep(0)
+        assert "role-wait" in manager._waiting_pd_request_ids
+        await manager.abort("role-wait")
+        await asyncio.wait_for(task, timeout=1.0)
+
+    asyncio.run(scenario())
+
+
 def test_pd_state_check_does_not_treat_no_constraints_as_prefill():
     """Role recovery must not infer P/D types from dispatch eligibility."""
     manager = object.__new__(Manager)
