@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 双机完整 V1 serving 源码一致性（2026-09-04）
+
+正式支持门禁的 SHA256 fingerprint 现覆盖完整 serving 边界，而不只覆盖 affinity
+和 connector：包括 V1 backend 选择、`Launcher` placement、`Llumlet` actor 生命周期、
+Manager/GlobalScheduler、V1 CLI 参数解析、client 请求桥接及独立 V1 API。新增回归
+锁定覆盖清单；任何一端在这些关键实现上漂移，双机 integration 会在启动模型前失败。
+
 ## KV affinity 实例生命周期清理（2026-09-04）
 
 针对长时间 P/D 服务，`DispatchScheduler.remove_instance` 现无条件移除实例的

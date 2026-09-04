@@ -29,9 +29,15 @@ SOURCE_FINGERPRINT_FILES = (
     "llumnix/backends/vllm/v1_kv.py",
     "llumnix/backends/vllm/v1_kv_transfer.py",
     "llumnix/backends/vllm/corex_p2p_connector.py",
+    "llumnix/backends/utils.py",
     "llumnix/global_scheduler/dispatch_scheduler.py",
     "llumnix/global_scheduler/global_scheduler.py",
     "llumnix/manager.py",
+    "llumnix/launcher.py",
+    "llumnix/llumlet/llumlet.py",
+    "llumnix/entrypoints/vllm/arg_utils.py",
+    "llumnix/entrypoints/vllm/client.py",
+    "llumnix/entrypoints/vllm/v1_api_server.py",
     "llumnix/instance_info.py",
 )
 

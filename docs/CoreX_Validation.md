@@ -15,7 +15,9 @@ The unit layer uses an isolated local Ray runtime and does not touch a shared
 cluster. It includes both scheduler-level affinity tests and a Manager P/D
 role-pool test, so cached prefixes are checked through the production
 Prefill/Decode selection boundary as well as in isolation. Integration first compares versions, affinity hashes and the source
-fingerprint. It then sends actual vLLM `BlockStored` events from the local
+fingerprint. The fingerprint covers the V1 adapter/connector/events, backend
+selection, scheduler/Manager/Launcher/Llumlet lifecycle, and V1 CLI/API
+request boundaries. It then sends actual vLLM `BlockStored` events from the local
 publisher to the V1 subscriber on `10.31.10.210` (using an SSH reverse tunnel
 when arbitrary inter-node ZMQ ports are firewalled), which must rebuild the
 index and rank the remote cached candidate first. Finally it runs a real BF16 GPU staging

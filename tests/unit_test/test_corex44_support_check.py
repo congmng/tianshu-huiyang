@@ -48,6 +48,21 @@ def test_corex44_source_fingerprint_is_sha256():
     assert int(fingerprint, 16) >= 0
 
 
+def test_corex44_source_fingerprint_covers_all_v1_serving_boundaries():
+    gate = _load_gate()
+    expected = {
+        "llumnix/backends/utils.py", "llumnix/backends/vllm/v1_engine.py",
+        "llumnix/backends/vllm/v1_kv.py", "llumnix/backends/vllm/v1_kv_transfer.py",
+        "llumnix/backends/vllm/corex_p2p_connector.py",
+        "llumnix/global_scheduler/dispatch_scheduler.py",
+        "llumnix/global_scheduler/global_scheduler.py", "llumnix/manager.py",
+        "llumnix/launcher.py", "llumnix/llumlet/llumlet.py",
+        "llumnix/entrypoints/vllm/arg_utils.py", "llumnix/entrypoints/vllm/client.py",
+        "llumnix/entrypoints/vllm/v1_api_server.py", "llumnix/instance_info.py",
+    }
+    assert expected <= set(gate.SOURCE_FINGERPRINT_FILES)
+
+
 def test_qwen_smoke_exposes_multi_gpu_tensor_parallelism():
     script = Path(__file__).parents[2] / "tools" / "run_qwen3_14b_smoke.py"
     source = script.read_text(encoding="utf-8")

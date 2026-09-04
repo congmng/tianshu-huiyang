@@ -1,5 +1,12 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-04：扩展双机源码一致性门禁
+
+source fingerprint 由核心 adapter/connector/调度器扩展至完整 V1 serving 边界：
+`backends/utils.py`、`Launcher`、`Llumlet`、V1 CLI 参数、client、独立 V1 API 入口
+均纳入哈希。这样两机即使底层 affinity 算法一致，只要 backend 选择、actor 生命周期
+或 HTTP 请求桥接代码不同，也会在 integration 启动前被拒绝。新增覆盖清单回归测试。
+
 ## 2026-09-04：实例下线后的 KV 亲和陈旧状态清理
 
 长期运行时，Decode-only 实例不属于普通 dispatch 集合，却会被 P/D 受限角色池读取。
