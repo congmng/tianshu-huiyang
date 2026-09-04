@@ -137,6 +137,17 @@ def test_dispatch_does_not_override_material_load_gap_for_kv_affinity():
     scheduler.instance_num_requests = {"a": 0, "b": 0}
     assert scheduler.dispatch([b"match"]) == "a"
 
+
+def test_dispatch_candidates_applies_kv_affinity_inside_pd_role_pool():
+    scheduler = init_dispatch_scheduler('load')
+    cached = InstanceInfo(instance_id="prefill-cached", dispatch_load_metric=0.05,
+                          kv_cache_block_hashes=frozenset({b"prefix"}))
+    empty = InstanceInfo(instance_id="prefill-empty", dispatch_load_metric=0.04)
+    scheduler.instance_info = {cached.instance_id: cached, empty.instance_id: empty}
+    scheduler.available_dispatch_instance_set = set(scheduler.instance_info)
+    scheduler.instance_num_requests = {instance_id: 0 for instance_id in scheduler.instance_info}
+    assert scheduler.dispatch_candidates(("prefill-cached", "prefill-empty"), [b"prefix"]) == "prefill-cached"
+
 def test_dispatch_queue():
     num_tests = 100
     instance_num = 4

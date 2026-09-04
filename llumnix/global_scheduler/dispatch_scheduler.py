@@ -35,8 +35,27 @@ class DispatchScheduler:
         self.instance_num_requests: Dict[str, int] = {}
 
     def dispatch(self, block_hashes=None) -> str:
-        self.total_num_requests += 1
         available = list(self.instance_info.values())
+        if not available:
+            # Legacy/simulator tests and early startup can have registration
+            # IDs before the first InstanceInfo poll. Preserve the policy's
+            # historical counter-only behavior in that narrow case.
+            return self.dispatch_policy.dispatch(
+                self.instance_num_requests,
+                list(self.available_dispatch_instance_set),
+                self.topk_random_dispatch,
+            )
+        return self.dispatch_candidates(
+            (instance.instance_id for instance in available), block_hashes
+        )
+
+    def dispatch_candidates(self, candidate_ids, block_hashes=None) -> str:
+        """Choose one instance from a constrained candidate pool."""
+        candidate_ids = set(candidate_ids)
+        available = [i for i in self.instance_info.values() if i.instance_id in candidate_ids]
+        if not available:
+            raise RuntimeError("no dispatch candidates are available")
+        self.total_num_requests += 1
         if block_hashes:
             # KV affinity is a stable tie-breaker: only use it among instances
             # whose dispatch load is within this tolerance of the best load.

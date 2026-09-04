@@ -300,8 +300,10 @@ class Manager:
             # A complete V1 P/D request is two independent AsyncLLM streams:
             # producer sends the prompt KV and consumer owns the public output.
             if prefill_ids and decode_ids:
-                prefill_id = min(prefill_ids, key=lambda iid: self.global_scheduler.instance_info[iid].dispatch_load_metric)
-                decode_id = min(decode_ids, key=lambda iid: self.global_scheduler.instance_info[iid].dispatch_load_metric)
+                scheduler = self.global_scheduler.dispatch_scheduler
+                scheduler.update_instance_infos(self.global_scheduler.instance_info)
+                prefill_id = scheduler.dispatch_candidates(prefill_ids, block_hashes)
+                decode_id = scheduler.dispatch_candidates(decode_ids, block_hashes)
         if prefill_id is None:
             instance_id, request_expected_steps = self.global_scheduler.dispatch(block_hashes)
         else:

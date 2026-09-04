@@ -832,6 +832,17 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 
 ## 2026-09-03：论文第三点基础部署验收
 
+### 2026-09-04：P/D 路径接入 KV-cache affinity 决策
+
+- 修复 V1 P/D 编排只按最小负载挑选 Prefill/Decode 实例的缺口。新增
+  `DispatchScheduler.dispatch_candidates`，使每个角色池均复用标准 V1 策略：
+  仅在负载安全窗口内以 KV prefix 命中作为确定性 tie-breaker。
+- 这让双机 `BlockStored` 事件产生的亲和索引实际参与后续 P/D 请求的 producer/
+  consumer 选址，而非仅用于普通非 P/D 请求。启动前尚无 `InstanceInfo` 时仍保留
+  历史计数式 dispatch 回退，保证 simulator/legacy 行为不变。
+- 新增 P/D role pool affinity 定向单测；dispatch scheduler `10 passed`，统一
+  CoreX V1 unit runner `68 passed`。
+
 ### 2026-09-04：跨机 V1 KV-event 亲和集成门禁
 
 - 新增 `tools/corex44_kv_event_probe.py`：publisher 使用 vLLM 原生

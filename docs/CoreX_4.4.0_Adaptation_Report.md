@@ -1021,3 +1021,17 @@ ZMQ `BlockStored` 事件跨机传递 16 次，远端 consumer 重建索引并报
 为 `68 passed`；TP=2 Qwen3-14B E2E 再次建立 NCCL `world_size=2` 并完成中文生成，
 耗时 25.54 秒，`qwen3_14b_corex_vllm: PASS`。这些是功能正确性证据，不代表论文
 吞吐/延迟收益已复现。
+
+## P/D 的 KV-cache-aware 选址（2026-09-04）
+
+此前 V1 P/D 编排会在 Prefill 和 Decode 角色池中分别选择最小负载实例，而普通
+请求才使用 KV affinity。这会使已从双机 `BlockStored` 事件得到的缓存信息没有参与
+P/D 请求的实际选址。现在 `DispatchScheduler.dispatch_candidates` 提供受限候选池的
+统一选择接口；Manager 对 Prefill、Decode 各调用一次。策略保持原有安全性：仅在
+距离最小 dispatch load 不超过 0.10 的实例之间，以完整 prefix 命中优先并按
+instance id 确定性排序，绝不会为了缓存命中转发给明显过载的实例。
+
+新增定向 P/D role-pool affinity 单测；dispatch scheduler 10 项和 CoreX V1 unit
+runner 68 项均通过。该改动将已验证的双机 KV-event/affinity 算法真正接入
+connector-driven P/D handoff 的请求编排路径；它不伪装为 vLLM 0.6 block-manager
+任意时刻迁移。
