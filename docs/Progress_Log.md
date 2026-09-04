@@ -2,6 +2,19 @@
 
 ## 2026-09-03：最新分层 Unit 回归
 
+## 2026-09-04：全量 Python 3.12/CoreX 回归基线
+
+在正式 CoreX 环境执行 `python -m pytest -q`，结果为 **129 passed, 42 skipped**
+（216.72 秒）。跳过项经审计分为：依赖已移除 vLLM 0.6 私有 block-manager 的旧后端
+用例、要求至少 4 GPU 的历史 benchmark、以及未安装 `pytest-asyncio` 时显式跳过的
+异步测试；不存在当前 V1 导入或 Python 3.12 测试失败。当前 V1 支持仍以公开
+`AsyncLLM`、KV events 与 connector-driven P/D handoff 为边界，不能把 skip 的旧
+任意时刻迁移 benchmark 解释为已通过。
+
+在同一最新 Manager/P/D 源码下重新运行双机 integration，版本/source gate、16 个
+跨机 `BlockStored` 事件（remote affinity=1.0、缓存候选优先）和 BF16 GPU staging
+均 PASS。
+
 ## 2026-09-04：Decode-only P/D 调度记账修复
 
 `dispatch_candidates` 对不在普通 dispatch 集合中的 Decode 实例使用默认零值幂等

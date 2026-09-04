@@ -298,6 +298,18 @@ Llumnix placement 层也完成 TP 拓扑防护：实例使用 `STRICT_PACK`，�
 
 ## 全量 Python 3.12 回归复核（2026-09-03）
 
+2026-09-04 最新源码全量执行 `python -m pytest -q` 为 **129 passed, 42 skipped**，
+耗时 216.72 秒。42 项 skip 均有明确范围：vLLM 0.6 私有 block-manager 迁移后端、
+至少 4 GPU 的历史 benchmark，或未安装 `pytest-asyncio` 时显式跳过的历史异步用例。
+没有将当前 Python 3.12/vLLM V1 导入失败隐藏为 skip。随后使用包含 P/D affinity
+role selection 与 Decode-only 记账修复的 Manager 重新运行双机 integration：两端
+source gate 一致，16 个真实 `BlockStored` 事件让远端 affinity=1.0 并优先缓存候选，
+BF16 GPU staging producer/consumer 均 PASS。
+
+此回归证明当前正式 V1 路径的功能稳定；它不将已跳过的旧 block-manager 任意时刻
+migration benchmark 等同于已迁移功能。V1 的正式迁移语义仍是公开 connector 支持的
+P/D KV handoff，且已通过上述真实双机数据面验证。
+
 针对“原先功能和创新均迁移到当前 CoreX 栈”的适配审计，执行了项目全量测试：
 修复 vLLM 0.11 V1 中 `EngineArgs` 删除 `worker_use_ray` 导致的旧测试构造错误，
 并修复 Ray 在 placement group 预留失败的半初始化 Llumlet repr 路径。当前结果为
