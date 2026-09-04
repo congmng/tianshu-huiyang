@@ -114,6 +114,12 @@ class DispatchScheduler:
             self.instance_num_requests[instance_id] = 0
 
     def remove_instance(self, instance_id: str) -> None:
+        # Drop the last polled snapshot for every role. Decode-only P/D
+        # instances are intentionally absent from the regular dispatch set;
+        # leaving their InstanceInfo behind would allow a stale KV-affinity
+        # snapshot to be selected by the constrained role pool after scale
+        # down or actor restart.
+        self.instance_info.pop(instance_id, None)
         if instance_id in self.available_dispatch_instance_set:
             self.available_dispatch_instance_set.remove(instance_id)
             self.instance_num_requests.pop(instance_id, None)

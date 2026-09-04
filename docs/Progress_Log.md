@@ -1,5 +1,13 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-04：实例下线后的 KV 亲和陈旧状态清理
+
+长期运行时，Decode-only 实例不属于普通 dispatch 集合，却会被 P/D 受限角色池读取。
+现将 `DispatchScheduler.remove_instance` 改为无条件删除该实例的最后 `InstanceInfo`
+快照；因此 scale-down、actor 错误和重启后，旧 `kv_cache_block_hashes` 不可能继续影响
+P/D 选择。新增 Decode-only snapshot 清理回归；dispatch/global scheduler/Manager 定向
+集为 **18 passed**，扩展后的统一 CoreX unit gate 为 **82 passed**。
+
 ## 2026-09-04：Manager P/D KV 亲和选择门禁
 
 补齐了 scheduler 单测与实际请求编排之间的验证空档。`Manager` 将 V1 P/D 的

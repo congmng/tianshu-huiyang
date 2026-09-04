@@ -170,6 +170,17 @@ def test_normal_dispatch_does_not_select_decode_only_instance():
     scheduler.instance_num_requests = {"prefill": 0}
     assert scheduler.dispatch() == "prefill"
 
+
+def test_remove_instance_clears_decode_only_affinity_snapshot():
+    scheduler = init_dispatch_scheduler('load')
+    scheduler.instance_info = {
+        "decode": InstanceInfo(instance_id="decode",
+                               kv_cache_block_hashes=frozenset({b"prefix"}))
+    }
+    scheduler.available_dispatch_instance_set = set()
+    scheduler.remove_instance("decode")
+    assert "decode" not in scheduler.instance_info
+
 def test_dispatch_queue():
     num_tests = 100
     instance_num = 4

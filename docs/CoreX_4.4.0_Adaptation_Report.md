@@ -1,5 +1,13 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## KV affinity 实例生命周期清理（2026-09-04）
+
+针对长时间 P/D 服务，`DispatchScheduler.remove_instance` 现无条件移除实例的
+`InstanceInfo` snapshot，包含 Decode-only 角色池使用的 KV block ownership。这样
+实例下线、缩容或重启后，陈旧 cache affinity 不会使 Manager 指向不存在的实例。
+新增回归验证 Decode-only cache snapshot 在 remove 后不可见；扩展 unit gate（support、
+transfer、affinity、dispatch、Manager、V1 API）结果为 **82 passed**。
+
 ## Manager P/D 亲和选择完整门禁（2026-09-04）
 
 V1 P/D 角色选择已抽取为 Manager 的 `_select_v1_pd_instances`，由 Prefill 与
