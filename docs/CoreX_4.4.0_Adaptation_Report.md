@@ -1,5 +1,14 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## Manager P/D 亲和选择完整门禁（2026-09-04）
+
+V1 P/D 角色选择已抽取为 Manager 的 `_select_v1_pd_instances`，由 Prefill 与
+Decode 两个受限候选池分别调用生产 `DispatchScheduler.dispatch_candidates`。
+这避免仅凭 scheduler 孤立单测宣称请求编排已接入 affinity：新增回归同时构造两个
+Prefill 和两个 Decode 实例，在每个池负载差不超过 `0.10` 时验证拥有请求 prefix
+的实例被选中，并验证 Decode-only 实例仍不进入普通 dispatch。该门禁已纳入
+`tools/run_corex44_validation.py unit`，当前统一结果为 **69 passed**。
+
 ## 最新分层 Unit 回归基线（2026-09-03）
 
 在包含源码指纹门禁、地址参数化和远端 consumer 提前退出检测的当前提交上，执行

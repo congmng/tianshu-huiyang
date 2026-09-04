@@ -18,6 +18,7 @@ import math
 import ray
 import pytest
 import numpy as np
+from types import SimpleNamespace
 
 import torch
 from vllm import EngineArgs
@@ -333,6 +334,31 @@ def test_request_bookkeeping_is_independent_of_logging():
     manager._reconcile_request_instances(["single"], [["ordinary-request"]])
     assert manager.request_instances == {"ordinary-request": {"single"}}
     assert manager.request_instance == {"ordinary-request": "single"}
+
+
+def test_manager_v1_pd_role_selection_uses_kv_affinity():
+    """Manager's real P/D selector must honor affinity in each role pool."""
+    from llumnix.global_scheduler.dispatch_scheduler import DispatchScheduler
+
+    scheduler = DispatchScheduler("load", 1)
+    infos = {
+        "prefill-cold": InstanceInfo(instance_id="prefill-cold", instance_type=InstanceType.PREFILL,
+                                      dispatch_load_metric=0.02),
+        "prefill-cached": InstanceInfo(instance_id="prefill-cached", instance_type=InstanceType.PREFILL,
+                                        dispatch_load_metric=0.04,
+                                        kv_cache_block_hashes=frozenset({b"prefix"})),
+        "decode-cold": InstanceInfo(instance_id="decode-cold", instance_type=InstanceType.DECODE,
+                                     dispatch_load_metric=0.01),
+        "decode-cached": InstanceInfo(instance_id="decode-cached", instance_type=InstanceType.DECODE,
+                                       dispatch_load_metric=0.03,
+                                       kv_cache_block_hashes=frozenset({b"prefix"})),
+    }
+    scheduler.instance_info = infos.copy()
+    scheduler.available_dispatch_instance_set = {"prefill-cold", "prefill-cached"}
+    scheduler.instance_num_requests = {key: 0 for key in infos}
+    manager = object.__new__(Manager)
+    manager.global_scheduler = SimpleNamespace(instance_info=infos, dispatch_scheduler=scheduler)
+    assert manager._select_v1_pd_instances([b"prefix"]) == ("prefill-cached", "decode-cached")
 
 def get_instance_info_migrate_in(instance_id):
     instance_info = InstanceInfo(

@@ -289,26 +289,7 @@ class Manager:
         pd_v1 = self.is_vllm_v1 and self.enable_pd_disagg
         prefill_id = decode_id = None
         if pd_v1:
-            prefill_ids = [
-                iid for iid, info in self.global_scheduler.instance_info.items()
-                if getattr(info, "instance_type", None) in (InstanceType.PREFILL, "prefill")
-            ]
-            decode_ids = [
-                iid for iid, info in self.global_scheduler.instance_info.items()
-                if getattr(info, "instance_type", None) in (InstanceType.DECODE, "decode")
-            ]
-            # A complete V1 P/D request is two independent AsyncLLM streams:
-            # producer sends the prompt KV and consumer owns the public output.
-            if prefill_ids and decode_ids:
-                scheduler = self.global_scheduler.dispatch_scheduler
-                scheduler.update_instance_infos(self.global_scheduler.instance_info)
-                # Decode instances are intentionally absent from the normal
-                # dispatch set. Make their latest InstanceInfo visible only
-                # to the constrained role-pool selector; ordinary dispatch
-                # still filters by ``available_dispatch_instance_set``.
-                scheduler.instance_info.update(self.global_scheduler.instance_info)
-                prefill_id = scheduler.dispatch_candidates(prefill_ids, block_hashes)
-                decode_id = scheduler.dispatch_candidates(decode_ids, block_hashes)
+            prefill_id, decode_id = self._select_v1_pd_instances(block_hashes)
         if prefill_id is None:
             instance_id, request_expected_steps = self.global_scheduler.dispatch(block_hashes)
         else:
@@ -400,6 +381,30 @@ class Manager:
                 )
             )
             self.scale_down(instance_id)
+
+    def _select_v1_pd_instances(self, block_hashes=None):
+        """Select P/D roles through the production affinity-aware scheduler.
+
+        Decode-only instances remain excluded from ordinary dispatch, but are
+        deliberately visible to this constrained role selector.
+        """
+        prefill_ids = [
+            iid for iid, info in self.global_scheduler.instance_info.items()
+            if getattr(info, "instance_type", None) in (InstanceType.PREFILL, "prefill")
+        ]
+        decode_ids = [
+            iid for iid, info in self.global_scheduler.instance_info.items()
+            if getattr(info, "instance_type", None) in (InstanceType.DECODE, "decode")
+        ]
+        if not prefill_ids or not decode_ids:
+            return None, None
+        scheduler = self.global_scheduler.dispatch_scheduler
+        scheduler.update_instance_infos(self.global_scheduler.instance_info)
+        scheduler.instance_info.update(self.global_scheduler.instance_info)
+        return (
+            scheduler.dispatch_candidates(prefill_ids, block_hashes),
+            scheduler.dispatch_candidates(decode_ids, block_hashes),
+        )
 
     async def abort(self, request_id: Union[str, Iterable[str]]) -> None:
         def abort_done_callback(instance_id: str, request_ids: List[str], fut):

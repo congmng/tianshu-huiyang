@@ -1,5 +1,14 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-04：Manager P/D KV 亲和选择门禁
+
+补齐了 scheduler 单测与实际请求编排之间的验证空档。`Manager` 将 V1 P/D 的
+Prefill/Decode 角色选择收敛为 `_select_v1_pd_instances`，继续调用生产
+`DispatchScheduler.dispatch_candidates`；普通请求仍不会选到 Decode-only 实例。
+新增回归构造两个 Prefill 与两个 Decode：在每个角色池的负载差不超过 `0.10` 时，
+请求 prefix 命中缓存的实例会分别被选中；定向 Manager + dispatch 集为 **13 passed**。
+该测试已纳入统一 `unit` gate。
+
 ## 2026-09-04：双机 KV-affinity / BF16 集成复验
 
 在 `10.31.10.62` 与 `10.31.10.210` 重新执行分层 integration gate。两端 Python
