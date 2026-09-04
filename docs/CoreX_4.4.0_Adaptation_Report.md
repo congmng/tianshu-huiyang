@@ -6,6 +6,10 @@
 和 connector：包括 V1 backend 选择、`Launcher` placement、`Llumlet` actor 生命周期、
 Manager/GlobalScheduler、V1 CLI 参数解析、client 请求桥接及独立 V1 API。新增回归
 锁定覆盖清单；任何一端在这些关键实现上漂移，双机 integration 会在启动模型前失败。
+实测远端旧快照被正确拒绝；同步后两端 fingerprint 为
+`43a22652f49837cabd7418baa3dc789d64844a733909d5e283f9e622f392a2f2`，并通过
+Python 3.12/CoreX/vLLM 版本与 affinity hash 比较。当前扩展 unit gate 为
+**83 passed**。
 
 ## KV affinity 实例生命周期清理（2026-09-04）
 

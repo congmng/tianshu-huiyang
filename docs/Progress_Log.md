@@ -6,6 +6,10 @@ source fingerprint 由核心 adapter/connector/调度器扩展至完整 V1 servi
 `backends/utils.py`、`Launcher`、`Llumlet`、V1 CLI 参数、client、独立 V1 API 入口
 均纳入哈希。这样两机即使底层 affinity 算法一致，只要 backend 选择、actor 生命周期
 或 HTTP 请求桥接代码不同，也会在 integration 启动前被拒绝。新增覆盖清单回归测试。
+实测先故意在远端保留旧快照，门禁报告 fingerprint mismatch 并以非零状态退出；archive
+同步后两端 fingerprint 均为 `43a22652f49837cabd7418baa3dc789d64844a733909d5e283f9e622f392a2f2`，
+版本检查和 affinity hashes 均一致、`supported=true`。扩展后的统一 unit gate 为
+**83 passed**。
 
 ## 2026-09-04：实例下线后的 KV 亲和陈旧状态清理
 
