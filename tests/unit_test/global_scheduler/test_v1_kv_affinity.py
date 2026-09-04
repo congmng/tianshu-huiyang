@@ -57,10 +57,6 @@ def test_vllm_zmq_events_reach_affinity_index():
     )
     from llumnix.backends.vllm.v1_kv import KVEventSubscriber
 
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        port = probe.getsockname()[1]
-    endpoint = f"tcp://*:{port}"
     index = KVCacheAffinityIndex()
     received = threading.Event()
 
@@ -68,9 +64,23 @@ def test_vllm_zmq_events_reach_affinity_index():
         index.apply("instance-a", events)
         received.set()
 
-    publisher = EventPublisherFactory.create(
-        KVEventsConfig(enable_kv_cache_events=True, publisher="zmq", endpoint=endpoint)
-    )
+    publisher = None
+    endpoint = None
+    for _ in range(10):
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        endpoint = f"tcp://*:{port}"
+        try:
+            publisher = EventPublisherFactory.create(
+                KVEventsConfig(enable_kv_cache_events=True, publisher="zmq", endpoint=endpoint)
+            )
+            break
+        except Exception:
+            if publisher is not None:
+                publisher.shutdown()
+            publisher = None
+    assert publisher is not None, "unable to bind temporary ZMQ publisher port"
     subscriber = KVEventSubscriber(endpoint, apply)
     try:
         # PUB/SUB subscriptions are asynchronous; allow the subscription to

@@ -33,6 +33,8 @@ SOURCE_FINGERPRINT_FILES = (
     "llumnix/backends/utils.py",
     "llumnix/global_scheduler/dispatch_scheduler.py",
     "llumnix/global_scheduler/global_scheduler.py",
+    "llumnix/global_scheduler/scaling_scheduler.py",
+    "llumnix/global_scheduler/scaling_policy.py",
     "llumnix/manager.py",
     "llumnix/launcher.py",
     "llumnix/llumlet/llumlet.py",

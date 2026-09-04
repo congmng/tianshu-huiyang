@@ -69,6 +69,8 @@ def test_corex44_source_fingerprint_covers_all_v1_serving_boundaries():
         "llumnix/backends/vllm/corex_p2p_connector.py",
         "llumnix/global_scheduler/dispatch_scheduler.py",
         "llumnix/global_scheduler/global_scheduler.py", "llumnix/manager.py",
+        "llumnix/global_scheduler/scaling_scheduler.py",
+        "llumnix/global_scheduler/scaling_policy.py",
         "llumnix/launcher.py", "llumnix/llumlet/llumlet.py",
         "llumnix/entrypoints/vllm/arg_utils.py", "llumnix/entrypoints/vllm/client.py",
         "llumnix/entrypoints/vllm/v1_api_server.py", "llumnix/instance_info.py",

@@ -1,5 +1,14 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-04：将异构扩缩容实现纳入双机一致性门禁
+
+源码 fingerprint 进一步覆盖 `ScalingScheduler` 与 `scaling_policy.py`。这两个文件
+实现 `virtual_usage` 的异构显存/算力负载和自动扩缩容决策，不能因只校验 Manager/
+dispatch 而允许两机版本漂移。覆盖清单回归保持通过，后续双机 gate 会同时阻断 scaling
+算法不一致。
+同时修复基础 KV-event 单测的端口探测竞争：publisher 实际 bind 失败时重试临时端口，
+与 replay 测试保持一致。
+
 ## 2026-09-04：P/D 故障恢复按真实角色类型判定
 
 修复 `_check_pd_deployment_states` 使用普通 dispatch 集合作为 Prefill/Decode 推断的

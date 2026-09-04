@@ -1,5 +1,13 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 异构扩缩容源码一致性门禁（2026-09-04）
+
+完整 V1 serving fingerprint 现纳入 `ScalingScheduler` 和 `scaling_policy.py`，覆盖
+论文异构显存/算力 `virtual_usage` 计算、扩缩容阈值策略及故障窗口保护。双机在启动
+integration 前会拒绝这些算法实现的源码漂移。
+基础 KV-event publisher 单测同时采用完整 bind 重试，消除共享 Ray/ZMQ 环境的临时
+端口 TOCTOU 假失败；当前统一 unit gate 为 **87 passed**。
+
 ## P/D 故障恢复的角色类型一致性（2026-09-04）
 
 P/D 恢复检查不再从普通 dispatch eligibility 推断角色；后者包含
