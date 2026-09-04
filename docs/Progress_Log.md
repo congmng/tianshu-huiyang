@@ -6,6 +6,10 @@
 fingerprint 和 affinity hash 外，现在读取 CoreX SDK release metadata，并核验
 PyTorch accelerator 可用、设备名为 Iluvatar。双机比较这些字段，避免普通 CUDA 或
 缺失 SDK 的环境被误报为正式 CoreX 支持；新增 gate 单测覆盖通过与拒绝场景。
+实测本机和 `10.31.10.210` 均返回 `Iluvatar CoreX SDK 4.4.0`、`Iluvatar BI-V150`、
+16 张可见设备及 `cuda_available=true`，版本/fingerprint/affinity 全部一致，
+`supported=true`。加入运行时场景后的统一 unit gate 为 **84 passed**，`llumnix`
+与 `tools` 的 Python 3.12 compileall 通过。
 
 ## 2026-09-04：扩展双机源码一致性门禁
 

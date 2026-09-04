@@ -6,6 +6,10 @@
 `/usr/local/corex/release-corex.txt`，确认 SDK 为 4.4.0；同时核验 PyTorch
 accelerator 可用且设备名为 Iluvatar，并在双机比较 SDK、设备可见性和设备类型。
 这会拒绝“版本看似匹配但实际运行在普通 CUDA/无设备环境”的误报。
+在当前两台服务器实测中，双方均报告 SDK `Iluvatar CoreX SDK 4.4.0`、设备
+`Iluvatar BI-V150`、16 张可见卡和 `cuda_available=true`；版本、完整 V1 serving
+fingerprint 与 affinity hashes 均一致，最终 `supported=true`。运行时门禁加入后
+统一 unit gate 为 **84 passed**，项目源码 compileall 通过。
 
 ## 双机完整 V1 serving 源码一致性（2026-09-04）
 
