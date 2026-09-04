@@ -1065,13 +1065,14 @@ class Manager:
                 logger.error("Exception traceback: {}".format(traceback.format_exc()))
 
     def _check_pd_deployment_states(self) -> str:
-        prefill_instance_ids = (
-            self.global_scheduler.dispatch_scheduler.available_dispatch_instance_set
-        )
+        # Dispatch availability is not a role registry: it also contains
+        # NO_CONSTRAINTS instances.  P/D recovery must use the authoritative
+        # type sets maintained when instances are scaled up/down, otherwise a
+        # mixed deployment can be mistaken for a healthy Prefill pool.
+        role_sets = self.global_scheduler.scaling_scheduler.instance_type_id_set
+        prefill_instance_ids = set(role_sets[InstanceType.PREFILL])
+        decode_instance_ids = set(role_sets[InstanceType.DECODE])
         cur_num_prefill = len(prefill_instance_ids)
-        decode_instance_ids = (
-            self.global_scheduler.instance_id_set - prefill_instance_ids
-        )
         cur_num_decode = len(decode_instance_ids)
 
         scale_down_instance_id = ""

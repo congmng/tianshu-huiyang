@@ -375,6 +375,21 @@ def test_manager_v1_pd_role_selection_waits_when_a_role_is_missing():
     )
     assert manager._select_v1_pd_instances() == (None, None)
 
+
+def test_pd_state_check_does_not_treat_no_constraints_as_prefill():
+    """Role recovery must not infer P/D types from dispatch eligibility."""
+    manager = object.__new__(Manager)
+    manager.manager_args = SimpleNamespace(pd_ratio=[1, 1])
+    manager.scale_down = lambda _instance_id: None
+    manager.global_scheduler = SimpleNamespace(
+        scaling_scheduler=SimpleNamespace(instance_type_id_set={
+            InstanceType.PREFILL: set(),
+            InstanceType.DECODE: {"decode"},
+            InstanceType.NO_CONSTRAINTS: {"ordinary"},
+        }),
+    )
+    assert manager._check_pd_deployment_states() == "decode"
+
 def get_instance_info_migrate_in(instance_id):
     instance_info = InstanceInfo(
         instance_id=instance_id,

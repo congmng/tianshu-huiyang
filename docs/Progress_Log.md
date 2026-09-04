@@ -1,5 +1,12 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-04：P/D 故障恢复按真实角色类型判定
+
+修复 `_check_pd_deployment_states` 使用普通 dispatch 集合作为 Prefill/Decode 推断的
+问题。该集合可能包含 `NO_CONSTRAINTS` 实例，导致角色池被误判为已恢复或错误缩放。
+现在恢复检查使用 `ScalingScheduler.instance_type_id_set` 的权威角色集合；新增混合
+部署回归，确认普通实例不会被当作 Prefill。统一 unit gate 纳入该回归。
+
 ## 2026-09-04：P/D 角色故障期间安全等待
 
 论文 P/D 设计要求一类实例故障时不能把请求错误路由到另一类实例。V1 Manager 现在

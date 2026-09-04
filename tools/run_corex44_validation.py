@@ -47,6 +47,7 @@ def unit_commands() -> list[list[str]]:
              "tests/unit_test/global_scheduler/test_dispatch_scheduler.py",
              "tests/unit_test/global_scheduler/test_manager.py::test_manager_v1_pd_role_selection_uses_kv_affinity",
              "tests/unit_test/global_scheduler/test_manager.py::test_manager_v1_pd_role_selection_waits_when_a_role_is_missing",
+             "tests/unit_test/global_scheduler/test_manager.py::test_pd_state_check_does_not_treat_no_constraints_as_prefill",
              "tests/unit_test/entrypoints/vllm/test_v1_api_server.py"]]
 
 

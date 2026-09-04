@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## P/D 故障恢复的角色类型一致性（2026-09-04）
+
+P/D 恢复检查不再从普通 dispatch eligibility 推断角色；后者包含
+`NO_CONSTRAINTS` 实例，可能在异构混合部署中掩盖 Prefill/Decode 整类故障。现在使用
+`ScalingScheduler.instance_type_id_set` 的权威类型集合，并以回归验证混合部署的错误
+推断不会发生。
+
 ## P/D 角色故障窗口的安全恢复（2026-09-04）
 
 当 Ray 替换故障 actor、导致 Prefill 或 Decode 角色池暂时为空时，V1 Manager 不再
