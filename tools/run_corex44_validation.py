@@ -4,8 +4,8 @@
 Levels are cumulative only in intent, not automatically chained:
 
 * ``unit``: CPU/isolated-Ray V1, KV-affinity and HTTP contract tests.
-* ``integration``: two-host version/hash gate plus a real GPU BF16 KV staging
-  transfer from this host to ``--remote-host``.
+* ``integration``: two-host version/hash gate, V1 KV-event affinity, then a
+  real GPU BF16 KV staging transfer from this host to ``--remote-host``.
 * ``e2e``: Qwen3-14B real inference using one or more local CoreX GPUs.
 
 The runner does not manage shared Ray clusters and never deletes model or Ray
@@ -51,6 +51,46 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
                     remote_project: str, dry_run: bool) -> None:
     run([sys.executable, "tools/corex44_support_check.py", "--remote-host", remote_host,
          "--remote-project", remote_project], dry_run)
+    event_port = free_port()
+    # Some CoreX deployments firewall arbitrary ZMQ ports between nodes even
+    # though SSH is allowed.  Use an SSH reverse tunnel for the event control
+    # plane; the publisher/subscriber and msgspec payload remain real vLLM
+    # ZMQ traffic, while the validation is not coupled to firewall policy.
+    event_remote_cmd = (
+        f"cd {remote_project} && source tools/corex44_env.sh && "
+        f"PYTHONPATH=. python tools/corex44_kv_event_probe.py --role consumer "
+        f"--host 127.0.0.1 --port {event_port} --timeout 15"
+    )
+    event_local_cmd = [sys.executable, "tools/corex44_kv_event_probe.py", "--role", "publisher",
+                       "--host", "127.0.0.1", "--port", str(event_port), "--timeout", "4"]
+    print("+ ssh", remote_host, event_remote_cmd, flush=True)
+    if dry_run:
+        print("+", " ".join(event_local_cmd), flush=True)
+    else:
+        # Bind the local PUB endpoint before the reverse forward accepts the
+        # remote subscriber. Otherwise SSH eagerly opens the forwarded local
+        # socket and a one-shot ZMQ subscriber can observe connection-refused.
+        event_publisher = subprocess.Popen(event_local_cmd, cwd=ROOT)
+        time.sleep(0.5)
+        event_remote = subprocess.Popen([
+            "ssh", "-o", "ExitOnForwardFailure=yes", "-R",
+            f"{event_port}:127.0.0.1:{event_port}", remote_host, event_remote_cmd,
+        ])
+        try:
+            time.sleep(1)
+            if event_remote.poll() is not None:
+                raise RuntimeError(f"remote KV-event consumer exited during startup (exit_code={event_remote.returncode})")
+            if event_publisher.wait(timeout=20) != 0:
+                raise RuntimeError("local KV-event publisher failed")
+            if event_remote.wait(timeout=20) != 0:
+                raise RuntimeError("remote KV-event consumer failed")
+        finally:
+            if event_publisher.poll() is None:
+                event_publisher.terminate()
+                event_publisher.wait(timeout=5)
+            if event_remote.poll() is None:
+                event_remote.terminate()
+                event_remote.wait(timeout=5)
     consumer_port = free_port()
     producer_port = free_port()
     remote_cmd = (

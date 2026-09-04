@@ -13,9 +13,13 @@ python tools/run_corex44_validation.py e2e --tp 2
 
 The unit layer uses an isolated local Ray runtime and does not touch a shared
 cluster. Integration first compares versions, affinity hashes and the source
-fingerprint, then runs a real BF16 GPU staging transfer; the consumer is
-started on `10.31.10.210` and the producer on `10.31.10.62`. E2E loads the
-local Qwen3-14B weights and validates TP=1 or TP=2 generation.
+fingerprint. It then sends actual vLLM `BlockStored` events from the local
+publisher to the V1 subscriber on `10.31.10.210` (using an SSH reverse tunnel
+when arbitrary inter-node ZMQ ports are firewalled), which must rebuild the
+index and rank the remote cached candidate first. Finally it runs a real BF16 GPU staging
+transfer; the consumer is started on `10.31.10.210` and the producer on
+`10.31.10.62`. E2E loads the local Qwen3-14B weights and validates TP=1 or
+TP=2 generation.
 
 The integration runner allocates ephemeral ports and cleans its SSH child on
 failure. It never runs `ray stop`, deletes model weights, or removes `.ray-*`

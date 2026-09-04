@@ -999,3 +999,17 @@ Qwen3-14B。vLLM V1 EngineCore 建立 NCCL `world_size=2`，TP rank 0/1 均完�
 权重加载和 KV cache 初始化；中文提示生成返回非空文本，耗时 26.21 秒，输出
 `qwen3_14b_corex_vllm: PASS`。这验证了多卡 TP 基础推理链路，未宣称论文中的
 吞吐或延迟收益已复现。
+
+## V1 KV-event 跨机亲和集成门禁（2026-09-04）
+
+新增 `tools/corex44_kv_event_probe.py` 并纳入 integration runner。发布端调用
+vLLM 0.11 原生 `EventPublisherFactory` 发送 `BlockStored` 事件，远端通过
+`KVEventSubscriber` 解码并写入 `KVCacheAffinityIndex`；验证完整 prefix 的
+affinity=`1.0` 且远端 cached candidate 在调度排序中优先。由于部分部署节点只开放
+SSH 而拦截任意 ZMQ TCP 端口，runner 对该控制面使用 SSH reverse tunnel；数据仍是
+真实 vLLM ZMQ/msgspec 事件，不使用离线模拟替代。
+
+2026-09-04 当前执行容器的网络沙箱禁止 socket bind/SSH（`Operation not
+permitted`），因此本轮只能完成代码编译和版本/source gate；待网络权限恢复后需
+重跑 `python tools/run_corex44_validation.py integration`，再将远端 consumer
+输出作为最终双机事件证据。

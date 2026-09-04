@@ -832,6 +832,20 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 
 ## 2026-09-03：论文第三点基础部署验收
 
+### 2026-09-04：跨机 V1 KV-event 亲和集成门禁
+
+- 新增 `tools/corex44_kv_event_probe.py`：publisher 使用 vLLM 原生
+  `EventPublisherFactory` 发布 `BlockStored`，consumer 使用 Llumnix
+  `KVEventSubscriber` 重建索引，并断言完整 prefix affinity 为 `1.0`、远端
+  cached candidate 排名第一。
+- `run_corex44_validation.py integration` 已将该事件链路置于 BF16 GPU staging
+  之前；为适应节点间任意 TCP 端口被防火墙拦截的部署，事件链路使用 SSH reverse
+  tunnel，仍传输真实 vLLM ZMQ/msgspec 帧，不绕过算法实现。
+- 本轮版本/source fingerprint 门禁仍通过（Python 3.12.13、vLLM 0.11.2、
+  PyTorch 2.7.1、两端 affinity hashes 一致）。当前执行容器禁止 socket bind 和
+  SSH 网络，故事件/双机 GPU 集成需在网络权限恢复后重跑；失败原因不是亲和算法
+  或 CoreX connector。
+
 ### 2026-09-03：CoreX 多卡 TP=2 真实端到端复验
 
 - 在本机 CoreX 4.4 / Python 3.12 / vLLM 0.11.2 环境执行
