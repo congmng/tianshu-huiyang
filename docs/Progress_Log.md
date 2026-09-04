@@ -1,5 +1,12 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-04：Python 3.12 wheel 与 TP=2 交付复验
+
+当前提交在 CoreX Python 3.12 环境执行 `pip wheel . --no-deps --no-build-isolation`
+成功生成 `llumnix-0.0.2-py3-none-any.whl`。随后运行统一 E2E 入口
+`run_corex44_validation.py e2e --tp 2`，Qwen3-14B 完成 NCCL world size=2、TP
+rank 0/1、权重和 KV cache 初始化，中文生成 PASS，耗时 **27.45 s**。
+
 ## 2026-09-04：单角色池缺失时的 P/D 取消回归
 
 补充真实故障窗口测试：已有 Prefill 但 Decode 整类实例暂时不可用时，Manager 请求会

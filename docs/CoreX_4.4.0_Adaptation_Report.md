@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## Python 3.12 发布构建与多卡交付复验（2026-09-04）
+
+最新提交在专用 CoreX Python 3.12 环境通过无隔离 wheel 构建，生成
+`llumnix-0.0.2-py3-none-any.whl`。真实 Qwen3-14B TP=2 E2E 随后通过：vLLM V1
+建立 NCCL world size=2，TP rank 0/1 完成模型及 KV cache 初始化并返回非空中文结果，
+耗时 **27.45 s**。该证据覆盖可安装交付物和多卡基础推理链路。
+
 ## 单角色池故障窗口的取消验证（2026-09-04）
 
 新增有 Prefill、无 Decode 的真实等待场景回归，验证 V1 Manager 不会误降级请求，且
