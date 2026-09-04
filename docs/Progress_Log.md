@@ -1,5 +1,12 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-04：CoreX 厂商运行时支持门禁
+
+扩展 `corex44_support_check.py` 的只读检查：除 Python/vLLM/PyTorch/Ray 版本、源码
+fingerprint 和 affinity hash 外，现在读取 CoreX SDK release metadata，并核验
+PyTorch accelerator 可用、设备名为 Iluvatar。双机比较这些字段，避免普通 CUDA 或
+缺失 SDK 的环境被误报为正式 CoreX 支持；新增 gate 单测覆盖通过与拒绝场景。
+
 ## 2026-09-04：扩展双机源码一致性门禁
 
 source fingerprint 由核心 adapter/connector/调度器扩展至完整 V1 serving 边界：

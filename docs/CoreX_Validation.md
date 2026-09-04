@@ -25,6 +25,11 @@ transfer; the consumer is started on `10.31.10.210` and the producer on
 `10.31.10.62`. E2E loads the local Qwen3-14B weights and validates TP=1 or
 TP=2 generation.
 
+The support gate also checks the local vendor runtime without allocating a
+model: `/usr/local/corex/release-corex.txt` must identify CoreX SDK 4.4.0,
+PyTorch must report an available accelerator, and the visible device name must
+be an Iluvatar device. These runtime fields are compared across both hosts.
+
 The integration runner allocates ephemeral ports and cleans its SSH child on
 failure. It never runs `ray stop`, deletes model weights, or removes `.ray-*`
 directories. The replay-event unit test also retries publisher binds to absorb

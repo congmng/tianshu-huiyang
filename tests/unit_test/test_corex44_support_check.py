@@ -27,6 +27,19 @@ def test_corex44_gate_rejects_unsupported_stack():
     assert len(errors) == 4
 
 
+def test_corex44_runtime_gate_requires_vendor_device_and_sdk():
+    gate = _load_gate()
+    assert gate.validate_corex_runtime({
+        "corex_sdk": "Iluvatar CoreX SDK 4.4.0", "cuda_available": True,
+        "device_name": "Iluvatar BI-V150",
+    }) == []
+    errors = gate.validate_corex_runtime({
+        "corex_sdk": "CUDA toolkit", "cuda_available": False,
+        "device_name": "NVIDIA A100",
+    })
+    assert len(errors) == 3
+
+
 def test_corex44_gate_compares_two_hosts():
     gate = _load_gate()
     local = {"python": "3.12.13", "vllm": "0.11.2", "ray": "2.52.1",

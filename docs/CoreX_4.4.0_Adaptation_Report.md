@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## CoreX 厂商运行时门禁（2026-09-04）
+
+正式支持检查现在不只依赖 Python 包版本。它在不分配模型/GPU 工作负载的前提下读取
+`/usr/local/corex/release-corex.txt`，确认 SDK 为 4.4.0；同时核验 PyTorch
+accelerator 可用且设备名为 Iluvatar，并在双机比较 SDK、设备可见性和设备类型。
+这会拒绝“版本看似匹配但实际运行在普通 CUDA/无设备环境”的误报。
+
 ## 双机完整 V1 serving 源码一致性（2026-09-04）
 
 正式支持门禁的 SHA256 fingerprint 现覆盖完整 serving 边界，而不只覆盖 affinity

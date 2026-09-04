@@ -13,6 +13,7 @@ import sys
 import argparse
 import subprocess
 import hashlib
+import os
 from pathlib import Path
 from typing import Mapping
 
@@ -64,10 +65,24 @@ def validate_versions(versions: Mapping[str, str]) -> list[str]:
     return errors
 
 
+def validate_corex_runtime(runtime: Mapping[str, object]) -> list[str]:
+    """Validate that the supported Python stack is actually CoreX-backed."""
+    errors = []
+    sdk = str(runtime.get("corex_sdk", ""))
+    if "4.4.0" not in sdk:
+        errors.append(f"CoreX SDK 4.4.0 is required, found {sdk!r}")
+    if not bool(runtime.get("cuda_available", False)):
+        errors.append("CoreX accelerator is unavailable to PyTorch")
+    if not str(runtime.get("device_name", "")).startswith("Iluvatar"):
+        errors.append(f"Iluvatar CoreX device is required, found {runtime.get('device_name')!r}")
+    return errors
+
+
 def compare_hosts(local: Mapping[str, object], remote: Mapping[str, object]) -> list[str]:
     """Return mismatches that invalidate a deterministic two-host gate."""
     mismatches = []
-    for key in ("python", "vllm", "ray", "torch", "affinity_hashes", "source_fingerprint"):
+    for key in ("python", "vllm", "ray", "torch", "corex_sdk", "cuda_available",
+                "device_name", "affinity_hashes", "source_fingerprint"):
         if local.get(key) != remote.get(key):
             mismatches.append(f"{key} differs: local={local.get(key)!r} remote={remote.get(key)!r}")
     if not remote.get("supported", False):
@@ -98,9 +113,21 @@ def collect_result() -> dict[str, object]:
         "ray": ray.__version__,
         "torch": torch.__version__,
     }
-    errors = validate_versions(versions)
+    release_file = os.getenv("LLUMNIX_COREX_RELEASE_FILE", "/usr/local/corex/release-corex.txt")
+    try:
+        corex_sdk = Path(release_file).read_text(encoding="utf-8").strip()
+    except OSError:
+        corex_sdk = ""
+    runtime = {
+        "corex_sdk": corex_sdk,
+        "cuda_available": bool(torch.cuda.is_available()),
+        "device_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "",
+        "cuda_device_count": torch.cuda.device_count(),
+    }
+    errors = validate_versions(versions) + validate_corex_runtime(runtime)
     result = {
         **versions,
+        **runtime,
         "corex_v1_imports": True,
         "affinity_hashes": [value.hex() for value in hashes],
         "affinity_rank": index.rank(hashes, ("candidate-a", "candidate-b")),
