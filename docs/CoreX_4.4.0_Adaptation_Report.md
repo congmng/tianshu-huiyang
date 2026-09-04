@@ -6,6 +6,8 @@ P/D 恢复检查不再从普通 dispatch eligibility 推断角色；后者包含
 `NO_CONSTRAINTS` 实例，可能在异构混合部署中掩盖 Prefill/Decode 整类故障。现在使用
 `ScalingScheduler.instance_type_id_set` 的权威类型集合，并以回归验证混合部署的错误
 推断不会发生。
+统一 CoreX unit gate 当前为 **87 passed**；同步最新提交后两台服务器的完整运行时与
+源码一致性门禁均通过，fingerprint=`2fdf9f25...e49e5f2c4`。
 
 ## P/D 角色故障窗口的安全恢复（2026-09-04）
 

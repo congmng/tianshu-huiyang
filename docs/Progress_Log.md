@@ -6,6 +6,8 @@
 问题。该集合可能包含 `NO_CONSTRAINTS` 实例，导致角色池被误判为已恢复或错误缩放。
 现在恢复检查使用 `ScalingScheduler.instance_type_id_set` 的权威角色集合；新增混合
 部署回归，确认普通实例不会被当作 Prefill。统一 unit gate 纳入该回归。
+统一 runner 实测为 **87 passed**；提交同步后双机 CoreX SDK/设备/版本、完整 serving
+fingerprint 和 affinity hash gate 均通过，fingerprint=`2fdf9f25...e49e5f2c4`。
 
 ## 2026-09-04：P/D 角色故障期间安全等待
 
