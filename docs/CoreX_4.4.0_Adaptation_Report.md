@@ -1,5 +1,14 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## P/D 角色故障窗口的安全恢复（2026-09-04）
+
+当 Ray 替换故障 actor、导致 Prefill 或 Decode 角色池暂时为空时，V1 Manager 不再
+将请求落入普通 dispatch（这可能误选 Decode-only 或绕过 KV handoff）。请求会保留在
+Manager 生成协程中，按重试间隔等待两类角色重新可用；角色恢复后继续使用 affinity-aware
+P/D 选择和 connector handoff。该行为由缺失角色回归覆盖。
+缺失角色场景已加入统一 unit gate，当前 support/transfer/affinity/dispatch/Manager/API
+组合结果为 **86 passed**。
+
 ## 自动扩缩容故障窗口保护（2026-09-04）
 
 CoreX 精简 Ray 下 actor 故障、scale-down 与 info polling 可能短暂交错。V1

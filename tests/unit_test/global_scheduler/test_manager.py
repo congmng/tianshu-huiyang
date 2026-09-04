@@ -360,6 +360,21 @@ def test_manager_v1_pd_role_selection_uses_kv_affinity():
     manager.global_scheduler = SimpleNamespace(instance_info=infos, dispatch_scheduler=scheduler)
     assert manager._select_v1_pd_instances([b"prefix"]) == ("prefill-cached", "decode-cached")
 
+
+def test_manager_v1_pd_role_selection_waits_when_a_role_is_missing():
+    from llumnix.global_scheduler.dispatch_scheduler import DispatchScheduler
+
+    scheduler = DispatchScheduler("load", 1)
+    info = InstanceInfo(instance_id="prefill", instance_type=InstanceType.PREFILL)
+    scheduler.instance_info = {"prefill": info}
+    scheduler.available_dispatch_instance_set = {"prefill"}
+    scheduler.instance_num_requests = {"prefill": 0}
+    manager = object.__new__(Manager)
+    manager.global_scheduler = SimpleNamespace(
+        instance_info={"prefill": info}, dispatch_scheduler=scheduler
+    )
+    assert manager._select_v1_pd_instances() == (None, None)
+
 def get_instance_info_migrate_in(instance_id):
     instance_info = InstanceInfo(
         instance_id=instance_id,

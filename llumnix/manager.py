@@ -290,6 +290,18 @@ class Manager:
         prefill_id = decode_id = None
         if pd_v1:
             prefill_id, decode_id = self._select_v1_pd_instances(block_hashes)
+            while prefill_id is None or decode_id is None:
+                # A P/D deployment can briefly lose an entire role while Ray
+                # replaces a failed actor.  Do not fall through to ordinary
+                # dispatch (which could route a request to Decode-only or
+                # start a single engine without KV handoff); retain the
+                # request until both role pools are available again.
+                logger.warning(
+                    "V1 P/D role pool incomplete for request %s; retrying in %ss",
+                    request_id, NO_INSTANCE_RETRY_GENERATE_INTERVAL,
+                )
+                await asyncio.sleep(NO_INSTANCE_RETRY_GENERATE_INTERVAL)
+                prefill_id, decode_id = self._select_v1_pd_instances(block_hashes)
         if prefill_id is None:
             instance_id, request_expected_steps = self.global_scheduler.dispatch(block_hashes)
         else:

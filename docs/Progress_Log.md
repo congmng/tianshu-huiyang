@@ -1,5 +1,13 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-04：P/D 角色故障期间安全等待
+
+论文 P/D 设计要求一类实例故障时不能把请求错误路由到另一类实例。V1 Manager 现在
+在 Prefill 或 Decode 角色池为空（例如 Ray 正在替换故障 actor）时，保留请求并按重试
+间隔等待两类角色恢复；不再回退到普通 dispatch，也不会启动缺少 KV handoff 的单引擎
+请求。新增缺失角色选择回归，避免该高可用边界退化。
+该回归已纳入统一 CoreX unit runner；当前结果为 **86 passed**。
+
 ## 2026-09-04：V1 自动扩缩容故障窗口保护
 
 补强 `ScalingScheduler` 在 CoreX Ray actor 故障/缩容期间的快照一致性：instance
