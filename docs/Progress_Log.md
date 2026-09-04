@@ -32,6 +32,9 @@ fingerprint 和 affinity hash gate 均通过，fingerprint=`2fdf9f25...e49e5f2c4
 间隔等待两类角色恢复；不再回退到普通 dispatch，也不会启动缺少 KV handoff 的单引擎
 请求。新增缺失角色选择回归，避免该高可用边界退化。
 该回归已纳入统一 CoreX unit runner；当前结果为 **86 passed**。
+最新统一结果为 **88 passed**；同一提交的双机 integration 通过，完整源码/SDK/设备
+门禁 fingerprint=`13ebaa0f...a2dfd07a`，16 个 KV events 的远端 affinity=1.0，
+以及跨机 BF16 `(4,4)` staging 均正常。
 
 ## 2026-09-04：V1 自动扩缩容故障窗口保护
 

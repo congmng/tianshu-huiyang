@@ -32,6 +32,9 @@ Manager 生成协程中，按重试间隔等待两类角色重新可用；角色
 P/D 选择和 connector handoff。该行为由缺失角色回归覆盖。
 缺失角色场景已加入统一 unit gate，当前 support/transfer/affinity/dispatch/Manager/API
 组合结果为 **86 passed**。
+加入等待请求取消回归后统一 gate 为 **88 passed**；同一源码在双机 integration 中
+通过完整一致性门禁（fingerprint=`13ebaa0f...a2dfd07a`）、KV event affinity=1.0
+和 BF16 staging transfer。
 
 ## 自动扩缩容故障窗口保护（2026-09-04）
 
