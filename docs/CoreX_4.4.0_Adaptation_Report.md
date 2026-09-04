@@ -298,6 +298,12 @@ Llumnix placement 层也完成 TP 拓扑防护：实例使用 `STRICT_PACK`，�
 
 ## 全量 Python 3.12 回归复核（2026-09-03）
 
+异步插件复核还发现历史 Manager GPU placement 测试原先只检查 torch 可见设备，
+而隔离 Ray 夹具实际注册 GPU=0，导致不可能的 placement 等待；测试已改为检查
+`ray.cluster_resources()` 并在资源不足时显式 skip，同时移除 vLLM 0.11 删除的
+`worker_use_ray` 参数。多实例 Ray 测试会话必须使用独立 runtime，否则 Ray 会报告
+多个 active instance 地址冲突；该环境问题与 CoreX V1 服务代码无关。
+
 修复 P/D Decode affinity 信息可见性：Decode-only 实例不属于普通 dispatch 集合，
 但必须参与 P/D 角色池的 KV-aware 选择。Manager 现在在受限选择前同步全量实例信息，
 同时 `DispatchScheduler.dispatch` 仍仅过滤普通 dispatch 集合，避免普通请求误路由到

@@ -4,6 +4,12 @@
 
 ## 2026-09-04：全量 Python 3.12/CoreX 回归基线
 
+开启 `pytest-asyncio` 后复核 Manager 异步用例，发现其中的 GPU placement/recovery
+测试必须检查 Ray 集群实际注册的 GPU 数量，不能只看 `torch.cuda.device_count()`；
+测试夹具现已增加该前置条件，并移除 vLLM 0.11 已删除的 `worker_use_ray` 构造参数。
+在隔离 Ray（GPU=0）环境下，资源依赖用例会显式 skip；多实例 Ray 会话的地址冲突
+仍要求单独的 Ray runtime/CI job，不能作为 CoreX 生产逻辑失败证据。
+
 ## 2026-09-04：P/D Decode affinity 信息可见性修复
 
 普通 dispatch 集合按设计不包含 Decode-only 实例；此前 Manager 将 P/D 角色选择复用

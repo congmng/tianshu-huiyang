@@ -165,6 +165,18 @@ def init_instances(initial_instances):
     ray.get([instance.is_ready.remote() for instance in instances])
     return instance_ids, instances
 
+
+def require_ray_gpus(count: int) -> None:
+    """Skip deployment tests unless their *Ray* cluster owns the GPUs.
+
+    A CoreX host can expose accelerators to torch while the isolated unit-test
+    Ray runtime deliberately registers zero GPUs. Placement-group tests must
+    use Ray's resource view, otherwise they wait for impossible bundles.
+    """
+    available = int(ray.cluster_resources().get("GPU", 0))
+    if available < count:
+        pytest.skip(f"requires {count} GPU(s) registered in the test Ray cluster; found {available}")
+
 @pytest.fixture
 def manager():
     manager = init_manager()
@@ -383,6 +395,7 @@ def test_poll_instance_info_loop_and_migrate(ray_env, manager):
 @pytest.mark.asyncio
 async def test_init_server_and_get_instance_deployment_states_and_instance_and_clear_instance_ray_resources(ray_env):
     manager, _, _, engine_args, _ = init_manager_with_launch_mode(LaunchMode.LOCAL)
+    require_ray_gpus(1)
     instance_id = random_uuid()
     pg = manager.init_placement_group(get_placement_group_name(instance_id),
                                       engine_args, BackendType.VLLM, init_server=True)
@@ -420,6 +433,7 @@ async def test_init_server_and_get_instance_deployment_states_and_instance_and_c
 @pytest.mark.asyncio
 @pytest.mark.parametrize("request_output_queue_type", ['rayqueue', 'zmq'])
 async def test_auto_scale_up_loop_and_get_cluster_deployment_states(ray_env, request_output_queue_type):
+    require_ray_gpus(4)
     manager, _, _, _, _ = init_manager_with_launch_mode(LaunchMode.GLOBAL, request_output_queue_type)
     await asyncio.sleep(60.0)
 
@@ -444,6 +458,7 @@ async def test_auto_scale_up_loop_and_get_cluster_deployment_states(ray_env, req
 @pytest.mark.asyncio
 @pytest.mark.parametrize("request_output_queue_type", ['rayqueue', 'zmq'])
 async def test_check_deployment_states_loop_and_auto_scale_up_loop(ray_env, request_output_queue_type):
+    require_ray_gpus(4)
     manager, _, _, _, _ = init_manager_with_launch_mode(LaunchMode.GLOBAL, request_output_queue_type)
     await asyncio.sleep(60.0)
 
@@ -488,6 +503,7 @@ def test_pd_disagg_gloal_launch_instance_type():
 @pytest.mark.asyncio
 @pytest.mark.parametrize("request_output_queue_type", ['rayqueue', 'zmq'])
 async def test_pd_disagg_gloal_launch_deployment_and_auto_scale_up_loop(ray_env, request_output_queue_type):
+    require_ray_gpus(4)
     manager, _, _, _, _ = init_manager_with_launch_mode(LaunchMode.GLOBAL, request_output_queue_type,
                                                         enable_pd_disagg=True, pd_ratio="1:1")
     await asyncio.sleep(60.0)
@@ -546,7 +562,7 @@ async def test_pd_disagg_gloal_launch_deployment_and_auto_scale_up_loop(ray_env,
 @pytest.mark.asyncio
 async def test_pd_disagg_deployment_states():
     manager_args = ManagerArgs(enable_migration=True, enable_pd_disagg=True, pd_ratio="1:2")
-    engine_args = EngineArgs(model="facebook/opt-125m", download_dir="/mnt/model", worker_use_ray=True, enforce_eager=True)
+    engine_args = EngineArgs(model="facebook/opt-125m", download_dir="/mnt/model", enforce_eager=True)
     manager = Manager(entrypoints_args=EntrypointsArgs(), manager_args=manager_args,
                       instance_args=InstanceArgs(migration_backend="rayrpc"),
                       engine_args=engine_args, launch_args=LaunchArgs(LaunchMode.LOCAL, BackendType.VLLM),
@@ -571,6 +587,7 @@ async def test_pd_disagg_deployment_states():
 
 @pytest.mark.asyncio
 async def test_auto_scale_up_loop_max_instances():
+    require_ray_gpus(2)
     manager, _, _, _, _ = init_manager_with_launch_mode(LaunchMode.GLOBAL, "rayqueue", max_instances=2)
     await asyncio.sleep(60.0)
     num_instances = manager.scale_up([], [], [])
