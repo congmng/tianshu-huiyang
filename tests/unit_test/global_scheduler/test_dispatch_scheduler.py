@@ -160,6 +160,16 @@ def test_dispatch_candidates_accounts_for_decode_only_pd_instance():
     assert scheduler.dispatch_candidates((decode.instance_id,), [b"prefix"]) == decode.instance_id
     assert scheduler.instance_num_requests == {decode.instance_id: 1}
 
+
+def test_normal_dispatch_does_not_select_decode_only_instance():
+    scheduler = init_dispatch_scheduler('load')
+    prefill = InstanceInfo(instance_id="prefill", dispatch_load_metric=0.3)
+    decode = InstanceInfo(instance_id="decode", dispatch_load_metric=0.0)
+    scheduler.instance_info = {"prefill": prefill, "decode": decode}
+    scheduler.available_dispatch_instance_set = {"prefill"}
+    scheduler.instance_num_requests = {"prefill": 0}
+    assert scheduler.dispatch() == "prefill"
+
 def test_dispatch_queue():
     num_tests = 100
     instance_num = 4

@@ -298,6 +298,12 @@ Llumnix placement 层也完成 TP 拓扑防护：实例使用 `STRICT_PACK`，�
 
 ## 全量 Python 3.12 回归复核（2026-09-03）
 
+修复 P/D Decode affinity 信息可见性：Decode-only 实例不属于普通 dispatch 集合，
+但必须参与 P/D 角色池的 KV-aware 选择。Manager 现在在受限选择前同步全量实例信息，
+同时 `DispatchScheduler.dispatch` 仍仅过滤普通 dispatch 集合，避免普通请求误路由到
+Decode。新增隔离回归后 dispatch scheduler 为 `12 passed`，统一 V1 unit runner
+为 `68 passed`。
+
 2026-09-04 最新源码全量执行 `python -m pytest -q` 为 **129 passed, 42 skipped**，
 耗时 216.72 秒。42 项 skip 均有明确范围：vLLM 0.6 私有 block-manager 迁移后端、
 至少 4 GPU 的历史 benchmark，或未安装 `pytest-asyncio` 时显式跳过的历史异步用例。

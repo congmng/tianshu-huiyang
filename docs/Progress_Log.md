@@ -4,6 +4,14 @@
 
 ## 2026-09-04：全量 Python 3.12/CoreX 回归基线
 
+## 2026-09-04：P/D Decode affinity 信息可见性修复
+
+普通 dispatch 集合按设计不包含 Decode-only 实例；此前 Manager 将 P/D 角色选择复用
+该 scheduler 时，Decode 的最新 `InstanceInfo` 可能不可见。现在 P/D 受限选择显式
+同步全量实例信息，而普通 dispatch 继续严格过滤 `available_dispatch_instance_set`，
+避免 Decode 被普通请求误选。新增两项回归（角色池选择和普通 dispatch 隔离），dispatch
+测试 `12 passed`，统一 V1 unit runner `68 passed`。
+
 在正式 CoreX 环境执行 `python -m pytest -q`，结果为 **129 passed, 42 skipped**
 （216.72 秒）。跳过项经审计分为：依赖已移除 vLLM 0.6 私有 block-manager 的旧后端
 用例、要求至少 4 GPU 的历史 benchmark、以及未安装 `pytest-asyncio` 时显式跳过的

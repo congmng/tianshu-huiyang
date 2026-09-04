@@ -302,6 +302,11 @@ class Manager:
             if prefill_ids and decode_ids:
                 scheduler = self.global_scheduler.dispatch_scheduler
                 scheduler.update_instance_infos(self.global_scheduler.instance_info)
+                # Decode instances are intentionally absent from the normal
+                # dispatch set. Make their latest InstanceInfo visible only
+                # to the constrained role-pool selector; ordinary dispatch
+                # still filters by ``available_dispatch_instance_set``.
+                scheduler.instance_info.update(self.global_scheduler.instance_info)
                 prefill_id = scheduler.dispatch_candidates(prefill_ids, block_hashes)
                 decode_id = scheduler.dispatch_candidates(decode_ids, block_hashes)
         if prefill_id is None:

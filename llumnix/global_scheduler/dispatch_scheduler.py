@@ -35,7 +35,10 @@ class DispatchScheduler:
         self.instance_num_requests: Dict[str, int] = {}
 
     def dispatch(self, block_hashes=None) -> str:
-        available = list(self.instance_info.values())
+        available = [
+            instance for instance in self.instance_info.values()
+            if instance.instance_id in self.available_dispatch_instance_set
+        ]
         if not available:
             # Legacy/simulator tests and early startup can have registration
             # IDs before the first InstanceInfo poll. Preserve the policy's
