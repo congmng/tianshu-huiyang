@@ -6,6 +6,9 @@ CoreX 精简 Ray 下 actor 故障、scale-down 与 info polling 可能短暂交�
 `ScalingScheduler` 现在对空快照及 membership/info 不一致显式返回“不扩缩容”，避免
 后台协程因 KeyError 退出或使用陈旧显存/虚拟负载作出错误决策；相关回归已纳入统一
 CoreX unit 门禁。
+本轮 unit gate 为 **85 passed**；同步双机后真实 integration 复验通过完整源码/SDK/
+Iluvatar 设备门禁、16 个 V1 `BlockStored` event 的 `affinity=1.0` 远端选择，以及
+GPU BF16 `(4,4)` staging transfer。
 
 ## CoreX 厂商运行时门禁（2026-09-04）
 

@@ -5,6 +5,9 @@
 补强 `ScalingScheduler` 在 CoreX Ray actor 故障/缩容期间的快照一致性：instance
 membership 与 `InstanceInfo` 短暂不同步时不再触发 KeyError，也不会基于空或陈旧快照
 错误扩缩容。新增空快照、stale instance 回归，并纳入统一 unit gate。
+当前统一 unit 为 **85 passed**。同步到 `10.31.10.210` 后重新执行 integration：两端
+完整 V1 serving fingerprint/SDK/设备门禁均通过，16 个真实 KV event 令远端
+`remote-cached` 获得 `affinity=1.0`，跨机 GPU BF16 staging `(4,4)` 也再次通过。
 
 ## 2026-09-04：CoreX 厂商运行时支持门禁
 
