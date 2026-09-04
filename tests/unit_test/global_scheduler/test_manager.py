@@ -376,6 +376,18 @@ def test_manager_v1_pd_role_selection_waits_when_a_role_is_missing():
     assert manager._select_v1_pd_instances() == (None, None)
 
 
+def test_manager_abort_removes_pd_role_waiter_without_actor_abort():
+    """A P/D request waiting for a recovered role has no actor to contact."""
+    manager = object.__new__(Manager)
+    manager._waiting_pd_request_ids = {"waiting"}
+    manager.request_instance = {}
+    manager.request_instances = {}
+    manager.instances = {}
+    manager.log_requests = False
+    asyncio.run(manager.abort("waiting"))
+    assert manager._waiting_pd_request_ids == set()
+
+
 def test_pd_state_check_does_not_treat_no_constraints_as_prefill():
     """Role recovery must not infer P/D types from dispatch eligibility."""
     manager = object.__new__(Manager)

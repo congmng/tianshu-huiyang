@@ -183,6 +183,10 @@ class Manager:
         # V1 P/D owns two backend requests for one public request.  Keep the
         # complete set so cancellation reaches both the producer and consumer.
         self.request_instances: Dict[str, set[str]] = {}
+        # P/D requests may wait before either EngineCore accepts them while a
+        # failed role is being replaced. Keep this separate from routed
+        # requests so HTTP disconnect/abort can cancel that pre-dispatch wait.
+        self._waiting_pd_request_ids: set[str] = set()
 
         # migration states
         self.num_instance_info_updates = 0
@@ -290,6 +294,10 @@ class Manager:
         prefill_id = decode_id = None
         if pd_v1:
             prefill_id, decode_id = self._select_v1_pd_instances(block_hashes)
+            waiting_pd_requests = getattr(self, "_waiting_pd_request_ids", None)
+            if waiting_pd_requests is None:
+                self._waiting_pd_request_ids = waiting_pd_requests = set()
+            waiting_pd_requests.add(request_id)
             while prefill_id is None or decode_id is None:
                 # A P/D deployment can briefly lose an entire role while Ray
                 # replaces a failed actor.  Do not fall through to ordinary
@@ -301,7 +309,15 @@ class Manager:
                     request_id, NO_INSTANCE_RETRY_GENERATE_INTERVAL,
                 )
                 await asyncio.sleep(NO_INSTANCE_RETRY_GENERATE_INTERVAL)
+                if request_id not in self._waiting_pd_request_ids:
+                    logger.info("V1 P/D request %s cancelled while waiting for roles", request_id)
+                    return
                 prefill_id, decode_id = self._select_v1_pd_instances(block_hashes)
+            # Abort may race with the final role-pool refresh. Do not submit
+            # either half of a P/D pair after the public request was cancelled.
+            if request_id not in self._waiting_pd_request_ids:
+                return
+            self._waiting_pd_request_ids.discard(request_id)
         if prefill_id is None:
             instance_id, request_expected_steps = self.global_scheduler.dispatch(block_hashes)
         else:
@@ -439,6 +455,10 @@ class Manager:
         if isinstance(request_id, str):
             request_id = (request_id,)
         request_ids = set(request_id)
+        # There is no EngineCore request to fan out to yet for this state.
+        # Removing the ID is the cancellation signal observed by ``generate``.
+        for req_id in request_ids:
+            getattr(self, "_waiting_pd_request_ids", set()).discard(req_id)
         instance_requests = defaultdict(list)
         for req_id in request_ids:
             # Requests will be free by instance when finished, so it is acceptable to miss aborted requests.

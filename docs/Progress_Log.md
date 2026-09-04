@@ -1,5 +1,12 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-04：P/D 角色恢复等待可取消
+
+补齐 P/D 故障窗口中的取消语义：请求等待 Prefill/Decode 角色恢复时尚未提交到任何
+EngineCore，过去 HTTP disconnect/abort 无 actor 可 fan-out。Manager 现在维护独立的
+等待请求集合，abort 立即移除该 ID，生成协程在重试前和提交双请求前检查取消状态。
+新增“无 actor 的等待请求 abort”回归并纳入统一 unit gate。
+
 ## 2026-09-04：将异构扩缩容实现纳入双机一致性门禁
 
 源码 fingerprint 进一步覆盖 `ScalingScheduler` 与 `scaling_policy.py`。这两个文件

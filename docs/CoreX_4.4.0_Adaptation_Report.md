@@ -1,5 +1,12 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## P/D 故障窗口等待请求的取消语义（2026-09-04）
+
+角色恢复等待状态没有 EngineCore request，不能用通常的 producer/consumer abort
+fan-out 处理。Manager 现单独跟踪这些公开 request ID；客户端取消会移除等待标记，
+协程在每次重试和最终提交 P/D 对前确认未被取消。这样断连不会留下等待角色恢复的
+孤立请求；无 actor abort 回归已加入正式 unit gate。
+
 ## 异构扩缩容源码一致性门禁（2026-09-04）
 
 完整 V1 serving fingerprint 现纳入 `ScalingScheduler` 和 `scaling_policy.py`，覆盖
