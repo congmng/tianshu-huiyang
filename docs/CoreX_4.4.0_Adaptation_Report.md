@@ -1013,3 +1013,11 @@ SSH 而拦截任意 ZMQ TCP 端口，runner 对该控制面使用 SSH reverse tu
 permitted`），因此本轮只能完成代码编译和版本/source gate；待网络权限恢复后需
 重跑 `python tools/run_corex44_validation.py integration`，再将远端 consumer
 输出作为最终双机事件证据。
+
+网络恢复后已完成该复验：两端版本/source fingerprint gate 通过；真实 vLLM
+ZMQ `BlockStored` 事件跨机传递 16 次，远端 consumer 重建索引并报告
+`affinity=1.0`、`rank=[remote-cached, local-empty]`。同一 integration 随后完成
+跨机 BF16 GPU staging，producer/consumer 均在 `cuda:0` 正常收发。统一 unit runner
+为 `68 passed`；TP=2 Qwen3-14B E2E 再次建立 NCCL `world_size=2` 并完成中文生成，
+耗时 25.54 秒，`qwen3_14b_corex_vllm: PASS`。这些是功能正确性证据，不代表论文
+吞吐/延迟收益已复现。

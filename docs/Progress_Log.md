@@ -846,6 +846,14 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   SSH 网络，故事件/双机 GPU 集成需在网络权限恢复后重跑；失败原因不是亲和算法
   或 CoreX connector。
 
+- 网络恢复后完成正式双机复验：版本/source gate 通过；本机 publisher 向
+  `10.31.10.210` consumer 发送 16 个真实 vLLM ZMQ `BlockStored` 事件，远端输出
+  `affinity=1.0`、`rank=[remote-cached, local-empty]`；随后 BF16 GPU staging
+  producer/consumer 均 PASS（`cuda:0`、shape `(4,4)`、mean `7.5`）。
+- 统一 unit runner 通过 `68 passed`。重新执行 TP=2 Qwen3-14B 真实 E2E：NCCL
+  `world_size=2`、TP rank 0/1、权重/KV cache 初始化及中文生成均成功，耗时
+  `25.54s`，输出 `qwen3_14b_corex_vllm: PASS`。
+
 ### 2026-09-03：CoreX 多卡 TP=2 真实端到端复验
 
 - 在本机 CoreX 4.4 / Python 3.12 / vLLM 0.11.2 环境执行
