@@ -251,6 +251,18 @@ def test_corex_p2p_defaults_to_safe_cpu_staging(monkeypatch):
     assert CoreXP2pNcclConnector.__name__ == "CoreXP2pNcclConnector"
 
 
+def test_model_p2p_probe_exposes_native_nccl_as_explicit_diagnostic():
+    """The production probe must not silently switch transport modes."""
+    from pathlib import Path
+
+    source = (Path(__file__).parents[3] / "tools" / "v1_p2p_model_probe.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'choices=("zmq_cpu", "nccl")' in source
+    assert 'default="zmq_cpu"' in source
+    assert '"corex_transport": args.corex_transport' in source
+
+
 def test_corex_zmq_staging_shutdown_releases_listener():
     from llumnix.backends.vllm.corex_p2p_connector import CoreXZmqP2pEngine
 

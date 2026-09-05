@@ -42,7 +42,10 @@ async def run(args: argparse.Namespace) -> None:
         # The probe exits after the producer's first output. Use synchronous
         # transport so the worker cannot be torn down before its async queue
         # hands the KV tensors to the consumer.
-        kv_connector_extra_config={"send_type": "PUT"},
+        kv_connector_extra_config={
+            "send_type": "PUT",
+            "corex_transport": args.corex_transport,
+        },
     )
     engine_args = AsyncEngineArgs(
         model=args.model,
@@ -94,6 +97,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-tokens", type=int, default=4)
     parser.add_argument("--max-model-len", type=int, default=256)
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.96)
+    parser.add_argument(
+        "--corex-transport",
+        choices=("zmq_cpu", "nccl"),
+        default="zmq_cpu",
+        help=("CoreX KV data transport. zmq_cpu is the supported default; "
+              "nccl is an explicit native-communicator diagnostic."),
+    )
     return parser.parse_args()
 
 
