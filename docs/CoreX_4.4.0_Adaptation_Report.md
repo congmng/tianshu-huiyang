@@ -1,5 +1,13 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 2026-09-05：模型级 P/D 探针可复现性修复
+
+两机 Qwen3-14B P/D 探针首次以文档形式的 `python tools/...` 调用远端时，发现
+脚本仅在 `PYTHONPATH` 已设置时可导入 Llumnix。该部署性缺口已修复：探针现在
+根据自身路径自动加入 checkout 根目录，并纳入双机 source fingerprint。此前的
+`ModuleNotFoundError` 是启动包装问题，不代表 CoreX KV connector 失败；同步后
+重新进行 producer/consumer handoff，并分别记录模型启动、KV send/recv 与最终文本。
+
 ## 2026-09-05：Llumnix V1 HTTP 模型级端到端验证
 
 新增并执行 `tools/run_llumnix_v1_http_e2e.py`：真实启动 Llumnix V1 API server

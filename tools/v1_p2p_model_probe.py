@@ -12,6 +12,14 @@ import argparse
 import asyncio
 import os
 import sys
+from pathlib import Path
+
+
+# ``python tools/v1_p2p_model_probe.py`` is the documented two-host form.
+# Make that invocation independent of a caller remembering PYTHONPATH=.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from vllm import AsyncEngineArgs, SamplingParams
 from vllm.config import KVTransferConfig

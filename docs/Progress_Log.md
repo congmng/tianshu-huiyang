@@ -1,5 +1,14 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-05：两机模型 P/D 探针自包含修复
+
+- 真实两机 `v1_p2p_model_probe.py` 首次启动在远端暴露出独立脚本缺少项目路径
+  初始化的问题（`ModuleNotFoundError: llumnix`），并非 connector 或网络失败。
+  现脚本自动加入 checkout 根目录，`python tools/v1_p2p_model_probe.py` 不再依赖
+  手工 `PYTHONPATH`。
+- 该探针已纳入双机 source fingerprint；同步后将重新执行 Qwen3-14B producer/
+  consumer 模型级 KV handoff，严格区分“启动成功”与“KV 实际发送/加载成功”。
+
 ## 2026-09-05：Llumnix V1 HTTP 模型级 E2E
 
 - 新增 `tools/run_llumnix_v1_http_e2e.py`，以真实 Qwen3-14B/CoreX GPU 启动
