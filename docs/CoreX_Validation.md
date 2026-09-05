@@ -40,3 +40,8 @@ The legacy vLLM 0.6 block-manager migration tests are intentionally excluded
 from this V1 gate because those private APIs do not exist in vLLM 0.11.2. V1
 request movement is covered by connector-driven P/D KV handoff and the KV
 affinity unit/integration tests.
+
+The queue unit suite also verifies startup readiness under the Ray actor/ZMQ
+bind race. `ZmqClient.wait_for_server_rpc` retries transient readiness timeouts
+within a bounded 30-second window; the four queue benchmark points and the
+retry regression must all pass before claiming the unit gate is green.

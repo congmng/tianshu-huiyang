@@ -1178,3 +1178,14 @@ instance id 确定性排序，绝不会为了缓存命中转发给明显过载�
 runner 68 项均通过。该改动将已验证的双机 KV-event/affinity 算法真正接入
 connector-driven P/D handoff 的请求编排路径；它不伪装为 vLLM 0.6 block-manager
 任意时刻迁移。
+## 2026-09-05：ZMQ readiness 启动协议加固
+
+在 CoreX 4.4 的 Ray actor 调度下，actor 创建完成与其异步 ZMQ loop
+bind socket 之间存在短暂窗口。旧客户端只发送一次 `IS_SERVER_READY` RPC，
+会将该正常窗口误判为 RPC server 启动失败。当前实现增加有界 readiness 重试
+（30 秒总窗口、100ms 间隔），仅对超时重试，最终仍保留失败传播；因此不会掩盖
+真正的 server 异常。动态端口回归也消除了并行测试进程的固定端口冲突。
+
+验证：`tests/unit_test/queue/test_zmq.py` 全部通过（4 档 qps 基准加 readiness
+单测，共 `5 passed`）；CoreX V1 分层门禁 `89 passed`。该修复属于 Python 3.12 /
+CoreX 运行时适配，不改变 KV affinity、P/D handoff 或扩缩容策略。

@@ -373,17 +373,19 @@ def test_corex_zmq_staging_recovers_after_malformed_payload():
     import zmq
     from llumnix.backends.vllm.corex_p2p_connector import CoreXZmqP2pEngine
 
+    # A fixed pair of localhost ports is vulnerable to unrelated Ray/ZMQ
+    # tests. Bind each engine through the normal ephemeral-port helper.
     consumer = CoreXZmqP2pEngine(
         local_rank=0,
-        config=SimpleNamespace(kv_ip="127.0.0.1", kv_port=39106),
+        config=SimpleNamespace(kv_ip="127.0.0.1", kv_port=_free_port()),
     )
     producer = CoreXZmqP2pEngine(
         local_rank=0,
-        config=SimpleNamespace(kv_ip="127.0.0.1", kv_port=39107),
+        config=SimpleNamespace(kv_ip="127.0.0.1", kv_port=_free_port()),
     )
     socket = consumer.context.socket(zmq.DEALER)
     socket.setsockopt(zmq.RCVTIMEO, 1000)
-    socket.connect("tcp://127.0.0.1:39106")
+    socket.connect(f"tcp://{consumer.zmq_address}")
     try:
         socket.send_multipart([
             msgpack.dumps({
@@ -396,7 +398,7 @@ def test_corex_zmq_staging_recovers_after_malformed_payload():
         ])
         assert socket.recv() == b"1"
         expected = torch.arange(4, dtype=torch.float16)
-        assert producer.send_tensor("good#layer", expected, "127.0.0.1:39106")
+        assert producer.send_tensor("good#layer", expected, consumer.zmq_address)
         deadline = __import__("time").monotonic() + 2
         while "good#layer" not in consumer.recv_store:
             assert __import__("time").monotonic() < deadline

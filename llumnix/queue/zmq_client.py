@@ -14,6 +14,7 @@
 from typing import Any
 from contextlib import contextmanager
 from collections.abc import Iterable
+import asyncio
 import time
 
 import zmq
@@ -26,7 +27,9 @@ from llumnix.server_info import ServerInfo
 from llumnix.queue.zmq_utils import (RPC_SUCCESS_STR, RPC_REQUEST_TYPE, RPCClientClosedError,
                                      RPCUtilityRequest, RPCPutNoWaitQueueRequest, RPCPutNoWaitBatchQueueRequest,
                                      get_open_zmq_ipc_path)
-from llumnix.constants import RPC_GET_DATA_TIMEOUT_MS, RPC_SOCKET_LIMIT_CUTOFF, RPC_ZMQ_HWM
+from llumnix.constants import (RPC_GET_DATA_TIMEOUT_MS, RPC_SOCKET_LIMIT_CUTOFF,
+                               RPC_ZMQ_HWM, RPC_SERVER_READY_TIMEOUT_S,
+                               RPC_SERVER_READY_RETRY_INTERVAL_S)
 from llumnix.metrics.timestamps import set_timestamp
 
 logger = init_logger(__name__)
@@ -103,10 +106,23 @@ class ZmqClient:
     async def wait_for_server_rpc(self,
                                   server_info: ServerInfo):
         rpc_path = get_open_zmq_ipc_path(server_info.request_output_queue_ip, server_info.request_output_queue_port)
-        await self._send_one_way_rpc_request(
-                        request=RPCUtilityRequest.IS_SERVER_READY,
-                        rpc_path=rpc_path,
-                        error_message="Unable to start RPC Server")
+        # A Ray actor can be scheduled before its async ZMQ loop has bound
+        # the socket (or while ZmqServer is retrying a recently released
+        # port). This API is explicitly a *wait*, so retry transient startup
+        # timeouts rather than treating the first probe as readiness.
+        deadline = time.monotonic() + RPC_SERVER_READY_TIMEOUT_S
+        while True:
+            try:
+                await self._send_one_way_rpc_request(
+                    request=RPCUtilityRequest.IS_SERVER_READY,
+                    rpc_path=rpc_path,
+                    error_message="Unable to start RPC Server",
+                )
+                return
+            except TimeoutError:
+                if time.monotonic() >= deadline:
+                    raise
+                await asyncio.sleep(RPC_SERVER_READY_RETRY_INTERVAL_S)
 
     async def put_nowait(self, item: Any, server_info: ServerInfo):
         rpc_path = get_open_zmq_ipc_path(server_info.request_output_queue_ip, server_info.request_output_queue_port)

@@ -1116,3 +1116,12 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   `Manager.init_global_instances`，由 setup 显式创建初始 API/Llumlet 实例；并修正
   CoreX Ray actor runtime-env 的提交方式，避免 raylet 内部兼容错误。Python 3.12
   编译与 39 项 V1/KV/affinity 回归通过。
+## 2026-09-05：Python 3.12/CoreX 队列启动竞态修复
+
+- 修复 `ZmqClient.wait_for_server_rpc` 在 Ray actor 已创建但异步 ZMQ
+  server 尚未 bind 时的一次性探测超时；readiness RPC 现在在 30 秒窗口内
+  以 100ms 间隔重试，避免真实部署中的启动竞态误报。
+- KV transfer malformed-payload 回归改用动态端口，避免并行 Ray/ZMQ 进程
+  占用固定端口导致误失败；新增 transient-timeout readiness 单测。
+- CoreX 4.4 / Python 3.12 分层 unit gate：`89 passed`；队列四档压力基准及
+  readiness 回归：`5 passed`。未跳过或放宽真实队列协议。

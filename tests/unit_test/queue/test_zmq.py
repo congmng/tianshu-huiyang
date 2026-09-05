@@ -112,3 +112,22 @@ async def test_queue_zmq(ray_env, qps):
         sock.bind((ip, 0))
         port = sock.getsockname()[1]
     await benchmark_queue(qps, ip, port)
+
+
+@pytest.mark.asyncio
+async def test_zmq_client_readiness_retries_transient_startup_timeout(monkeypatch):
+    client = ZmqClient()
+    calls = 0
+
+    async def probe(**_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise TimeoutError("not bound yet")
+
+    monkeypatch.setattr(client, "_send_one_way_rpc_request", probe)
+    try:
+        await client.wait_for_server_rpc(ServerInfo("server", "zmq", None, "127.0.0.1", 1))
+        assert calls == 2
+    finally:
+        client.close()
