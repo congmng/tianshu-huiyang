@@ -1208,3 +1208,10 @@ CoreX unit gate，门禁结果 `91 passed`。
 该修复使传统 E2E 启动入口可以进入 V1 服务链路，但不把历史 block-manager
 migration workload 误称为 V1 P/D 验证；后者的正式覆盖仍是 connector-driven
 handoff、双机 KV event/affinity 和 BF16 staging integration。
+
+## 2026-09-05：完整 unit 层复验
+
+在 Python `3.12.13` / CoreX 4.4 环境运行全部 `tests/unit_test`，结果为
+**`152 passed, 10 skipped`**（373.38 秒）。这覆盖精简交付门禁之外的 Manager、
+placement、队列、入口与 legacy 边界行为。跳过项是测试显式声明的可选依赖或硬件
+条件，不用于替代已运行的双机 integration 或 Qwen3 TP=2 E2E；三层证据保持独立。

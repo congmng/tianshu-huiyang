@@ -1141,3 +1141,11 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
 - 新增 V1/legacy 双向命令生成单测，并纳入 CoreX unit runner；最新门禁为
   `91 passed`。全量历史 E2E 仍需要与 V1 不再存在的 block-manager migration
   语义分别维护，不能把它们当作当前 connector-driven P/D 的等价验证。
+
+## 2026-09-05：Python 3.12 全量 unit 审计
+
+- 在 CoreX Python `3.12.13` 环境完成 `python -m pytest -q tests/unit_test`：
+  **`152 passed, 10 skipped`**（6 分 13 秒）。覆盖 V1 connector/KV transfer、
+  affinity、异构 scaling、Manager P/D 编排、placement、HTTP API、队列以及
+  legacy-only 单元边界；10 项跳过项由测试自身的可选依赖/硬件条件声明。
+- 因此当前正式 V1/CoreX 支持不只依赖精简 91 项门禁；完整 unit 层也已复验通过。
