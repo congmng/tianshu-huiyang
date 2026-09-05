@@ -24,6 +24,11 @@ E2E 工具。这样两台部署机必须同时拥有相同服务实现和相同�
 门禁刻意检出尚未同步远端的 fingerprint 差异，随后 archive 同步并复验。该机制防止
 只在本机更新 E2E 测试导致双机 KV-affinity 结果不可比较。
 
+同步后双方 fingerprint 为 `664a5d…f665` 且 `supported=true`。随后完整重跑双机
+integration：16 个真实 vLLM `BlockStored` 事件使远端 affinity=`1.0`、
+`remote-cached` 优先；两机 `cuda:0` BF16 ZMQ staging 也均 PASS。因此新增的交付
+协议门禁不会削弱既有 KV-affinity 和传输验证。
+
 ## Python 3.12 发布构建与多卡交付复验（2026-09-04）
 
 最新提交在专用 CoreX Python 3.12 环境通过无隔离 wheel 构建，生成

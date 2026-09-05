@@ -19,6 +19,9 @@
 - support gate 的 `source_fingerprint` 现同时覆盖 `run_corex44_validation.py` 与
   `run_llumnix_v1_http_e2e.py`；两端一致性不再只限 serving 源文件，也要求执行相同的
   单测/集成/E2E 验证协议。修改后门禁先正确报告远端旧指纹不一致，待 archive 同步后复验。
+- 同步后的 fingerprint 为 `664a5d…f665`，两端 `supported=true`；随即完整重跑双机
+  integration，16 个真实 `BlockStored` 事件仍得到远端 `affinity=1.0`、
+  `rank=[remote-cached, local-empty]`，BF16 `cuda:0` staging 也双侧 PASS。
 
 ## 2026-09-04：Python 3.12 wheel 与 TP=2 交付复验
 
