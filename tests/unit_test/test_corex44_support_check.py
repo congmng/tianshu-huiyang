@@ -76,6 +76,7 @@ def test_corex44_source_fingerprint_covers_all_v1_serving_boundaries():
         "llumnix/entrypoints/vllm/v1_api_server.py", "llumnix/instance_info.py",
         "tools/run_corex44_validation.py", "tools/run_llumnix_v1_http_e2e.py",
         "tools/v1_p2p_model_probe.py",
+        "configs/corex44_v1_pd.yml",
     }
     assert expected <= set(gate.SOURCE_FINGERPRINT_FILES)
 

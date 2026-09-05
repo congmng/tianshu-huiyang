@@ -48,6 +48,7 @@ SOURCE_FINGERPRINT_FILES = (
     "tools/run_corex44_validation.py",
     "tools/run_llumnix_v1_http_e2e.py",
     "tools/v1_p2p_model_probe.py",
+    "configs/corex44_v1_pd.yml",
 )
 
 

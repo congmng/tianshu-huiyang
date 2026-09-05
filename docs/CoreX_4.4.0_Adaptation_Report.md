@@ -8,6 +8,8 @@ vLLM 0.6 block-manager migration。配置单测已验证 yacs 解析与关键字
 CoreX V1 unit gate（`92 passed`）。模板不固定主机 endpoint；Manager/Llumlet
 根据各节点 runtime env 的 `LLUMNIX_KV_*` 注入可路由地址，从而支持两机和多网卡
 部署。
+该模板也纳入双机 source fingerprint；配置、验证脚本和 serving 实现任一不一致时，
+support gate 会在分配 GPU 前拒绝部署。
 
 ## 2026-09-05：当前提交的两机模型级 P/D handoff 复验
 

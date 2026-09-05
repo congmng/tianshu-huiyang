@@ -9,6 +9,8 @@
 - 配置单测验证 yacs 加载、P/D ratio、实例数和 connector 字段；已纳入统一门禁，
   当前 CoreX V1 unit gate 为 `92 passed`。每节点实际 endpoint 仍由 `LLUMNIX_KV_*`
   runtime env 注入，避免模板固化错误 IP/端口。
+- 配置模板现纳入双机 source fingerprint；两端 archive 同步后需再次通过 gate，保证
+  部署实现、验证脚本和声明式配置三者一致。
 
 ## 2026-09-05：当前提交的两机模型级 P/D handoff 复验
 
