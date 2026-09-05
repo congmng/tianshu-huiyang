@@ -12,6 +12,9 @@
   保持轻量 KV-event/BF16 staging，避免每次回归都加载两份 14B 权重。
 - 首次执行新入口时，support gate 在模型分配前正确拒绝本机未提交 runner 与远端旧
   fingerprint 的差异；该失败是预期的版本一致性保护，提交/archive 同步后才允许继续。
+- 同步提交 `c7dcbcc` 后执行一键 `integration --model-pd` 全部通过：严格双机门禁、
+  16 个真实 KV events（远端 affinity=1.0）、BF16 staging、Qwen3-14B 40 层 producer
+  KV save、consumer load 和非空中文输出均在同一可重复命令中完成。
 
 ## 2026-09-05：两机模型 P/D 探针自包含修复
 

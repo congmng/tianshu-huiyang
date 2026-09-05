@@ -14,6 +14,11 @@ producer 保存 40 层 BF16 KV（每层约 `(2,1084,8,16,128)`），Decode consu
 各加载一份 14B 权重，保持为显式开关，默认 integration 仍执行更快的 KV-event affinity
 和 BF16 staging。这样既保留日常回归速度，也为交付/发布提供一条命令的真实 P/D 验收。
 
+提交 `c7dcbcc` 同步两机后，实际执行该一键命令成功覆盖完整链路：严格双机
+fingerprint gate、16 个真实 BlockStored event 的 affinity=1.0、BF16 staging、40 层
+Qwen3 producer KV save、consumer load 和非空中文输出均 PASS。故 P/D 模型验收不再
+依赖人工拼接两条命令，且仍由 gate 阻止未同步的两机版本进入 GPU 分配阶段。
+
 ## 2026-09-05：模型级 P/D 探针可复现性修复
 
 两机 Qwen3-14B P/D 探针首次以文档形式的 `python tools/...` 调用远端时，发现
