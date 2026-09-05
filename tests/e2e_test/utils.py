@@ -17,6 +17,23 @@ import pytest
 import requests
 
 
+def _worker_use_ray_flag() -> str:
+    """Return the legacy worker flag only for vLLM versions that support it.
+
+    vLLM V1 (0.11+) owns worker lifecycle through AsyncLLM and rejects the
+    removed ``--worker-use-ray`` argument. Keeping this decision in the
+    command builder prevents stale legacy E2E commands from failing before
+    Llumnix itself starts.
+    """
+    try:
+        import vllm
+        if str(getattr(vllm, "__version__", "")).startswith("0.11"):
+            return ""
+    except ImportError:
+        pass
+    return "--worker-use-ray "
+
+
 def generate_launch_command(result_filename: str = "",
                             launch_ray_cluster: bool = True,
                             HEAD_NODE_IP: str = "127.0.0.1",
@@ -46,7 +63,7 @@ def generate_launch_command(result_filename: str = "",
         f"{'--log-request-timestamps ' if log_request_timestamps else ''}"
         f"--enable-migration "
         f"--model {model} "
-        f"--worker-use-ray "
+        f"{_worker_use_ray_flag()}"
         f"--max-model-len {max_model_len} "
         f"--dispatch-policy {dispatch_policy} "
         f"--trust-remote-code "
@@ -89,7 +106,7 @@ def generate_serve_command(result_filename: str = "",
         f"{'--log-request-timestamps ' if log_request_timestamps else ''}"
         f"--enable-migration "
         f"--model {model} "
-        f"--worker-use-ray "
+        f"{_worker_use_ray_flag()}"
         f"--max-model-len {max_model_len} "
         f"--dispatch-policy {dispatch_policy} "
         f"--trust-remote-code "
@@ -178,7 +195,7 @@ def generate_config_command(config_path: str,
             f"--port {port} "
             f"--initial-instances 1 "
             f"--model {model} "
-            f"--worker-use-ray "
+            f"{_worker_use_ray_flag()}"
             f"--download-dir /mnt/model "
             f"{'> instance_'+result_filename if len(result_filename)> 0 else ''} 2>&1 &"
         )
@@ -190,7 +207,7 @@ def generate_config_command(config_path: str,
             f"--port {port} "
             f"--max-instances 1 "
             f"--model {model} "
-            f"--worker-use-ray "
+            f"{_worker_use_ray_flag()}"
             f"--download-dir /mnt/model "
             f"{'> instance_'+result_filename if len(result_filename)> 0 else ''} 2>&1 &"
         )

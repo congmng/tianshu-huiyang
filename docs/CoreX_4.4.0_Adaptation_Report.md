@@ -1196,3 +1196,15 @@ CoreX 运行时适配，不改变 KV affinity、P/D handoff 或扩缩容策略�
 `BlockStored` 事件产生远端 `affinity=1.0`、`remote-cached` 优先排序，并成功完成
 BF16 `cuda:0` ZMQ CPU-staging round trip。Qwen3-14B TP=2 在 25.36 秒内返回非空中文。
 这些结果确认交付功能未因队列修复回退；不等同于论文的 QPS 或延迟收益复现。
+
+## 2026-09-05：历史 E2E 入口的 V1 CLI 迁移
+
+全量测试审计还发现 `tests/e2e_test/utils.py` 沿用了 vLLM 0.6 的
+`--worker-use-ray`。该参数在 vLLM 0.11 V1 中已删除，因而生成的服务命令在
+argument parsing 阶段失败，尚未进入 Llumnix。命令生成器现按运行时 vLLM 版本
+处理：0.11 V1 不输出该参数，旧 vLLM 保持兼容输出；V1/legacy 双向回归已加入
+CoreX unit gate，门禁结果 `91 passed`。
+
+该修复使传统 E2E 启动入口可以进入 V1 服务链路，但不把历史 block-manager
+migration workload 误称为 V1 P/D 验证；后者的正式覆盖仍是 connector-driven
+handoff、双机 KV event/affinity 和 BF16 staging integration。

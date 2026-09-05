@@ -1132,3 +1132,12 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   得到 `affinity=1.0` 与 `rank=[remote-cached, local-empty]`；BF16 GPU ZMQ
   staging producer/consumer 均 PASS（`cuda:0`、`(4,4)`、mean `7.5`）。本机
   Qwen3-14B TP=2 E2E 再通过，耗时 `25.36s`、中文生成非空。
+
+## 2026-09-05：V1 E2E 启动命令兼容
+
+- 全量测试审计发现历史 E2E command builder 仍无条件注入 vLLM 0.6 的
+  `--worker-use-ray`；vLLM `0.11.2` 已删除该选项，导致服务在 Llumnix 初始化前
+  直接退出。现在 command builder 按安装的 vLLM 版本选择：V1 省略该参数，旧版保留。
+- 新增 V1/legacy 双向命令生成单测，并纳入 CoreX unit runner；最新门禁为
+  `91 passed`。全量历史 E2E 仍需要与 V1 不再存在的 block-manager migration
+  语义分别维护，不能把它们当作当前 connector-driven P/D 的等价验证。
