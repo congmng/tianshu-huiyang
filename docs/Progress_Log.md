@@ -1,5 +1,14 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-05：双机集成复验通过
+
+- 新提交同步到两端后，CoreX source gate fingerprint 为
+  `ead5a2d1ecf240f76ed73dcec94032267a3605a97b37ea5a428020151bbf6087`，两端均
+  `supported=true`。
+- 轻量 integration 再次通过：16 个真实 `BlockStored` event 保持 affinity=1.0，
+  两端 `cuda:0` 使用 BF16 ZMQ CPU staging 完成 `(4,4)` KV 传输，consumer 均值
+  `7.5`，退出码 0。
+
 ## 2026-09-05：V1 P/D connector 启动前校验
 
 - `validate_v1_pd_connector` 现要求启用 P/D 时使用 `kvtransfer` 及

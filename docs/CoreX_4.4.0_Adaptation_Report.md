@@ -1,5 +1,13 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 2026-09-05：配置校验后的双机轻量集成复验
+
+提交 `8818784` 推送并同步两端后，source fingerprint gate 在本机与
+`10.31.10.210` 均报告 `supported=true`（fingerprint
+`ead5a2d1ecf240f76ed73dcec94032267a3605a97b37ea5a428020151bbf6087`）。随后完成
+16 个真实 KV event 的跨机 affinity 验证，以及两端 BI-V150 的 BF16 ZMQ CPU staging
+传输（`shape=(4,4)`、consumer `mean=7.5`），轻量 integration 返回码为 0。
+
 ## 2026-09-05：V1 P/D connector 配置快速失败校验
 
 入口参数现在在创建 V1 EngineCore 前校验 P/D 传输类型：启用
