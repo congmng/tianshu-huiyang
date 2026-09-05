@@ -1,5 +1,14 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-05：当前提交的两机模型级 P/D handoff 复验
+
+- 自包含探针修复后，在两台 BI-V150 各用一张卡执行 `corex-pd-model-20260905`：
+  两端 Qwen3-14B / vLLM V1 EngineCore 与 `CoreXP2pNcclConnector` 均初始化成功。
+  producer 日志显示 40 层 KV `save_kv_layer`，consumer 日志显示共享 request metadata
+  和 `load role=consumer`，最终 consumer 输出非空中文 `重复的句子` 并正常退出。
+- 这是当前 Python 3.12/CoreX 提交上的模型级 P/D handoff 闭环证据，使用默认安全的
+  ZMQ CPU-staging；不将未稳定的 native NCCL rank-1 路径声明为生产能力。
+
 ## 2026-09-05：两机模型 P/D 探针自包含修复
 
 - 真实两机 `v1_p2p_model_probe.py` 首次启动在远端暴露出独立脚本缺少项目路径

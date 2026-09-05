@@ -1,5 +1,15 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 2026-09-05：当前提交的两机模型级 P/D handoff 复验
+
+自包含探针修复后，使用当前提交在两机各一张 BI-V150 上重跑模型探针：Prefill
+producer 保存 40 层 BF16 KV（每层约 `(2,1084,8,16,128)`），Decode consumer 收到
+共享 request metadata 并执行 `load role=consumer`，随后返回非空中文 `重复的句子`
+并正常退出。两端均为 Qwen3-14B、Python 3.12.13、vLLM 0.11.2、CoreX 4.4.0；
+这证明 connector-driven P/D handoff 已从底层 staging 提升到真实模型级闭环。实现
+仍使用默认安全的 ZMQ CPU-staging，未将 CoreX native NCCL rank-1 不稳定路径宣称为
+生产能力。
+
 ## 2026-09-05：模型级 P/D 探针可复现性修复
 
 两机 Qwen3-14B P/D 探针首次以文档形式的 `python tools/...` 调用远端时，发现
