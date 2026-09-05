@@ -1149,3 +1149,7 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   affinity、异构 scaling、Manager P/D 编排、placement、HTTP API、队列以及
   legacy-only 单元边界；10 项跳过项由测试自身的可选依赖/硬件条件声明。
 - 因此当前正式 V1/CoreX 支持不只依赖精简 91 项门禁；完整 unit 层也已复验通过。
+- 逐项 skip 原因已核对：9 项 Manager legacy real-engine/scale tests 要求测试 Ray
+  集群注册 1/2/4 张 GPU，另 1 项 engine-step exception 要求 PyTorch 与 Ray
+  可见 GPU；本次隔离 unit Ray 明确为 0 GPU。它们不是失败，也不覆盖当前已通过的
+  多卡 TP=2 E2E 与真实双机 staging。

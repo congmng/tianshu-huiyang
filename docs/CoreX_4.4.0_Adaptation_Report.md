@@ -1215,3 +1215,7 @@ handoff、双机 KV event/affinity 和 BF16 staging integration。
 **`152 passed, 10 skipped`**（373.38 秒）。这覆盖精简交付门禁之外的 Manager、
 placement、队列、入口与 legacy 边界行为。跳过项是测试显式声明的可选依赖或硬件
 条件，不用于替代已运行的双机 integration 或 Qwen3 TP=2 E2E；三层证据保持独立。
+逐项审计显示 9 项跳过来自 Manager legacy real-engine/scale 测试所需的 1/2/4
+张 Ray GPU 注册，另 1 项来自 engine-step 测试所需的 PyTorch/Ray GPU；当前隔离
+unit runner 设计为 0 GPU。GPU 相关行为已由 TP=2 实机 E2E 和双机 GPU staging
+单独覆盖。
