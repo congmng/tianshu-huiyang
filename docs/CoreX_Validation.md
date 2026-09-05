@@ -8,6 +8,9 @@ source tools/corex44_env.sh
 python tools/run_corex44_validation.py unit
 python tools/run_corex44_validation.py integration \
   --local-ip 10.31.10.62 --remote-ip 10.31.10.210
+# Optional expensive model-level P/D validation (one Qwen3-14B per host):
+python tools/run_corex44_validation.py integration --model-pd \
+  --local-ip 10.31.10.62 --remote-ip 10.31.10.210
 python tools/run_corex44_validation.py e2e --tp 2
 ```
 
@@ -40,6 +43,13 @@ The legacy vLLM 0.6 block-manager migration tests are intentionally excluded
 from this V1 gate because those private APIs do not exist in vLLM 0.11.2. V1
 request movement is covered by connector-driven P/D KV handoff and the KV
 affinity unit/integration tests.
+
+Pass `--model-pd` to the integration runner to additionally start a TP=1
+Qwen3-14B V1 consumer on the remote host and producer locally. The stage
+requires both processes to use the same request ID and confirms the producer's
+40-layer KV save, consumer load, and non-empty consumer generation. It is
+opt-in because it loads one 14B model on each host; default integration remains
+the faster event-affinity and BF16 staging gate.
 
 The queue unit suite also verifies startup readiness under the Ray actor/ZMQ
 bind race. `ZmqClient.wait_for_server_rpc` retries transient readiness timeouts

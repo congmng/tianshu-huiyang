@@ -55,7 +55,8 @@ def unit_commands() -> list[list[str]]:
 
 
 def run_integration(local_ip: str, remote_ip: str, remote_host: str,
-                    remote_project: str, dry_run: bool) -> None:
+                    remote_project: str, dry_run: bool, model_pd: bool = False,
+                    model: str = "/data1/congmng/llumnix/.models/Qwen3-14B") -> None:
     run([sys.executable, "tools/corex44_support_check.py", "--remote-host", remote_host,
          "--remote-project", remote_project], dry_run)
     event_port = free_port()
@@ -111,22 +112,58 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
     print("+ ssh", remote_host, remote_cmd, flush=True)
     if dry_run:
         print("+", " ".join(local_cmd), flush=True)
+    else:
+        remote = subprocess.Popen(["ssh", remote_host, remote_cmd])
+        try:
+            time.sleep(2)
+            if remote.poll() is not None:
+                raise RuntimeError(
+                    f"remote CoreX KV consumer exited during startup "
+                    f"(exit_code={remote.returncode})"
+                )
+            run(local_cmd, False)
+            if remote.wait(timeout=40) != 0:
+                raise RuntimeError("remote CoreX KV consumer failed")
+        finally:
+            if remote.poll() is None:
+                remote.terminate()
+                remote.wait(timeout=5)
+    if not model_pd:
         return
-    remote = subprocess.Popen(["ssh", remote_host, remote_cmd])
+
+    # Optional expensive stage: two real V1 engines perform a connector-driven
+    # Prefill/Decode handoff. Keep it opt-in because it loads two 14B models,
+    # while the default integration stage already validates the transport.
+    pd_port = free_port()
+    request_id = "corex-pd-model-validation"
+    remote_pd_cmd = (
+        f"cd {remote_project} && source tools/corex44_env.sh && "
+        f"CUDA_VISIBLE_DEVICES=0 PYTHONHASHSEED=0 python tools/v1_p2p_model_probe.py "
+        f"--role consumer --model {model} --host {remote_ip} "
+        f"--peer {local_ip}:{pd_port} --port {pd_port} --request-id {request_id} "
+        "--max-model-len 256 --max-tokens 4"
+    )
+    local_pd_cmd = ["env", "CUDA_VISIBLE_DEVICES=0", "PYTHONHASHSEED=0", sys.executable,
+                    "tools/v1_p2p_model_probe.py", "--role", "producer",
+                    "--model", model, "--host", local_ip, "--peer",
+                    f"{remote_ip}:{pd_port}", "--port", str(pd_port),
+                    "--request-id", request_id, "--max-model-len", "256", "--max-tokens", "4"]
+    print("+ ssh", remote_host, remote_pd_cmd, flush=True)
+    if dry_run:
+        print("+", " ".join(local_pd_cmd), flush=True)
+        return
+    remote_pd = subprocess.Popen(["ssh", remote_host, remote_pd_cmd])
     try:
         time.sleep(2)
-        if remote.poll() is not None:
-            raise RuntimeError(
-                f"remote CoreX KV consumer exited during startup "
-                f"(exit_code={remote.returncode})"
-            )
-        run(local_cmd, False)
-        if remote.wait(timeout=40) != 0:
-            raise RuntimeError("remote CoreX KV consumer failed")
+        if remote_pd.poll() is not None:
+            raise RuntimeError(f"remote model P/D consumer exited during startup (exit_code={remote_pd.returncode})")
+        run(local_pd_cmd, False)
+        if remote_pd.wait(timeout=180) != 0:
+            raise RuntimeError("remote model P/D consumer failed")
     finally:
-        if remote.poll() is None:
-            remote.terminate()
-            remote.wait(timeout=5)
+        if remote_pd.poll() is None:
+            remote_pd.terminate()
+            remote_pd.wait(timeout=10)
 
 
 def main() -> None:
@@ -138,13 +175,17 @@ def main() -> None:
     parser.add_argument("--remote-project", default="/data1/congmng/llumnix")
     parser.add_argument("--tp", type=int, default=1, choices=(1, 2))
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--model-pd", action="store_true",
+                        help="also run the expensive two-host Qwen3 V1 P/D handoff")
+    parser.add_argument("--model", default="/data1/congmng/llumnix/.models/Qwen3-14B",
+                        help="model path for --model-pd")
     args = parser.parse_args()
     if args.level == "unit":
         for command in unit_commands():
             run(command, args.dry_run)
     elif args.level == "integration":
         run_integration(args.local_ip, args.remote_ip, args.remote_host,
-                        args.remote_project, args.dry_run)
+                        args.remote_project, args.dry_run, args.model_pd, args.model)
     else:
         visible = "0" if args.tp == 1 else "0,1"
         command = ["env", f"CUDA_VISIBLE_DEVICES={visible}",

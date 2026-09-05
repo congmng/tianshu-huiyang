@@ -8,6 +8,10 @@
   和 `load role=consumer`，最终 consumer 输出非空中文 `重复的句子` 并正常退出。
 - 这是当前 Python 3.12/CoreX 提交上的模型级 P/D handoff 闭环证据，使用默认安全的
   ZMQ CPU-staging；不将未稳定的 native NCCL rank-1 路径声明为生产能力。
+- 模型级阶段现可由统一入口 `integration --model-pd` 重复执行；默认 integration
+  保持轻量 KV-event/BF16 staging，避免每次回归都加载两份 14B 权重。
+- 首次执行新入口时，support gate 在模型分配前正确拒绝本机未提交 runner 与远端旧
+  fingerprint 的差异；该失败是预期的版本一致性保护，提交/archive 同步后才允许继续。
 
 ## 2026-09-05：两机模型 P/D 探针自包含修复
 

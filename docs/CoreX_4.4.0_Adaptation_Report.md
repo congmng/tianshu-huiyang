@@ -10,6 +10,10 @@ producer 保存 40 层 BF16 KV（每层约 `(2,1084,8,16,128)`），Decode consu
 仍使用默认安全的 ZMQ CPU-staging，未将 CoreX native NCCL rank-1 不稳定路径宣称为
 生产能力。
 
+该模型级阶段已纳入 `run_corex44_validation.py integration --model-pd`；因其在两机
+各加载一份 14B 权重，保持为显式开关，默认 integration 仍执行更快的 KV-event affinity
+和 BF16 staging。这样既保留日常回归速度，也为交付/发布提供一条命令的真实 P/D 验收。
+
 ## 2026-09-05：模型级 P/D 探针可复现性修复
 
 两机 Qwen3-14B P/D 探针首次以文档形式的 `python tools/...` 调用远端时，发现
