@@ -26,11 +26,20 @@ def test_v1_pd_rejects_legacy_backend_before_engine_startup():
     from llumnix.entrypoints.vllm.arg_utils import validate_v1_pd_connector
 
     manager = SimpleNamespace(enable_pd_disagg=True)
-    instance = SimpleNamespace(migration_backend="gloo")
+    instance = SimpleNamespace(
+        migration_backend="gloo", migration_backend_transfer_type="rdma")
     with pytest.raises(ValueError, match="requires --migration-backend kvtransfer"):
         validate_v1_pd_connector(manager, instance, "0.11.2")
     instance.migration_backend = "kvtransfer"
-    validate_v1_pd_connector(manager, instance, "0.11.2")
+    with pytest.raises(ValueError, match="migration-backend-transfer-type"):
+        validate_v1_pd_connector(manager, instance, "0.11.2")
+    for connector in ("rdma", "SharedStorageConnector", None):
+        instance.migration_backend_transfer_type = connector
+        with pytest.raises(ValueError, match="cross-role P2P KV handoff"):
+            validate_v1_pd_connector(manager, instance, "0.11.2")
+    for connector in ("P2pNcclConnector", "CoreXP2pNcclConnector"):
+        instance.migration_backend_transfer_type = connector
+        validate_v1_pd_connector(manager, instance, "0.11.2")
 
 
 def test_cli_accepts_explicit_corex_p2p_connector():

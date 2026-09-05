@@ -10,6 +10,11 @@ from llumnix.entrypoints.utils import LaunchMode
 
 logger = init_logger(__name__)
 
+# ``P2pNcclConnector`` is rewritten to the CoreX compatibility shim when
+# required by the installed NCCL ABI. Keep both spellings valid here so a
+# portable V1 configuration can fail fast without duplicating that rewrite.
+V1_PD_CONNECTORS = {"P2pNcclConnector", "CoreXP2pNcclConnector"}
+
 
 def validate_v1_pd_connector(manager_args: ManagerArgs, instance_args: InstanceArgs,
                               vllm_version: str) -> None:
@@ -21,6 +26,17 @@ def validate_v1_pd_connector(manager_args: ManagerArgs, instance_args: InstanceA
             "vLLM V1 P/D requires --migration-backend kvtransfer and "
             "a P2pNcclConnector/CoreX endpoint configuration; legacy "
             f"{instance_args.migration_backend!r} cannot transfer V1 KV cache"
+        )
+    if not manager_args.enable_pd_disagg:
+        return
+    connector = getattr(instance_args, "migration_backend_transfer_type", None)
+    if connector not in V1_PD_CONNECTORS:
+        supported = ", ".join(sorted(V1_PD_CONNECTORS))
+        raise ValueError(
+            "vLLM V1 P/D requires --migration-backend-transfer-type to be "
+            f"one of: {supported}; got {connector!r}. "
+            "SharedStorageConnector and legacy rdma do not provide the "
+            "cross-role P2P KV handoff required by this deployment."
         )
 
 

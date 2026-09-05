@@ -1,5 +1,13 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-05：V1 P/D connector 启动前校验
+
+- `validate_v1_pd_connector` 现要求启用 P/D 时使用 `kvtransfer` 及
+  `P2pNcclConnector`/`CoreXP2pNcclConnector`；`rdma`、共享存储及空配置在模型
+  启动前即明确报错。
+- 单测覆盖 legacy backend、错误 connector 和两个合法 connector，防止配置错误
+  延迟到 EngineCore 初始化阶段。
+
 ## 2026-09-05：更新 P/D 用户文档的 V1 支持边界
 
 - `Prefill-decoding_Disaggregation.md` 新增 Python 3.12/CoreX 4.4/vLLM V1

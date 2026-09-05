@@ -1,5 +1,13 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 2026-09-05：V1 P/D connector 配置快速失败校验
+
+入口参数现在在创建 V1 EngineCore 前校验 P/D 传输类型：启用
+`kvtransfer` 时仅接受 `P2pNcclConnector` 或 CoreX ABI 兼容的
+`CoreXP2pNcclConnector`。误用历史 `rdma`、`SharedStorageConnector` 或空值会立即
+抛出可操作的 `ValueError`，避免模型加载后才发现跨角色 KV 无法交接；未启用 P/D
+的普通 V1 部署不受此限制。新增单测覆盖拒绝与两个合法 connector 拼写。
+
 ## 2026-09-05：P/D 用户文档与当前 V1 支持边界对齐
 
 更新 `docs/Prefill-decoding_Disaggregation.md`：将 Python 3.12/CoreX 4.4/vLLM
