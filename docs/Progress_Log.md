@@ -1,5 +1,16 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-05：native NCCL P2P 修复边界确认
+
+- 通过 `nm -D` 核验 CoreX 4.4.0 `libnccl.so`：普通 InitRank/Send/Recv 存在，
+  symmetric-memory window 两个可选符号不存在；现有进程内 shim 已安全过滤，
+  不修改系统库。
+- 模型级 consumer/rank-1 的 native `double free` 与 window 符号缺失是两个独立
+  问题；`NCCL_CUMEM_ENABLE=0` workaround 已保留，但 native communicator 仍未达到
+  生产稳定性。
+- 探针新增 `--corex-transport {zmq_cpu,nccl}`，默认 `zmq_cpu`，native NCCL 必须
+  显式 opt-in，便于厂商修复后进行可重复对比测试。
+
 ## 2026-09-05：双机集成复验通过
 
 - 新提交同步到两端后，CoreX source gate fingerprint 为

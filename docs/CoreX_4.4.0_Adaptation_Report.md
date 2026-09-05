@@ -1,5 +1,22 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 2026-09-05：NCCL ABI 兼容层与 native P2P 修复边界
+
+对当前 CoreX 4.4.0 运行库进行符号核验：`/usr/local/corex-4.4.0/lib64/libnccl.so`
+导出普通 `ncclCommInitRank`、`ncclSend`、`ncclRecv`，但不导出 vLLM 0.11.2
+ctypes wrapper 表中仅用于 symmetric-memory 的可选
+`ncclCommWindowRegister/Deregister`。`CoreXP2pNcclConnector` 已在导入阶段逐项
+探测并从进程内函数描述表移除缺失项，不修改系统 `libnccl.so`、驱动或 SDK；因此
+该 ABI 缺口本身可以修复，且普通 NCCL send/recv 不受影响。
+
+进一步的模型级 native P2P 排障显示，consumer/rank-1 在 `ncclCommInitRank` 阶段
+仍可能触发 CoreX NCCL 的 `double free or corruption`。shim 已将 vLLM P2P helper
+强制的 `NCCL_CUMEM_ENABLE=1` 改为进程内 `0`，但该 workaround 尚不足以证明所有
+跨主机 V1 worker 稳定。因此 native NCCL 不能仅因 window 符号过滤就切为默认生产
+路径。新增 `v1_p2p_model_probe.py --corex-transport nccl` 作为显式诊断入口；默认
+仍为已完成真实模型级闭环的 `zmq_cpu` BF16 staging。后续若 CoreX 厂商修复
+rank-1 allocator/communicator ABI，可用同一探针复测并切换 transport。
+
 ## 2026-09-05：配置校验后的双机轻量集成复验
 
 提交 `8818784` 推送并同步两端后，source fingerprint gate 在本机与
