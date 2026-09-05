@@ -6,7 +6,7 @@ Levels are cumulative only in intent, not automatically chained:
 * ``unit``: CPU/isolated-Ray V1, KV-affinity and HTTP contract tests.
 * ``integration``: two-host version/hash gate, V1 KV-event affinity, then a
   real GPU BF16 KV staging transfer from this host to ``--remote-host``.
-* ``e2e``: Qwen3-14B real inference using one or more local CoreX GPUs.
+* ``e2e``: Qwen3-14B real inference plus the Llumnix V1 HTTP frontend.
 
 The runner does not manage shared Ray clusters and never deletes model or Ray
 state. Source ``tools/corex44_env.sh`` first. Use ``--dry-run`` to print
@@ -151,6 +151,10 @@ def main() -> None:
                    f"TENSOR_PARALLEL_SIZE={args.tp}", "MAX_MODEL_LEN=256",
                    sys.executable, "tools/run_qwen3_14b_smoke.py"]
         run(command, args.dry_run)
+        # HTTP uses one GPU; run after direct TP inference releases its worker
+        # processes. This validates the actual Llumnix V1 serving boundary.
+        run(["env", "CUDA_VISIBLE_DEVICES=0", sys.executable,
+             "tools/run_llumnix_v1_http_e2e.py"], args.dry_run)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,16 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 2026-09-05：Llumnix V1 HTTP 模型级端到端验证
+
+新增并执行 `tools/run_llumnix_v1_http_e2e.py`：真实启动 Llumnix V1 API server
+及 Qwen3-14B CoreX engine，在同一进程生命周期内验证 `/health`、`/is_ready`、
+`/instance_list`（GPU 数、节点、显存字段）和 `/generate`。本机 `cuda:0` 实测
+全部通过，返回非空中文，输出 `llumnix_v1_http_corex: PASS`。该工具已纳入统一
+`e2e` runner，因此交付测试同时覆盖直接 vLLM engine 与 Llumnix HTTP serving
+边界。单卡模型权重约 27.5 GiB，运行参数需为 `gpu_memory_utilization=0.96` 以
+保留 KV cache 空间；设置为 0.70 时 vLLM 明确报无可用 cache memory，属于资源配置
+错误而非适配故障。
+
 ## Python 3.12 发布构建与多卡交付复验（2026-09-04）
 
 最新提交在专用 CoreX Python 3.12 环境通过无隔离 wheel 构建，生成

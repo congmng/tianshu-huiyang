@@ -1,5 +1,15 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-05：Llumnix V1 HTTP 模型级 E2E
+
+- 新增 `tools/run_llumnix_v1_http_e2e.py`，以真实 Qwen3-14B/CoreX GPU 启动
+  `llumnix.entrypoints.vllm.v1_api_server`，依次验证 `/health`、`/is_ready`、
+  `/instance_list` 和 `/generate`。本机实测 HTTP 200、GPU topology 正确并返回
+  非空中文：`llumnix_v1_http_corex: PASS`。
+- 该工具已纳入 `run_corex44_validation.py e2e`，与直接 vLLM TP E2E 分开验证，
+  覆盖 Llumnix 自身 V1 serving 边界。单卡 Qwen3-14B 需使用 `gpu_memory_utilization`
+  `0.96`（权重约 27.5 GiB）；较低值会由 vLLM 正确拒绝，因为无法创建 KV cache。
+
 ## 2026-09-04：Python 3.12 wheel 与 TP=2 交付复验
 
 当前提交在 CoreX Python 3.12 环境执行 `pip wheel . --no-deps --no-build-isolation`

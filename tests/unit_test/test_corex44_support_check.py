@@ -92,6 +92,7 @@ def test_layered_corex_validation_runner_has_all_required_levels():
         assert level in source
     assert "corex44_zmq_kv_probe.py" in source
     assert "run_qwen3_14b_smoke.py" in source
+    assert "run_llumnix_v1_http_e2e.py" in source
     assert "--local-ip" in source
     assert "--remote-ip" in source
     assert "exited during startup" in source
