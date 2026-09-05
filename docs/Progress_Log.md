@@ -9,6 +9,10 @@
 - 该工具已纳入 `run_corex44_validation.py e2e`，与直接 vLLM TP E2E 分开验证，
   覆盖 Llumnix 自身 V1 serving 边界。单卡 Qwen3-14B 需使用 `gpu_memory_utilization`
   `0.96`（权重约 27.5 GiB）；较低值会由 vLLM 正确拒绝，因为无法创建 KV cache。
+- 在提交后的统一 `python tools/run_corex44_validation.py e2e --tp 2` 连续复验中，
+  先完成 TP=2（rank 0/1、NCCL、KV cache）中文生成，耗时 `25.42s`，随后同一 runner
+  完成单卡 Llumnix V1 HTTP `/health`、`/is_ready`、`/instance_list`、`/generate`。
+  两阶段均 PASS，证明进程释放与后续 serving 启动链路可连续运行。
 
 ## 2026-09-04：Python 3.12 wheel 与 TP=2 交付复验
 

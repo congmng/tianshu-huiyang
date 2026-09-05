@@ -11,6 +11,12 @@
 保留 KV cache 空间；设置为 0.70 时 vLLM 明确报无可用 cache memory，属于资源配置
 错误而非适配故障。
 
+在最终统一入口 `python tools/run_corex44_validation.py e2e --tp 2` 中，TP=2
+Qwen3-14B 首先以 NCCL rank 0/1 完成中文生成（25.42 秒）；其子进程退出后，同一
+runner 启动单卡 Llumnix V1 HTTP E2E 并完成 API 探测和生成。两阶段均 PASS，说明
+TP worker 的退出不会阻碍后续 API 的 GPU/KV cache 初始化，验证了可重复的完整
+模型交付链路。
+
 ## Python 3.12 发布构建与多卡交付复验（2026-09-04）
 
 最新提交在专用 CoreX Python 3.12 环境通过无隔离 wheel 构建，生成
