@@ -11,6 +11,14 @@ CoreX V1 unit gate（`92 passed`）。模板不固定主机 endpoint；Manager/L
 该模板也纳入双机 source fingerprint；配置、验证脚本和 serving 实现任一不一致时，
 support gate 会在分配 GPU 前拒绝部署。
 
+## 2026-09-05：最终 Python 3.12 wheel 交付审计
+
+在最新源码以无隔离、无依赖下载方式执行 `python -m pip wheel . --no-deps
+--no-build-isolation`，成功生成 `llumnix-0.0.2-py3-none-any.whl`（约 176 KiB）。
+support/config 门禁为 `9 passed`；两机 CoreX support gate 均为 `supported=true`，
+共同 source fingerprint 为 `c0ef7487…e83d2b`，且远端 `tianshu-huiyang/main` 与
+本地 `a4fcd9b` 一致。项目环境、模型、Ray 目录及实例日志保持未跟踪，未污染交付物。
+
 ## 2026-09-05：当前提交的两机模型级 P/D handoff 复验
 
 自包含探针修复后，使用当前提交在两机各一张 BI-V150 上重跑模型探针：Prefill
