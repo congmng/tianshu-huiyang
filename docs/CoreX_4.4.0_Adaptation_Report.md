@@ -17,6 +17,13 @@ runner 启动单卡 Llumnix V1 HTTP E2E 并完成 API 探测和生成。两阶�
 TP worker 的退出不会阻碍后续 API 的 GPU/KV cache 初始化，验证了可重复的完整
 模型交付链路。
 
+## 2026-09-05：双机验证协议一致性
+
+双机 support gate 的源码指纹新增覆盖统一 validation runner 与 Llumnix V1 HTTP
+E2E 工具。这样两台部署机必须同时拥有相同服务实现和相同验证契约；变更后的首次
+门禁刻意检出尚未同步远端的 fingerprint 差异，随后 archive 同步并复验。该机制防止
+只在本机更新 E2E 测试导致双机 KV-affinity 结果不可比较。
+
 ## Python 3.12 发布构建与多卡交付复验（2026-09-04）
 
 最新提交在专用 CoreX Python 3.12 环境通过无隔离 wheel 构建，生成

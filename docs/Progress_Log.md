@@ -14,6 +14,12 @@
   完成单卡 Llumnix V1 HTTP `/health`、`/is_ready`、`/instance_list`、`/generate`。
   两阶段均 PASS，证明进程释放与后续 serving 启动链路可连续运行。
 
+## 2026-09-05：双机交付协议指纹加固
+
+- support gate 的 `source_fingerprint` 现同时覆盖 `run_corex44_validation.py` 与
+  `run_llumnix_v1_http_e2e.py`；两端一致性不再只限 serving 源文件，也要求执行相同的
+  单测/集成/E2E 验证协议。修改后门禁先正确报告远端旧指纹不一致，待 archive 同步后复验。
+
 ## 2026-09-04：Python 3.12 wheel 与 TP=2 交付复验
 
 当前提交在 CoreX Python 3.12 环境执行 `pip wheel . --no-deps --no-build-isolation`

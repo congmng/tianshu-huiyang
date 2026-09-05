@@ -42,6 +42,11 @@ SOURCE_FINGERPRINT_FILES = (
     "llumnix/entrypoints/vllm/client.py",
     "llumnix/entrypoints/vllm/v1_api_server.py",
     "llumnix/instance_info.py",
+    # Keep both hosts on the same executable validation contract as well as
+    # the same serving implementation. These runners exercise the public V1
+    # boundary and must not silently drift between deployment nodes.
+    "tools/run_corex44_validation.py",
+    "tools/run_llumnix_v1_http_e2e.py",
 )
 
 
