@@ -1,5 +1,13 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-05：更新 P/D 用户文档的 V1 支持边界
+
+- `Prefill-decoding_Disaggregation.md` 新增 Python 3.12/CoreX 4.4/vLLM V1
+  正式路径、配置模板与一键验收命令，并明确 connector-driven P/D handoff 是替代
+  legacy block-manager migration 的机制。
+- 文档明确保留的边界：默认生产 transport 为 `zmq_cpu` BF16 staging；native NCCL
+  为诊断项；V1 不承诺任意时刻 request migration 或 Decode-to-Decode legacy migration。
+
 ## 2026-09-05：发布 CoreX V1 P/D 配置模板
 
 - 新增 `configs/corex44_v1_pd.yml`，明确 Python 3.12/CoreX 4.4/vLLM V1 的

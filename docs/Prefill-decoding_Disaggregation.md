@@ -1,5 +1,39 @@
 # Prefill-decoding Disaggregation (Experimental)
 
+## Python 3.12 / CoreX 4.4 / vLLM V1 status
+
+The historical design below describes the vLLM 0.6 block-manager migration
+implementation. On the supported Python 3.12 / Iluvatar CoreX 4.4 / vLLM
+0.11 V1 stack, Llumnix uses the supported replacement: connector-driven
+Prefill/Decode KV handoff. The production transport is
+`CoreXP2pNcclConnector` with safe `zmq_cpu` BF16 staging; native CoreX NCCL
+P2P remains a non-default diagnostic path.
+
+Use [configs/corex44_v1_pd.yml](../configs/corex44_v1_pd.yml) as the two-host
+deployment starting point. It explicitly selects `kvtransfer`,
+`CoreXP2pNcclConnector`, `virtual_usage`, and a 1:1 P/D ratio. Per-node
+routable endpoints are supplied with `LLUMNIX_KV_*` runtime environment
+variables; do not hard-code one host's endpoint into a shared config.
+
+The reproducible acceptance command is:
+
+```bash
+source tools/corex44_env.sh
+python tools/run_corex44_validation.py integration --model-pd \
+  --local-ip 10.31.10.62 --remote-ip 10.31.10.210
+```
+
+It gates both hosts' versions/source/config fingerprints, validates actual
+vLLM KV events and affinity, BF16 staging, and a Qwen3-14B producer/consumer
+model handoff. The V1 Manager also supports affinity-aware P/D role selection,
+heterogeneous `virtual_usage` scheduling, and cancellation while either role
+pool is temporarily unavailable.
+
+V1 does not expose the legacy private APIs needed for arbitrary in-flight
+request/block-manager migration or Decode-to-Decode migration. Those legacy
+claims below must not be read as V1 support; use connector-driven P/D handoff
+for request movement on the supported stack.
+
 Prefill-decoding disaggregation is a technique that computes the prefill and decoding phases on separate instances, designed mainly for reducing the inteference between the two phases and better utilizing heterogeneous hardware. For each request, following the prefill phase, the system migrates the generated key-value (KV) cache to the decoding instance and continues the computation. 
 
 We find Llumnix well-suited for implementing P-D disaggregation, because this technique is inherently a special request scheduling policy and fits well in Llumnix's modeling for request scheduling. Specifically, P-D disaggregation can be decomposed into two rules (shown below): (1) a special dispatching rule, i.e., P-instances-only; and (2) a special migration rule, i.e., migrate to D instances after one step. Llumnix provides an implementation of P-D disaggregation following this principle.

@@ -1,5 +1,13 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 2026-09-05：P/D 用户文档与当前 V1 支持边界对齐
+
+更新 `docs/Prefill-decoding_Disaggregation.md`：将 Python 3.12/CoreX 4.4/vLLM
+V1 的 connector-driven P/D handoff、`corex44_v1_pd.yml` 配置模板和
+`integration --model-pd` 验收命令置于历史 vLLM 0.6 说明之前。文档同时明确
+V1 不实现旧私有 block-manager 的任意时刻/Decode-to-Decode request migration，
+native NCCL 也不是默认生产路径，避免旧设计文字超出当前实测支持范围。
+
 ## 2026-09-05：CoreX V1 P/D 部署模板
 
 新增 `configs/corex44_v1_pd.yml` 作为两机部署起点。模板使用 1:1 P/D、

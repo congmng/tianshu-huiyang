@@ -46,6 +46,11 @@ from this V1 gate because those private APIs do not exist in vLLM 0.11.2. V1
 request movement is covered by connector-driven P/D KV handoff and the KV
 affinity unit/integration tests.
 
+The original P/D design document contains the historical 0.6 implementation
+details. Its CoreX/V1 status section at the top is normative for this release;
+the legacy feature descriptions below are retained for historical comparison
+only.
+
 Pass `--model-pd` to the integration runner to additionally start a TP=1
 Qwen3-14B V1 consumer on the remote host and producer locally. The stage
 requires both processes to use the same request ID and confirms the producer's
