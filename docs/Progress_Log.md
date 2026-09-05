@@ -1125,3 +1125,10 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   占用固定端口导致误失败；新增 transient-timeout readiness 单测。
 - CoreX 4.4 / Python 3.12 分层 unit gate：`89 passed`；队列四档压力基准及
   readiness 回归：`5 passed`。未跳过或放宽真实队列协议。
+- 提交 `0444ef7` 已推送并 archive 同步至 `10.31.10.210`；严格双机门禁确认两端
+  Python `3.12.13`、CoreX `4.4.0`、PyTorch `2.7.1`、vLLM `0.11.2`、Ray `2.52.1`
+  及完整 V1 源码指纹一致。
+- 同一源码版本的双机 integration 发送 16 个真实 vLLM `BlockStored` 事件，远端
+  得到 `affinity=1.0` 与 `rank=[remote-cached, local-empty]`；BF16 GPU ZMQ
+  staging producer/consumer 均 PASS（`cuda:0`、`(4,4)`、mean `7.5`）。本机
+  Qwen3-14B TP=2 E2E 再通过，耗时 `25.36s`、中文生成非空。

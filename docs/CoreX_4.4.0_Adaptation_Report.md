@@ -1189,3 +1189,10 @@ bind socket 之间存在短暂窗口。旧客户端只发送一次 `IS_SERVER_RE
 验证：`tests/unit_test/queue/test_zmq.py` 全部通过（4 档 qps 基准加 readiness
 单测，共 `5 passed`）；CoreX V1 分层门禁 `89 passed`。该修复属于 Python 3.12 /
 CoreX 运行时适配，不改变 KV affinity、P/D handoff 或扩缩容策略。
+
+修复提交 `0444ef7` 已同步至两机后重新执行严格 support gate、双机 integration 与
+本机 TP=2 E2E。前两者证实双方运行 Python `3.12.13` / CoreX `4.4.0` / PyTorch
+`2.7.1` / vLLM `0.11.2` / Ray `2.52.1` 且 V1 源码指纹一致；integration 使用真实
+`BlockStored` 事件产生远端 `affinity=1.0`、`remote-cached` 优先排序，并成功完成
+BF16 `cuda:0` ZMQ CPU-staging round trip。Qwen3-14B TP=2 在 25.36 秒内返回非空中文。
+这些结果确认交付功能未因队列修复回退；不等同于论文的 QPS 或延迟收益复现。
