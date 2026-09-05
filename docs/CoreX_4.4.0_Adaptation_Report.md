@@ -39,9 +39,11 @@ support gate 会在分配 GPU 前拒绝部署。
 
 在最新源码以无隔离、无依赖下载方式执行 `python -m pip wheel . --no-deps
 --no-build-isolation`，成功生成 `llumnix-0.0.2-py3-none-any.whl`（约 176 KiB）。
-support/config 门禁为 `9 passed`；两机 CoreX support gate 均为 `supported=true`，
-共同 source fingerprint 为 `c0ef7487…e83d2b`，且远端 `tianshu-huiyang/main` 与
-本地 `a4fcd9b` 一致。项目环境、模型、Ray 目录及实例日志保持未跟踪，未污染交付物。
+本次 connector 校验后的 CoreX V1 单元门禁为 `92 passed`；两机 CoreX support gate
+均为 `supported=true`，共同 source fingerprint 为
+`ead5a2d1ecf240f76ed73dcec94032267a3605a97b37ea5a428020151bbf6087`，且远端
+`tianshu-huiyang/main` 与本地 `6a705c9` 一致。项目环境、模型、Ray 目录及实例日志
+保持未跟踪，未污染交付物。
 
 ## 2026-09-05：当前提交的两机模型级 P/D handoff 复验
 

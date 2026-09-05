@@ -39,11 +39,11 @@
 
 ## 2026-09-05：最终 Python 3.12 交付构建审计
 
-- 在当前 `a4fcd9b` 源码以 `python -m pip wheel . --no-deps --no-build-isolation`
-  成功构建 `llumnix-0.0.2-py3-none-any.whl`（约 176 KiB）；相关 support/config
-  门禁 `9 passed`。
+- 在当前 `6a705c9` 源码以 `python -m pip wheel . --no-deps --no-build-isolation`
+  成功构建 `llumnix-0.0.2-py3-none-any.whl`（约 177 KiB）；connector 校验后的
+  CoreX V1 单元门禁 `92 passed`。
 - GitHub `tianshu-huiyang/main` 与本地提交一致，两机 gate 均 `supported=true`、
-  source fingerprint=`c0ef7487…e83d2b`。工作区未跟踪项只含项目本地 conda、模型、
+  source fingerprint=`ead5a2d1…bbf6087`。工作区未跟踪项只含项目本地 conda、模型、
   Ray 和实例日志运行产物，未进入提交。
 
 ## 2026-09-05：当前提交的两机模型级 P/D handoff 复验
