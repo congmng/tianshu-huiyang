@@ -1,5 +1,15 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-05：发布 CoreX V1 P/D 配置模板
+
+- 新增 `configs/corex44_v1_pd.yml`，明确 Python 3.12/CoreX 4.4/vLLM V1 的
+  1:1 P/D 初始配置：`MIGRATION_BACKEND=kvtransfer`、
+  `MIGRATION_BACKEND_TRANSFER_TYPE=CoreXP2pNcclConnector`、
+  `DISPATCH_LOAD_METRIC=virtual_usage`，并关闭不适用于 V1 的 legacy migration。
+- 配置单测验证 yacs 加载、P/D ratio、实例数和 connector 字段；已纳入统一门禁，
+  当前 CoreX V1 unit gate 为 `92 passed`。每节点实际 endpoint 仍由 `LLUMNIX_KV_*`
+  runtime env 注入，避免模板固化错误 IP/端口。
+
 ## 2026-09-05：当前提交的两机模型级 P/D handoff 复验
 
 - 自包含探针修复后，在两台 BI-V150 各用一张卡执行 `corex-pd-model-20260905`：

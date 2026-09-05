@@ -1,0 +1,28 @@
+# Production-oriented starting point for Python 3.12 / CoreX 4.4 / vLLM 0.11 V1.
+#
+# Deploy this configuration on an existing two-host Ray cluster.  CoreX V1 P/D
+# uses connector-driven KV handoff, so `kvtransfer` and the CoreX connector
+# are required; do not substitute the old gloo/nccl block-manager backends.
+# Per-node routable endpoints are injected through LLUMNIX_KV_* environment
+# variables by the V1 Manager/Llumlet runtime environment.
+SERVER:
+  HOST: "0.0.0.0"
+  PORT: 8000
+  REQUEST_OUTPUT_QUEUE_TYPE: "zmq"
+  LAUNCH_RAY_CLUSTER: False
+
+MANAGER:
+  INITIAL_INSTANCES: 2
+  ENABLE_PD_DISAGG: True
+  PD_RATIO: "1:1"
+  DISPATCH_POLICY: "load"
+  ENABLE_MIGRATION: False
+  ENABLE_SCALING: False
+
+INSTANCE:
+  DISPATCH_LOAD_METRIC: "virtual_usage"
+  MIGRATION_LOAD_METRIC: "remaining_steps"
+  ENABLE_DEFRAG: False
+  MIGRATION_BACKEND: "kvtransfer"
+  MIGRATION_BACKEND_TRANSFER_TYPE: "CoreXP2pNcclConnector"
+  MIGRATION_BUFFER_BLOCKS: 512

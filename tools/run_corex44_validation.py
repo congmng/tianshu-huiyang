@@ -42,6 +42,7 @@ def run(command: list[str], dry_run: bool) -> None:
 def unit_commands() -> list[list[str]]:
     return [[sys.executable, "-m", "pytest", "-q",
              "tests/unit_test/test_corex44_support_check.py",
+             "tests/unit_test/test_corex44_pd_config.py",
              "tests/unit_test/backend/test_v1_kv_transfer.py",
              "tests/unit_test/global_scheduler/test_v1_kv_affinity.py",
              "tests/unit_test/global_scheduler/test_dispatch_scheduler.py",

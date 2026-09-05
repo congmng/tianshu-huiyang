@@ -1,5 +1,14 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 2026-09-05：CoreX V1 P/D 部署模板
+
+新增 `configs/corex44_v1_pd.yml` 作为两机部署起点。模板使用 1:1 P/D、
+`virtual_usage` 异构调度、`kvtransfer` 和 `CoreXP2pNcclConnector`，并关闭旧
+vLLM 0.6 block-manager migration。配置单测已验证 yacs 解析与关键字段，纳入
+CoreX V1 unit gate（`92 passed`）。模板不固定主机 endpoint；Manager/Llumlet
+根据各节点 runtime env 的 `LLUMNIX_KV_*` 注入可路由地址，从而支持两机和多网卡
+部署。
+
 ## 2026-09-05：当前提交的两机模型级 P/D handoff 复验
 
 自包含探针修复后，使用当前提交在两机各一张 BI-V150 上重跑模型探针：Prefill

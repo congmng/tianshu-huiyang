@@ -5,6 +5,8 @@ This is the reproducible test matrix for the Python 3.12 / CoreX 4.4 / vLLM
 
 ```bash
 source tools/corex44_env.sh
+ # Config template for a two-host V1 P/D deployment:
+ # configs/corex44_v1_pd.yml
 python tools/run_corex44_validation.py unit
 python tools/run_corex44_validation.py integration \
   --local-ip 10.31.10.62 --remote-ip 10.31.10.210
