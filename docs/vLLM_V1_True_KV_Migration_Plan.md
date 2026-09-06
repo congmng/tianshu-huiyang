@@ -204,6 +204,16 @@ EngineCore command handling、worker cache 或真实 GPU data plane。因此当�
 
 目标侧的 Phase-1 scheduler lifecycle 已在 `dffdd68`/`7952bc8` 落地：目标请求在
 `MIGRATING_IN` 注册，只有目标 KV 写入完成后才可 `commit_migration_in()` 进入 waiting
-queue；失败时 `abort_migration_in()` 删除请求。该接口当前要求调用方构造目标
-`Request`，因为 sampling/RNG 的版本化 wire serialization 仍待实现。它已验证控制 ABI，
-但不代表目标 worker cache 或实际 GPU KV 已恢复。
+queue；失败时 `abort_migration_in()` 删除请求。随后 fork 的 `36a67ac`、`1470395` 和
+`7ca1d83` 增加了 worker 层按命名 layer/本地 block ordinal 的 KV tensor
+export/import：payload 是 detached contiguous snapshot，目标在写入前校验 epoch、目标
+block mapping、dtype、shape、payload SHA-256 与 manifest metadata SHA-256。它目前是
+单进程/单层数据面 API，尚未等同于跨进程 NCCL 迁移。
+
+`d749668` 和 `bd30a04` 将首版目标 `Request` 改为从 versioned JSON snapshot 重建，
+并保持 token history、`num_computed_tokens`、`max_tokens`、EOS 与 stop-token 语义。
+首版只接受 temperature=0 的纯 greedy causal-LM 请求，显式拒绝 RNG、penalty、grammar、
+LoRA、多模态、logits processor、logprobs 和 structured output；这些状态的 wire 版本化
+尚待 Phase 4。当前 fork head 是 `bd30a04`，KV block + snapshot 重建单元测试 11 项通过。
+尚未将 target scheduler 的 reservation、worker request-index/input batch 恢复和 NCCL
+数据面接成端到端 EngineCore，因此仍不得宣称 Decode-to-Decode 已可用。
