@@ -178,6 +178,15 @@ decoding。没有对应快照字段、回滚测试和性能数据前，不得宣
 绑定目标 worker local rank。故障必须进入 abort 或明确不可恢复状态，不能静默更新
 Llumnix mapping。完整 KV 复制会增加显存和网络开销，只有增量迁移稳定后才比较性能。
 
-当前项目已验证 CoreX native NCCL P/D handoff、endpoint 绑定和 communicator 复用，
-但尚未修改 vLLM 源码，也尚未实现运行中请求迁移接口；当前 V1 仍只支持 connector-driven
-P/D handoff。本规划完成后，必须以 Phase 1/2 实测结果为依据解除该限制。
+当前项目已验证 CoreX native NCCL P/D handoff、endpoint 绑定和 communicator 复用。
+Phase 1 已在 Llumnix 新增独立、可测试的协议参考实现
+`llumnix.backends.vllm.v1_migration`：它覆盖 immutable snapshot checksum、epoch、
+target block reservation、目标先 commit 与源端后 release、以及 abort 回滚。该参考
+实现不是生产迁移开关。
+
+已建立 upstream vLLM `v0.11.2` fork 工作树作为 API 补丁原型，但其不能直接替换
+CoreX wheel：在当前 CoreX PyTorch 2.7.1 环境中，上游源码导入
+`torch.distributed._symmetric_memory` 时要求 wheel 未导出的 `_SymmetricMemory`。
+当前 `vllm-0.11.2+corex.4.4.0` 已安装 wheel 含厂商适配，必须取得与该 wheel 对应的
+CoreX vLLM 源码基线后，才能构建并部署真实 fork。因而当前 V1 生产路径仍只支持
+connector-driven P/D handoff；必须以 Phase 1/2 的实际 fork 测试结果解除该限制。
