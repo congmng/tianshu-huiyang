@@ -15,6 +15,13 @@ consumer 完成请求并正常退出。该结果把 native NCCL 问题从“模�
 为跨主机/allocator 稳定性与生命周期问题；两机生产默认仍保持 `zmq_cpu`，native
 模式通过 `tools/corex44_native_nccl_probe.py` 和 `--corex-transport nccl` 显式诊断。
 
+随后在两机各一张 BI-V150 上执行同一 Qwen3-14B 模型探针，producer
+`10.31.10.62:24501` 与 consumer `10.31.10.210:24500` 的 native communicator
+均初始化成功，producer 导出 40 层 KV，consumer 最终输出非空文本 `两种`。因此
+native NCCL 现为经过模型级验证的可选传输方式；统一验收可使用
+`integration --model-pd --native-nccl`。为保留保守部署回退，模板默认仍为
+`zmq_cpu`，由部署者在网络/负载环境验证后显式切换。
+
 ## 2026-09-05：NCCL ABI 兼容层与 native P2P 修复边界
 
 对当前 CoreX 4.4.0 运行库进行符号核验：`/usr/local/corex-4.4.0/lib64/libnccl.so`

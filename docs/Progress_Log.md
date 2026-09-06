@@ -8,6 +8,10 @@
   40 层 KV 保存，consumer 完成请求并正常退出；`NCCL_CUMEM_ENABLE=0`。
 - 新增 `corex44_native_nccl_probe.py` 并纳入双机 source fingerprint，用于将
   communicator、GPU Send/Recv 与模型调度问题分层诊断。
+- 两机 Qwen3-14B native NCCL P/D 已通过：双方 InitRank 成功，producer 发送
+  40 层 KV，remote consumer 输出非空文本 `两种`。统一 runner 新增
+  `integration --model-pd --native-nccl` 显式验收开关；`zmq_cpu` 继续保留为默认
+  回退 transport。
 
 ## 2026-09-05：native NCCL P2P 修复边界确认
 
