@@ -192,7 +192,9 @@ wheel：在当前 CoreX PyTorch 2.7.1 环境中，上游源码导入
 源码，建立独立的 CoreX fork 工作树 `/data1/congmng/vllm-corex44-v1-migration`。其
 baseline commit 是 `1a2b265`，已在 `60f9852` 加入 `RequestMigrationSnapshot`、
 非 finished migration states 和 Scheduler source-side freeze/abort/commit API；现有
-site-packages 未被修改。fork 的协议导入与状态排序检查已经通过，但尚未构建 wheel，
-也尚未接入 EngineCore、KVCacheManager reservation、worker cache 或真实 GPU data
-plane。因此当前 V1 生产路径仍只支持 connector-driven P/D handoff；必须以 Phase 1/2
-的实际 fork 测试结果解除该限制。
+site-packages 未被修改。随后 `f27f7ab` 加入 EngineCore migration request types 和
+KVCacheManager import reservation/commit/abort API；首版显式限制所有 KV groups 为
+同一 block count，这是当前 V1 coordinator 的安全分配边界。fork 的协议导入、状态排序
+和控制消息检查已经通过，但尚未构建 wheel，也尚未接入 EngineCore command handling、
+worker cache 或真实 GPU data plane。因此当前 V1 生产路径仍只支持 connector-driven
+P/D handoff；必须以 Phase 1/2 的实际 fork 测试结果解除该限制。

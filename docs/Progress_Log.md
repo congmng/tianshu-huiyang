@@ -7,6 +7,8 @@
   EngineCore 控制消息及两阶段提交/回滚协议。
 - 当前只完成规划，不将现有 connector-driven P/D handoff 误称为运行中迁移；实施需
   先固定 CoreX vLLM 0.11.2 fork，并从单进程 snapshot/回滚测试开始。
+- 已从已运行的 CoreX wheel 建立独立 vLLM fork，完成 snapshot、source freeze、
+  import reservation 及迁移控制消息原型；尚未构建/部署该 fork，生产路径不变。
 
 ## 2026-09-06：本机 native NCCL endpoint 修复验证
 
