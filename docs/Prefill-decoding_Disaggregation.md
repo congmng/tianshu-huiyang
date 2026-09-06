@@ -37,6 +37,12 @@ request/block-manager migration or Decode-to-Decode migration. Those legacy
 claims below must not be read as V1 support; use connector-driven P/D handoff
 for request movement on the supported stack.
 
+The implementation plan for adding true in-flight KV migration through a
+maintained vLLM V1 fork is documented in
+[vLLM V1 True KV Migration Plan](./vLLM_V1_True_KV_Migration_Plan.md). It is
+a forward plan, not a claim that Decode-to-Decode migration is already
+available in the current build.
+
 Prefill-decoding disaggregation is a technique that computes the prefill and decoding phases on separate instances, designed mainly for reducing the inteference between the two phases and better utilizing heterogeneous hardware. For each request, following the prefill phase, the system migrates the generated key-value (KV) cache to the decoding instance and continues the computation. 
 
 We find Llumnix well-suited for implementing P-D disaggregation, because this technique is inherently a special request scheduling policy and fits well in Llumnix's modeling for request scheduling. Specifically, P-D disaggregation can be decomposed into two rules (shown below): (1) a special dispatching rule, i.e., P-instances-only; and (2) a special migration rule, i.e., migrate to D instances after one step. Llumnix provides an implementation of P-D disaggregation following this principle.

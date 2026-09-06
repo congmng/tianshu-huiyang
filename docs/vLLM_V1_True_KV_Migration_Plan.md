@@ -1,0 +1,183 @@
+# vLLM V1 真正 KV 迁移实施规划
+
+## 1. 目标与边界
+
+本文规划在 vLLM V1（当前 CoreX 基线为 vLLM 0.11.2）中增加真正的 KV
+cache migration，使 Llumnix 能把已经开始生成的请求从实例 A 迁移到实例 B，
+并在 B 上继续生成。“任意时刻”定义为一次 GPU forward 完成后的 scheduler
+token boundary，不尝试在 GPU kernel 执行中途抢占。
+
+目标能力：Decode-to-Decode、运行中请求冻结/导出/导入/提交/回滚，以及完整 KV
+内容迁移，而不是目标端重新 prefill。首版限制 TP=1、普通 causal-LM 和确定性
+单步采样；暂不承诺 speculative decoding、复杂 structured output、多模态、LoRA、
+TP>1 或跨模型/KV layout 迁移，须在协议稳定后逐项加入。
+
+## 2. 为什么必须改 vLLM
+
+现有 V1 connector 的 `start_load_kv()`/`save_kv_layer()` 解决的是 Prefill →
+Decode handoff：目标请求通常尚未执行。它没有暂停 RUNNING 请求、导出 scheduler
+状态、重建 worker 请求索引和原子释放源 blocks 的语义。
+
+不能只在 Llumnix 传 tensor，也不能把源端 block ID 交给目标端。每个实例拥有独立
+block pool；目标端必须分配自己的 blocks，并在目标确认成功前保留源端副本。
+
+## 3. vLLM fork 与版本策略
+
+维护一个基于 CoreX vLLM 0.11.2 的独立 fork（建议独立仓库），变更审计清单为：
+
+```text
+vllm/v1/request.py
+vllm/v1/core/sched/scheduler.py
+vllm/v1/core/kv_cache_manager.py
+vllm/v1/core/sched/output.py
+vllm/v1/engine/__init__.py
+vllm/v1/engine/core.py
+vllm/v1/worker/model_runner.py
+vllm/distributed/kv_transfer/kv_connector/v1/
+```
+
+每次升级 vLLM 必须重新运行 ABI、scheduler、KV layout 和迁移协议测试，不能仅替换
+wheel。
+
+## 4. 迁移状态机
+
+迁移态必须由 EngineCore 所在线程串行执行：
+
+```text
+WAITING/RUNNING --prepare_out--> MIGRATING_OUT --export/transfer--> OUT_READY
+      ^                                  |                       |
+      +------------ abort_out -----------+------- commit_out -----+--> RELEASED
+
+IMPORTING --KV/checksum ok--> IMPORT_READY --commit_in--> RUNNING
+    |                                  |
+    +------------ abort_in -------------+--> free reserved blocks
+```
+
+`MIGRATING_OUT` 请求从 running/waiting 调度集合摘除。prepare 只允许在当前 batch
+完成后执行，不得在 `execute_model()` 中途修改请求或 block pool。
+
+### 两阶段提交
+
+1. 源端冻结请求，固定 `num_computed_tokens`/输出 token，并把源 blocks 标为
+   migration-pinned；
+2. 目标端验证模型、parallel 和 KV layout，分配本地 blocks；
+3. connector 按 KV group/layer 写入目标 blocks，并传输校验和；
+4. 目标恢复 Request/worker 状态，执行首个 decode step 作为可运行性确认；
+5. 目标确认后源端提交并释放 blocks；
+6. 任一步失败，目标释放预留 blocks，源端取消冻结继续执行。
+
+源端在目标确认之前不能释放 KV，这是防止网络错误导致请求丢失的核心不变量。
+
+## 5. vLLM 接口设计
+
+接口应是受 EngineCore 控制的内部 API，不直接暴露可随意修改的 `Request` 成员。
+
+### 请求快照
+
+```python
+@dataclass(frozen=True)
+class RequestMigrationSnapshot:
+    request_id: str
+    migration_epoch: int
+    prompt_token_ids: tuple[int, ...]
+    all_token_ids: tuple[int, ...]
+    output_token_ids: tuple[int, ...]
+    num_computed_tokens: int
+    max_tokens: int
+    sampling_params: bytes
+    stop_reason: int | str | None
+    kv_layout_version: str
+    kv_group_block_counts: tuple[int, ...]
+    feature_flags: frozenset[str]
+    checksum: str
+```
+
+`sampling_params` 使用可版本化序列化，不能 pickle 任意对象。随机采样须携带 RNG
+状态，或首版只允许 temperature=0。grammar、LoRA、多模态等未加入快照时，prepare
+必须显式拒绝。
+
+### Scheduler/KVCacheManager
+
+```python
+snapshot = scheduler.prepare_migration_out(request_id, target_info)
+blocks = kv_cache_manager.export_migration_blocks(request_id)
+reservation = kv_cache_manager.reserve_import_blocks(
+    request_id, snapshot.kv_group_block_counts, snapshot.kv_layout_version
+)
+scheduler.prepare_migration_in(snapshot, reservation)
+kv_cache_manager.commit_import(reservation, received_checksums)
+scheduler.commit_migration_in(request_id)
+scheduler.commit_migration_out(request_id)
+```
+
+所有 API 提供 `abort_*`，并检查 request ID、epoch、防重放 token 和 layout version。
+reservation 在 commit 前不改变普通 prefix-cache 引用计数。
+
+### EngineCore 控制协议
+
+在 `EngineCoreRequestType` 增加独立消息，而不是复用无类型 UTILITY：
+
+```text
+MIGRATE_OUT_PREPARE / MIGRATE_OUT_COMMIT / MIGRATE_OUT_ABORT
+MIGRATE_IN_PREPARE  / MIGRATE_IN_COMMIT  / MIGRATE_IN_ABORT
+```
+
+消息采用 msgspec 结构体，包含 request、epoch、endpoint、snapshot metadata、超时
+和协议版本。EngineCore 必须按 request ID 串行化 ABORT、FINISH、MIGRATE，避免竞态。
+
+## 6. worker 与数据面
+
+`model_runner`/InputBatch 需要删除源 request index，并在目标建立新的 request index、
+token 视图和 KV slot 映射；恢复 grammar/structured-output（未支持则拒绝），清理
+encoder/multimodal cache 引用，并在首次 forward 前验证 block table 与
+`num_computed_tokens` 一致。
+
+KV connector 格式携带 group、layer、block ordinal、dtype、shape、bytes checksum 和
+migration epoch。CoreX native NCCL 继续使用已验证的 endpoint 绑定与
+`NCCL_CUMEM_ENABLE=0`；不依赖缺失的 symmetric-memory window symbols。
+
+## 7. Llumnix 集成
+
+Llumnix 负责策略，不伪造 vLLM 内部状态：Manager 选择源/目标，向源 EngineCore
+prepare，通过 connector 驱动 metadata/KV 数据面，目标确认后更新 `request_instance`，
+失败则 abort。P/D handoff 可复用 snapshot 和目标 block reservation 数据结构，但
+必须保留现有 request-id 路由，并使用独立 migration epoch。
+
+## 8. 分阶段实施与验收
+
+### Phase 0：源码基线与 ABI
+
+固定 CoreX vLLM 0.11.2 commit、Python/PyTorch/CoreX 版本，构建 fork wheel，确认
+普通 V1 推理、TP=1 和现有 native NCCL P/D 不回归，并加入 layout/protocol version。
+
+### Phase 1：单进程 scheduler 快照
+
+实现 token-boundary freeze、snapshot round-trip、block reservation 和 fake connector，
+覆盖 waiting/running/finished/abort 竞态；验证逐字段相等且失败路径无 block 泄漏。
+
+### Phase 2：单机双卡 Decode-to-Decode
+
+两个 TP=1 EngineCore，temperature=0；A 生成至少 2 token 后迁移到 B，B 继续生成并
+与不中断基线逐 token 比较。连续 100 次迁移必须无崩溃、重复/跳 token 或泄漏。
+
+### Phase 3：双机真实迁移
+
+在 10.31.10.62 与 10.31.10.210 各一张 BI-V150 上运行 Qwen3-14B native NCCL，
+注入延迟、超时和目标容量不足。成功、目标拒绝、超时、源 actor 重启均需有确定结果；
+support gate 校验两端 fork commit 和协议版本一致。
+
+### Phase 4：增量与扩展
+
+再加入增量 blocks、RNG、structured output、LoRA、多模态、TP>1 和 speculative
+decoding。没有对应快照字段、回滚测试和性能数据前，不得宣称支持。
+
+## 9. 不变量、风险与当前状态
+
+一致性：目标 commit 前源 KV 永不释放，epoch 单调且不可重放。调度安全：迁移态请求
+不同时出现在 running/waiting，且一次只有一个迁移 owner。设备安全：目标 block table
+绑定目标 worker local rank。故障必须进入 abort 或明确不可恢复状态，不能静默更新
+Llumnix mapping。完整 KV 复制会增加显存和网络开销，只有增量迁移稳定后才比较性能。
+
+当前项目已验证 CoreX native NCCL P/D handoff、endpoint 绑定和 communicator 复用，
+但尚未修改 vLLM 源码，也尚未实现运行中请求迁移接口；当前 V1 仍只支持 connector-driven
+P/D handoff。本规划完成后，必须以 Phase 1/2 实测结果为依据解除该限制。

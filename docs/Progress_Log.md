@@ -1,5 +1,13 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-06：vLLM V1 真正 KV 迁移实施规划
+
+- 新增 `vLLM_V1_True_KV_Migration_Plan.md`，将 Decode-to-Decode 的目标限定为
+  token boundary，并定义 vLLM fork 的 Request snapshot、KV block reservation、
+  EngineCore 控制消息及两阶段提交/回滚协议。
+- 当前只完成规划，不将现有 connector-driven P/D handoff 误称为运行中迁移；实施需
+  先固定 CoreX vLLM 0.11.2 fork，并从单进程 snapshot/回滚测试开始。
+
 ## 2026-09-06：本机 native NCCL endpoint 修复验证
 
 - 修复 `CoreXNcclP2pEngine`：native engine 不再忽略 `KVTransferConfig.kv_ip`，
