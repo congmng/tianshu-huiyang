@@ -30,6 +30,7 @@ SOURCE_FINGERPRINT_FILES = (
     "llumnix/backends/vllm/v1_kv.py",
     "llumnix/backends/vllm/v1_kv_transfer.py",
     "llumnix/backends/vllm/corex_p2p_connector.py",
+    "llumnix/backends/vllm/v1_migration.py",
     "llumnix/backends/utils.py",
     "llumnix/global_scheduler/dispatch_scheduler.py",
     "llumnix/global_scheduler/global_scheduler.py",
@@ -50,6 +51,7 @@ SOURCE_FINGERPRINT_FILES = (
     "tools/v1_p2p_model_probe.py",
     "tools/corex44_native_nccl_probe.py",
     "configs/corex44_v1_pd.yml",
+    "docs/vLLM_V1_True_KV_Migration_Plan.md",
 )
 
 

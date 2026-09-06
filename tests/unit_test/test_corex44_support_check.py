@@ -67,6 +67,7 @@ def test_corex44_source_fingerprint_covers_all_v1_serving_boundaries():
         "llumnix/backends/utils.py", "llumnix/backends/vllm/v1_engine.py",
         "llumnix/backends/vllm/v1_kv.py", "llumnix/backends/vllm/v1_kv_transfer.py",
         "llumnix/backends/vllm/corex_p2p_connector.py",
+        "llumnix/backends/vllm/v1_migration.py",
         "llumnix/global_scheduler/dispatch_scheduler.py",
         "llumnix/global_scheduler/global_scheduler.py", "llumnix/manager.py",
         "llumnix/global_scheduler/scaling_scheduler.py",
@@ -78,6 +79,7 @@ def test_corex44_source_fingerprint_covers_all_v1_serving_boundaries():
         "tools/v1_p2p_model_probe.py",
         "tools/corex44_native_nccl_probe.py",
         "configs/corex44_v1_pd.yml",
+        "docs/vLLM_V1_True_KV_Migration_Plan.md",
     }
     assert expected <= set(gate.SOURCE_FINGERPRINT_FILES)
 
