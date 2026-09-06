@@ -69,7 +69,14 @@ def _disable_corex_cumem_for_p2p() -> None:
         # Set this before any worker-side communicator is constructed.  The
         # context-manager shim below also re-applies it around each InitRank
         # call because vLLM restores the environment on context exit.
-        os.environ["NCCL_CUMEM_ENABLE"] = "0"
+        # Keep the safe default, but allow a diagnostic run to opt back into
+        # the vendor allocator without editing this shim. Production callers
+        # therefore remain protected while ABI/allocator fixes can be tested
+        # reproducibly with ``LLUMNIX_COREX_NCCL_CUMEM=1``.
+        cumem = os.getenv("LLUMNIX_COREX_NCCL_CUMEM", "0")
+        if cumem not in {"0", "1"}:
+            raise ValueError("LLUMNIX_COREX_NCCL_CUMEM must be 0 or 1")
+        os.environ["NCCL_CUMEM_ENABLE"] = cumem
         from vllm.distributed.kv_transfer.kv_connector.v1.p2p import (
             p2p_nccl_engine,
         )
@@ -84,7 +91,7 @@ def _disable_corex_cumem_for_p2p() -> None:
             old = {name: os.environ.get(name) for name in names}
             os.environ["NCCL_MAX_NCHANNELS"] = str(num_channels)
             os.environ["NCCL_MIN_NCHANNELS"] = str(num_channels)
-            os.environ["NCCL_CUMEM_ENABLE"] = "0"
+            os.environ["NCCL_CUMEM_ENABLE"] = cumem
             try:
                 yield
             finally:
@@ -289,6 +296,68 @@ class CoreXZmqP2pEngine:
         self._listener.join(timeout=1)
 
 
+class CoreXNcclP2pEngine(upstream_p2p_connector.P2pNcclEngine):
+    """Native engine that honors the configured CoreX routable address.
+
+    vLLM's connector constructs its engine with ``hostname=""`` and the
+    upstream engine consequently calls generic ``get_ip()``.  That is unsafe
+    on CoreX nodes with multiple NICs and makes a configured loopback or
+    dedicated data NIC disagree with the address embedded in the P/D request
+    id.  Keep all upstream NCCL operations unchanged; only make endpoint
+    selection match ``KVTransferConfig.kv_ip``.
+    """
+
+    def __init__(self, local_rank, config, hostname="", port_offset=0, **kwargs):
+        configured_host = getattr(config, "kv_ip", None) or hostname
+        if not configured_host or configured_host == "0.0.0.0":
+            raise ValueError("CoreX native P2P requires a concrete kv_ip")
+        super().__init__(
+            local_rank=local_rank,
+            config=config,
+            hostname=configured_host,
+            port_offset=port_offset,
+            **kwargs,
+        )
+
+    def listen_for_requests(self):
+        """Treat socket closure during shutdown as a normal termination."""
+        try:
+            return super().listen_for_requests()
+        except zmq.ZMQError:
+            if getattr(self, "_corex_closing", False):
+                return
+            raise
+
+    def shutdown(self):
+        """Stop the upstream process-lived listener without a traceback."""
+        if getattr(self, "_corex_closing", False):
+            return
+        self._corex_closing = True
+        poller = getattr(self, "poller", None)
+        router = getattr(self, "router_socket", None)
+        if poller is not None and router is not None:
+            try:
+                poller.unregister(router)
+            except (KeyError, zmq.ZMQError):
+                pass
+        for sock in getattr(self, "socks", {}).values():
+            try:
+                sock.close(linger=0)
+            except zmq.ZMQError:
+                pass
+        if router is not None:
+            try:
+                router.close(linger=0)
+            except zmq.ZMQError:
+                pass
+        context = getattr(self, "context", None)
+        if context is not None:
+            context.term()
+        listener = getattr(self, "_listener_thread", None)
+        if listener is not None:
+            listener.join(timeout=2)
+
+
 class CoreXP2pNcclConnector(P2pNcclConnector):
     """P2pNcclConnector with optional CoreX NCCL symbols filtered."""
 
@@ -298,8 +367,9 @@ class CoreXP2pNcclConnector(P2pNcclConnector):
         if transport not in {"zmq_cpu", "nccl"}:
             raise ValueError("corex_transport must be 'zmq_cpu' or 'nccl'")
         original = upstream_p2p_connector.P2pNcclEngine
-        if transport == "zmq_cpu":
-            upstream_p2p_connector.P2pNcclEngine = CoreXZmqP2pEngine
+        upstream_p2p_connector.P2pNcclEngine = (
+            CoreXZmqP2pEngine if transport == "zmq_cpu" else CoreXNcclP2pEngine
+        )
         try:
             super().__init__(vllm_config, role, kv_cache_config)
         finally:

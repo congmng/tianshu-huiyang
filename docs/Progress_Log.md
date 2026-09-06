@@ -1,5 +1,14 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-06：本机 native NCCL endpoint 修复验证
+
+- 修复 `CoreXNcclP2pEngine`：native engine 不再忽略 `KVTransferConfig.kv_ip`，
+  避免多网卡/loopback 场景中真实监听地址与 request-id 地址不一致。
+- 本机两卡 Qwen3-14B native P/D 复验通过：rank 0/1 InitRank 成功，producer
+  40 层 KV 保存，consumer 完成请求并正常退出；`NCCL_CUMEM_ENABLE=0`。
+- 新增 `corex44_native_nccl_probe.py` 并纳入双机 source fingerprint，用于将
+  communicator、GPU Send/Recv 与模型调度问题分层诊断。
+
 ## 2026-09-05：native NCCL P2P 修复边界确认
 
 - 通过 `nm -D` 核验 CoreX 4.4.0 `libnccl.so`：普通 InitRank/Send/Recv 存在，

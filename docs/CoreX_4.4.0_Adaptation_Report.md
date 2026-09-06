@@ -1,5 +1,20 @@
 # Llumnix 在 Iluvatar CoreX 4.4.0 上的适配与验证报告
 
+## 2026-09-06：本机 native NCCL 模型级链路修复与复验
+
+此前 native P2P 模型探针虽然在两端生成了 request metadata，但上游
+`P2pNcclEngine` 在构造时收到空 `hostname`，会调用通用 `get_ip()`；这会让 engine
+实际绑定的地址与 P/D request-id 中的 `kv_ip` 不一致，表现为 producer 保存 KV 后
+consumer 等待。新增 `CoreXNcclP2pEngine`，native 模式现在强制使用
+`KVTransferConfig.kv_ip`（拒绝 `0.0.0.0`），保留上游 NCCL InitRank/Send/Recv 实现。
+
+在本机两张 BI-V150 上以 Qwen3-14B、`corex_transport=nccl`、
+`NCCL_CUMEM_ENABLE=0` 重测：consumer rank 1 和 producer rank 0 均报告
+`ncclCommInitRank Success`，producer 完成 40 层 `(2,1084,8,16,128)` KV 保存，
+consumer 完成请求并正常退出。该结果把 native NCCL 问题从“模型级完全失败”缩小
+为跨主机/allocator 稳定性与生命周期问题；两机生产默认仍保持 `zmq_cpu`，native
+模式通过 `tools/corex44_native_nccl_probe.py` 和 `--corex-transport nccl` 显式诊断。
+
 ## 2026-09-05：NCCL ABI 兼容层与 native P2P 修复边界
 
 对当前 CoreX 4.4.0 运行库进行符号核验：`/usr/local/corex-4.4.0/lib64/libnccl.so`

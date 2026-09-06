@@ -64,6 +64,28 @@ def test_corex_gpu_kv_probe_is_self_contained():
     assert "torch.bfloat16" in source
 
 
+def test_native_nccl_probe_uses_upstream_engine_after_corex_shim():
+    """Keep the ABI/CUMEM diagnostic separate from the staging transport."""
+    from pathlib import Path
+
+    probe = Path(__file__).parents[3] / "tools" / "corex44_native_nccl_probe.py"
+    source = probe.read_text(encoding="utf-8")
+    assert "corex_p2p_connector" in source
+    assert "P2pNcclEngine" in source
+    assert '"send_type": "PUT"' in source
+    assert "hostname=args.host" in source
+    assert "context.term()" in source
+
+
+def test_corex_nccl_cumem_override_is_validated(monkeypatch):
+    from llumnix.backends.vllm import corex_p2p_connector
+
+    monkeypatch.setenv("LLUMNIX_COREX_NCCL_CUMEM", "2")
+    import pytest
+    with pytest.raises(ValueError, match="must be 0 or 1"):
+        corex_p2p_connector._disable_corex_cumem_for_p2p()
+
+
 
 
 def test_kvtransfer_config_maps_llumnix_options(monkeypatch):
@@ -249,6 +271,17 @@ def test_corex_p2p_defaults_to_safe_cpu_staging(monkeypatch):
     )
     assert config.get_from_extra_config("corex_transport", "zmq_cpu") == "zmq_cpu"
     assert CoreXP2pNcclConnector.__name__ == "CoreXP2pNcclConnector"
+
+
+def test_corex_native_nccl_engine_uses_configured_kv_ip():
+    from llumnix.backends.vllm.corex_p2p_connector import CoreXNcclP2pEngine
+    import inspect
+
+    source = inspect.getsource(CoreXNcclP2pEngine)
+    assert 'getattr(config, "kv_ip", None)' in source
+    assert "hostname=configured_host" in source
+    assert "def shutdown(self)" in source
+    assert "_corex_closing" in source
 
 
 def test_model_p2p_probe_exposes_native_nccl_as_explicit_diagnostic():
