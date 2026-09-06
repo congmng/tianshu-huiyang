@@ -4,7 +4,9 @@
 # uses connector-driven KV handoff, so `kvtransfer` and the CoreX connector
 # are required; do not substitute the old gloo/nccl block-manager backends.
 # Per-node routable endpoints are injected through LLUMNIX_KV_* environment
-# variables by the V1 Manager/Llumlet runtime environment.
+# variables by the V1 Manager/Llumlet runtime environment. The CoreX connector
+# defaults to native NCCL; set LLUMNIX_COREX_TRANSPORT=zmq_cpu only as an
+# explicit fallback for a deployment whose native P2P gate fails.
 SERVER:
   HOST: "0.0.0.0"
   PORT: 8000

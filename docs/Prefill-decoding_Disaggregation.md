@@ -6,8 +6,8 @@ The historical design below describes the vLLM 0.6 block-manager migration
 implementation. On the supported Python 3.12 / Iluvatar CoreX 4.4 / vLLM
 0.11 V1 stack, Llumnix uses the supported replacement: connector-driven
 Prefill/Decode KV handoff. The production transport is
-`CoreXP2pNcclConnector` with safe `zmq_cpu` BF16 staging; native CoreX NCCL
-P2P remains a non-default diagnostic path.
+`CoreXP2pNcclConnector` with native CoreX NCCL P2P. `zmq_cpu` BF16 staging
+remains an explicit compatibility fallback when a site cannot use native P2P.
 
 Use [configs/corex44_v1_pd.yml](../configs/corex44_v1_pd.yml) as the two-host
 deployment starting point. It explicitly selects `kvtransfer`,
@@ -22,6 +22,9 @@ source tools/corex44_env.sh
 python tools/run_corex44_validation.py integration --model-pd \
   --local-ip 10.31.10.62 --remote-ip 10.31.10.210
 ```
+
+Native NCCL is selected by default. Use `--corex-transport zmq_cpu` (or
+`LLUMNIX_COREX_TRANSPORT=zmq_cpu`) only for an explicit compatibility fallback.
 
 It gates both hosts' versions/source/config fingerprints, validates actual
 vLLM KV events and affinity, BF16 staging, and a Qwen3-14B producer/consumer

@@ -58,7 +58,7 @@ def unit_commands() -> list[list[str]]:
 def run_integration(local_ip: str, remote_ip: str, remote_host: str,
                     remote_project: str, dry_run: bool, model_pd: bool = False,
                     model: str = "/data1/congmng/llumnix/.models/Qwen3-14B",
-                    native_nccl: bool = False) -> None:
+                    corex_transport: str = "nccl") -> None:
     run([sys.executable, "tools/corex44_support_check.py", "--remote-host", remote_host,
          "--remote-project", remote_project], dry_run)
     event_port = free_port()
@@ -138,7 +138,7 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
     # while the default integration stage already validates the transport.
     pd_port = free_port()
     request_id = "corex-pd-model-validation"
-    transport_arg = " --corex-transport nccl" if native_nccl else ""
+    transport_arg = f" --corex-transport {corex_transport}"
     remote_pd_cmd = (
         f"cd {remote_project} && source tools/corex44_env.sh && "
         f"CUDA_VISIBLE_DEVICES=0 PYTHONHASHSEED=0 python tools/v1_p2p_model_probe.py "
@@ -151,8 +151,7 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
                     "--model", model, "--host", local_ip, "--peer",
                     f"{remote_ip}:{pd_port}", "--port", str(pd_port),
                     "--request-id", request_id, "--max-model-len", "256", "--max-tokens", "4"]
-    if native_nccl:
-        local_pd_cmd.extend(["--corex-transport", "nccl"])
+    local_pd_cmd.extend(["--corex-transport", corex_transport])
     print("+ ssh", remote_host, remote_pd_cmd, flush=True)
     if dry_run:
         print("+", " ".join(local_pd_cmd), flush=True)
@@ -184,8 +183,12 @@ def main() -> None:
                         help="also run the expensive two-host Qwen3 V1 P/D handoff")
     parser.add_argument("--model", default="/data1/congmng/llumnix/.models/Qwen3-14B",
                         help="model path for --model-pd")
-    parser.add_argument("--native-nccl", action="store_true",
-                        help="with --model-pd, use validated CoreX native NCCL instead of zmq_cpu")
+    parser.add_argument("--corex-transport", choices=("nccl", "zmq_cpu"),
+                        default="nccl", help=("transport for --model-pd; native NCCL is "
+                                               "the default, zmq_cpu is an explicit fallback"))
+    parser.add_argument("--native-nccl", action="store_const", const="nccl",
+                        dest="corex_transport",
+                        help="deprecated compatibility alias for --corex-transport nccl")
     args = parser.parse_args()
     if args.level == "unit":
         for command in unit_commands():
@@ -193,7 +196,7 @@ def main() -> None:
     elif args.level == "integration":
         run_integration(args.local_ip, args.remote_ip, args.remote_host,
                         args.remote_project, args.dry_run, args.model_pd, args.model,
-                        args.native_nccl)
+                        args.corex_transport)
     else:
         visible = "0" if args.tp == 1 else "0,1"
         command = ["env", f"CUDA_VISIBLE_DEVICES={visible}",

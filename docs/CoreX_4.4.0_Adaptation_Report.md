@@ -11,16 +11,16 @@ consumer 等待。新增 `CoreXNcclP2pEngine`，native 模式现在强制使用
 在本机两张 BI-V150 上以 Qwen3-14B、`corex_transport=nccl`、
 `NCCL_CUMEM_ENABLE=0` 重测：consumer rank 1 和 producer rank 0 均报告
 `ncclCommInitRank Success`，producer 完成 40 层 `(2,1084,8,16,128)` KV 保存，
-consumer 完成请求并正常退出。该结果把 native NCCL 问题从“模型级完全失败”缩小
-为跨主机/allocator 稳定性与生命周期问题；两机生产默认仍保持 `zmq_cpu`，native
-模式通过 `tools/corex44_native_nccl_probe.py` 和 `--corex-transport nccl` 显式诊断。
+consumer 完成请求并正常退出。随后的两机模型级复验也完成后，native NCCL 已成为
+CoreX connector 的生产默认；`zmq_cpu` 只保留为 native P2P 门禁失败时的显式兼容
+回退。`tools/corex44_native_nccl_probe.py` 仍可用于独立数据面诊断。
 
 随后在两机各一张 BI-V150 上执行同一 Qwen3-14B 模型探针，producer
 `10.31.10.62:24501` 与 consumer `10.31.10.210:24500` 的 native communicator
 均初始化成功，producer 导出 40 层 KV，consumer 最终输出非空文本 `两种`。因此
-native NCCL 现为经过模型级验证的可选传输方式；统一验收可使用
-`integration --model-pd --native-nccl`。为保留保守部署回退，模板默认仍为
-`zmq_cpu`，由部署者在网络/负载环境验证后显式切换。
+native NCCL 现为经过模型级验证的默认传输方式；统一验收可使用
+`integration --model-pd`。如需保守部署回退，可明确传入
+`--corex-transport zmq_cpu` 或设置 `LLUMNIX_COREX_TRANSPORT=zmq_cpu`。
 
 ## 2026-09-05：NCCL ABI 兼容层与 native P2P 修复边界
 
@@ -37,7 +37,8 @@ ctypes wrapper 表中仅用于 symmetric-memory 的可选
 跨主机 V1 worker 稳定。因此 native NCCL 不能仅因 window 符号过滤就切为默认生产
 路径。新增 `v1_p2p_model_probe.py --corex-transport nccl` 作为显式诊断入口；默认
 仍为已完成真实模型级闭环的 `zmq_cpu` BF16 staging。后续若 CoreX 厂商修复
-rank-1 allocator/communicator ABI，可用同一探针复测并切换 transport。
+rank-1 allocator/communicator ABI，可用同一探针复测并切换 transport。本段记录的是
+修复前的阶段性边界，现已由本报告顶部的双机模型级 native NCCL 验证取代。
 
 ## 2026-09-05：配置校验后的双机轻量集成复验
 
@@ -61,7 +62,8 @@ rank-1 allocator/communicator ABI，可用同一探针复测并切换 transport�
 V1 的 connector-driven P/D handoff、`corex44_v1_pd.yml` 配置模板和
 `integration --model-pd` 验收命令置于历史 vLLM 0.6 说明之前。文档同时明确
 V1 不实现旧私有 block-manager 的任意时刻/Decode-to-Decode request migration，
-native NCCL 也不是默认生产路径，避免旧设计文字超出当前实测支持范围。
+native NCCL 现为默认生产路径，`zmq_cpu` 是显式兼容回退，避免旧设计文字超出当前
+实测支持范围。
 
 ## 2026-09-05：CoreX V1 P/D 部署模板
 
@@ -661,8 +663,8 @@ GlobalScheduler、KV affinity 定向测试 22 项全部通过。该结果确认�
 `migration_backend=kvtransfer` 时，Llumnix 会在创建 `AsyncLLM` 前映射为
 vLLM V1 的 `KVTransferConfig` 和 `KVEventsConfig`。支持
 `SharedStorageConnector`（适合先做单机/共享目录验证）以及
-`P2pNcclConnector` 等原生 connector。CoreX 默认选择安全的 `zmq_cpu`
-staging P2P transport；原生 NCCL 路径保留为显式性能实验模式。原有
+`P2pNcclConnector` 等原生 connector。CoreX 默认选择已完成双机模型级验证的原生
+NCCL P2P transport；`zmq_cpu` staging 保留为显式兼容回退。原有
 gloo/nccl/rayrpc block-manager 迁移协调器仍只适用于旧 vLLM 后端，V1 以
 connector 驱动的 P/D KV handoff 取代它们。
 
@@ -1029,17 +1031,17 @@ NCCL 数据面日志。`CoreXP2pNcclConnector` 的进程内 shim 现启用该 wr
 ### 两机模型级 P/D handoff：已验证（ZMQ CPU staging，2026-09-02）
 
 为规避上述 CoreX NCCL rank-1 原生崩溃，`CoreXP2pNcclConnector` 新增
-`corex_transport`。默认 `zmq_cpu` 使用 ZMQ 传输连续 CPU staging buffer，再由
-consumer 放入 GPU paged KV cache；显式设为 `nccl` 才使用上游 NCCL 路径。该选择
+`corex_transport`。在该历史阶段默认 `zmq_cpu` 使用 ZMQ 传输连续 CPU staging
+buffer，再由 consumer 放入 GPU paged KV cache；现已改为默认 `nccl`，仅显式设为
+`zmq_cpu` 才回退。该选择
 保留了 V1 P2P connector 的 request ID、per-layer KV ownership、调度 metadata 与
 阻塞 load 语义，而不修改驱动、CoreX 安装或共享库。
 
 两机 Qwen3-14B 实测中，`10.31.10.62` producer 保存并发送 40 个 attention
 layers，`10.31.10.210` consumer 接收全部 KV 后先输出 `重复的`，最终返回
 `重复的句子`（`finished=True`）。这证明 Python 3.12/CoreX 栈上的 V1 P/D 模型级
-KV handoff 已可运行。CPU staging 的代价是额外 host-memory copy；原生 NCCL 模式
-仍保留为非默认诊断/优化路径，待 CoreX 修复 rank-1 communicator 的 native abort
-后再启用。
+KV handoff 已可运行。CPU staging 的代价是额外 host-memory copy；本段是历史 ZMQ
+验证记录，原生 NCCL 已在后续修复后完成两机真实模型级验证并成为默认路径。
 
 staging engine 同时实现了 listener 线程、ROUTER/DEALER socket 和 ZMQ context
 的幂等 shutdown，并由 CoreX connector 的 V1 shutdown 生命周期调用，保证实例
@@ -1255,7 +1257,8 @@ P/D producer 的 decode endpoint 只有在 prefill/decode 两个 Llumlet 完成�
 现改为延迟到请求编排阶段校验，仍会拒绝显式非法 endpoint。两机 Ray 控制面已重新
 稳定汇聚，但 Qwen3-14B 双实例启动仍出现 vLLM EngineCore 初始化失败，日志未给出
 可归因于 connector 的底层错误；因此本次不能把该轮失败宣称为 handoff 失败，模型级
-handoff 的正式证据仍以先前 `zmq_cpu` staging 验证为准。
+handoff 的正式证据当时仍以先前 `zmq_cpu` staging 验证为准；后续 native NCCL
+模型级验证结果见本报告顶部。
 
 ## 多卡 TP=2 真实端到端复验（2026-09-03）
 

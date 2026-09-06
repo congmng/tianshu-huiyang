@@ -75,6 +75,7 @@ def test_native_nccl_probe_uses_upstream_engine_after_corex_shim():
     assert '"send_type": "PUT"' in source
     assert "hostname=args.host" in source
     assert "engine.shutdown()" in source
+    assert "--rounds" in source
 
 
 def test_corex_nccl_cumem_override_is_validated(monkeypatch):
@@ -257,7 +258,7 @@ def test_corex_p2p_compat_keeps_p2p_defaults(monkeypatch):
     assert args.kv_transfer_config.kv_parallel_size == 2
 
 
-def test_corex_p2p_defaults_to_safe_cpu_staging(monkeypatch):
+def test_corex_p2p_defaults_to_native_nccl_with_explicit_staging_fallback(monkeypatch):
     from llumnix.backends.vllm.corex_p2p_connector import CoreXP2pNcclConnector
     from vllm.config import KVTransferConfig
 
@@ -269,8 +270,10 @@ def test_corex_p2p_defaults_to_safe_cpu_staging(monkeypatch):
         kv_ip="127.0.0.1",
         kv_port=18999,
     )
-    assert config.get_from_extra_config("corex_transport", "zmq_cpu") == "zmq_cpu"
+    assert config.get_from_extra_config("corex_transport", "nccl") == "nccl"
     assert CoreXP2pNcclConnector.__name__ == "CoreXP2pNcclConnector"
+    source = __import__("inspect").getsource(CoreXP2pNcclConnector)
+    assert 'os.getenv("LLUMNIX_COREX_TRANSPORT", "nccl")' in source
 
 
 def test_corex_native_nccl_engine_uses_configured_kv_ip():
@@ -292,7 +295,7 @@ def test_model_p2p_probe_exposes_native_nccl_as_explicit_diagnostic():
         encoding="utf-8"
     )
     assert 'choices=("zmq_cpu", "nccl")' in source
-    assert 'default="zmq_cpu"' in source
+    assert 'default="nccl"' in source
     assert '"corex_transport": args.corex_transport' in source
 
 

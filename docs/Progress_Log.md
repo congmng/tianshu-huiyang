@@ -9,9 +9,8 @@
 - 新增 `corex44_native_nccl_probe.py` 并纳入双机 source fingerprint，用于将
   communicator、GPU Send/Recv 与模型调度问题分层诊断。
 - 两机 Qwen3-14B native NCCL P/D 已通过：双方 InitRank 成功，producer 发送
-  40 层 KV，remote consumer 输出非空文本 `两种`。统一 runner 新增
-  `integration --model-pd --native-nccl` 显式验收开关；`zmq_cpu` 继续保留为默认
-  回退 transport。
+  40 层 KV，remote consumer 输出非空文本 `两种`。native NCCL 已成为默认；`zmq_cpu`
+  仅是显式兼容回退，可用 `integration --model-pd --corex-transport zmq_cpu` 验收。
 
 ## 2026-09-05：native NCCL P2P 修复边界确认
 
@@ -46,8 +45,9 @@
 - `Prefill-decoding_Disaggregation.md` 新增 Python 3.12/CoreX 4.4/vLLM V1
   正式路径、配置模板与一键验收命令，并明确 connector-driven P/D handoff 是替代
   legacy block-manager migration 的机制。
-- 文档明确保留的边界：默认生产 transport 为 `zmq_cpu` BF16 staging；native NCCL
-  为诊断项；V1 不承诺任意时刻 request migration 或 Decode-to-Decode legacy migration。
+- 文档明确当前生产默认 transport 为 native CoreX NCCL；`zmq_cpu` BF16 staging
+  作为显式兼容回退；V1 不承诺任意时刻 request migration 或 Decode-to-Decode
+  legacy migration。
 
 ## 2026-09-05：发布 CoreX V1 P/D 配置模板
 

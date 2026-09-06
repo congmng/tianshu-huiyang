@@ -363,7 +363,12 @@ class CoreXP2pNcclConnector(P2pNcclConnector):
 
     def __init__(self, vllm_config, role, kv_cache_config=None):
         config = vllm_config.kv_transfer_config
-        transport = config.get_from_extra_config("corex_transport", "zmq_cpu")
+        # Native NCCL is now the validated CoreX 4.4 production default.
+        # ``zmq_cpu`` remains an explicit compatibility fallback for a site
+        # that has not yet opened/validated its GPU P2P data path.
+        transport = config.get_from_extra_config(
+            "corex_transport", os.getenv("LLUMNIX_COREX_TRANSPORT", "nccl")
+        )
         if transport not in {"zmq_cpu", "nccl"}:
             raise ValueError("corex_transport must be 'zmq_cpu' or 'nccl'")
         original = upstream_p2p_connector.P2pNcclEngine

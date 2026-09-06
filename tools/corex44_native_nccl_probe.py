@@ -41,6 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--num-channels", type=int, default=1)
     parser.add_argument("--elements", type=int, default=1024)
+    parser.add_argument("--rounds", type=int, default=1)
     return parser.parse_args()
 
 
@@ -60,23 +61,28 @@ def main() -> None:
     # the probe address explicitly makes loopback and multi-NIC diagnostics
     # reproducible and ensures the ZMQ identity matches the advertised peer.
     engine = CoreXNcclP2pEngine(args.device, config, hostname=args.host)
-    tensor_id = "corex-native-nccl-probe#layer"
+    if args.rounds < 1:
+        raise SystemExit("--rounds must be positive")
     try:
         if args.role == "consumer":
-            received = engine.recv_tensor(tensor_id, args.peer)
-            expected = torch.arange(args.elements, device=engine.device, dtype=torch.float16)
-            torch.testing.assert_close(received, expected)
+            for round_id in range(args.rounds):
+                tensor_id = f"corex-native-nccl-probe#{round_id}"
+                received = engine.recv_tensor(tensor_id, args.peer)
+                expected = torch.arange(args.elements, device=engine.device, dtype=torch.float16)
+                torch.testing.assert_close(received, expected)
             print(
                 f"PASS role=consumer device={received.device} elements={received.numel()} "
-                f"mean={received.float().mean().item():.1f}",
+                f"rounds={args.rounds} mean={received.float().mean().item():.1f}",
                 flush=True,
             )
             return
         expected = torch.arange(args.elements, device=engine.device, dtype=torch.float16)
-        if not engine.send_tensor(tensor_id, expected, args.peer):
-            raise RuntimeError("consumer rejected native NCCL tensor")
+        for round_id in range(args.rounds):
+            tensor_id = f"corex-native-nccl-probe#{round_id}"
+            if not engine.send_tensor(tensor_id, expected, args.peer):
+                raise RuntimeError("consumer rejected native NCCL tensor")
         print(
-            f"PASS role=producer device={expected.device} elements={expected.numel()} "
+            f"PASS role=producer device={expected.device} elements={expected.numel()} rounds={args.rounds} "
             f"peer={args.peer}",
             flush=True,
         )

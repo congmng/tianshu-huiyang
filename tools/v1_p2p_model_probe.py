@@ -100,9 +100,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--corex-transport",
         choices=("zmq_cpu", "nccl"),
-        default="zmq_cpu",
-        help=("CoreX KV data transport. zmq_cpu is the supported default; "
-              "nccl is an explicit native-communicator diagnostic."),
+        default="nccl",
+        help=("CoreX KV data transport. native nccl is the CoreX default; "
+              "select zmq_cpu for an explicit compatibility fallback."),
     )
     return parser.parse_args()
 

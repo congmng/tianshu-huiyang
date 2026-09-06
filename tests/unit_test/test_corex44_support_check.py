@@ -99,6 +99,8 @@ def test_layered_corex_validation_runner_has_all_required_levels():
     assert "run_llumnix_v1_http_e2e.py" in source
     assert "--model-pd" in source
     assert "--native-nccl" in source
+    assert 'default="nccl"' in source
+    assert "--corex-transport" in source
     assert "v1_p2p_model_probe.py" in source
     assert "--local-ip" in source
     assert "--remote-ip" in source

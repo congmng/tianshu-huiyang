@@ -14,3 +14,5 @@ def test_corex44_v1_pd_config_uses_connector_driven_handoff():
     assert instance.migration_backend == "kvtransfer"
     assert instance.migration_backend_transfer_type == "CoreXP2pNcclConnector"
     assert instance.dispatch_load_metric == "virtual_usage"
+    source = Path("configs/corex44_v1_pd.yml").read_text(encoding="utf-8")
+    assert "defaults to native NCCL" in source
