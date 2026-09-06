@@ -71,10 +71,10 @@ def test_native_nccl_probe_uses_upstream_engine_after_corex_shim():
     probe = Path(__file__).parents[3] / "tools" / "corex44_native_nccl_probe.py"
     source = probe.read_text(encoding="utf-8")
     assert "corex_p2p_connector" in source
-    assert "P2pNcclEngine" in source
+    assert "CoreXNcclP2pEngine" in source
     assert '"send_type": "PUT"' in source
     assert "hostname=args.host" in source
-    assert "context.term()" in source
+    assert "engine.shutdown()" in source
 
 
 def test_corex_nccl_cumem_override_is_validated(monkeypatch):

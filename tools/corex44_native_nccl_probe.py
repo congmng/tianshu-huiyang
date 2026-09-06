@@ -21,11 +21,10 @@ if str(ROOT) not in sys.path:
 
 # Importing the shim first filters only CoreX's unavailable optional window
 # symbols and replaces vLLM's forced CUMEM=1 context with CUMEM=0.
-import llumnix.backends.vllm.corex_p2p_connector  # noqa: F401,E402
-import torch  # noqa: E402
-from vllm.distributed.kv_transfer.kv_connector.v1.p2p.p2p_nccl_engine import (  # noqa: E402
-    P2pNcclEngine,
+from llumnix.backends.vllm.corex_p2p_connector import (  # noqa: E402
+    CoreXNcclP2pEngine,
 )
+import torch  # noqa: E402
 
 
 class Config(SimpleNamespace):
@@ -60,7 +59,7 @@ def main() -> None:
     # The upstream engine otherwise calls vLLM's generic ``get_ip``. Passing
     # the probe address explicitly makes loopback and multi-NIC diagnostics
     # reproducible and ensures the ZMQ identity matches the advertised peer.
-    engine = P2pNcclEngine(args.device, config, hostname=args.host)
+    engine = CoreXNcclP2pEngine(args.device, config, hostname=args.host)
     tensor_id = "corex-native-nccl-probe#layer"
     try:
         if args.role == "consumer":
@@ -82,17 +81,7 @@ def main() -> None:
             flush=True,
         )
     finally:
-        # vLLM's upstream close() joins a listener that is intentionally
-        # process-lived. Close sockets/streams directly so this diagnostic
-        # exits deterministically and does not mask communicator results.
-        for sock in getattr(engine, "socks", {}).values():
-            sock.close(linger=0)
-        router_socket = getattr(engine, "router_socket", None)
-        if router_socket is not None:
-            router_socket.close(linger=0)
-        context = getattr(engine, "context", None)
-        if context is not None:
-            context.term()
+        engine.shutdown()
 
 
 if __name__ == "__main__":
