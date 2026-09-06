@@ -10,6 +10,8 @@
 - 已从已运行的 CoreX wheel 建立独立 vLLM fork，完成 snapshot、source freeze、
   import reservation、迁移控制消息和 source-side EngineCore 路由；尚未构建/部署该
   fork，生产路径不变。
+- fork 已增加 target-side `MIGRATING_IN` 注册、commit 入队和 abort 清理；当前仍由
+  调用方提供 Request，尚未完成 Request wire 重建、worker cache 和真实 GPU KV 写入。
 
 ## 2026-09-06：本机 native NCCL endpoint 修复验证
 

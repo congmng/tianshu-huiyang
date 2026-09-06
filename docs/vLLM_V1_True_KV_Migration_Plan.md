@@ -201,3 +201,9 @@ KVCacheManager import reservation/commit/abort API；首版显式限制所有 KV
 EngineCore command handling、worker cache 或真实 GPU data plane。因此当前 V1
 生产路径仍只支持 connector-driven P/D handoff；必须以 Phase 1/2 的实际 fork 测试
 结果解除该限制。
+
+目标侧的 Phase-1 scheduler lifecycle 已在 `dffdd68`/`7952bc8` 落地：目标请求在
+`MIGRATING_IN` 注册，只有目标 KV 写入完成后才可 `commit_migration_in()` 进入 waiting
+queue；失败时 `abort_migration_in()` 删除请求。该接口当前要求调用方构造目标
+`Request`，因为 sampling/RNG 的版本化 wire serialization 仍待实现。它已验证控制 ABI，
+但不代表目标 worker cache 或实际 GPU KV 已恢复。
