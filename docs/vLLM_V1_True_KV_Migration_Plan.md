@@ -184,9 +184,15 @@ Phase 1 已在 Llumnix 新增独立、可测试的协议参考实现
 target block reservation、目标先 commit 与源端后 release、以及 abort 回滚。该参考
 实现不是生产迁移开关。
 
-已建立 upstream vLLM `v0.11.2` fork 工作树作为 API 补丁原型，但其不能直接替换
-CoreX wheel：在当前 CoreX PyTorch 2.7.1 环境中，上游源码导入
+已建立 upstream vLLM `v0.11.2` fork 工作树作为 API 原型，但其不能直接替换 CoreX
+wheel：在当前 CoreX PyTorch 2.7.1 环境中，上游源码导入
 `torch.distributed._symmetric_memory` 时要求 wheel 未导出的 `_SymmetricMemory`。
-当前 `vllm-0.11.2+corex.4.4.0` 已安装 wheel 含厂商适配，必须取得与该 wheel 对应的
-CoreX vLLM 源码基线后，才能构建并部署真实 fork。因而当前 V1 生产路径仍只支持
-connector-driven P/D handoff；必须以 Phase 1/2 的实际 fork 测试结果解除该限制。
+
+为避免这一 ABI 风险，已从当前可运行的 `vllm-0.11.2+corex.4.4.0` wheel 提取 Python
+源码，建立独立的 CoreX fork 工作树 `/data1/congmng/vllm-corex44-v1-migration`。其
+baseline commit 是 `1a2b265`，已在 `60f9852` 加入 `RequestMigrationSnapshot`、
+非 finished migration states 和 Scheduler source-side freeze/abort/commit API；现有
+site-packages 未被修改。fork 的协议导入与状态排序检查已经通过，但尚未构建 wheel，
+也尚未接入 EngineCore、KVCacheManager reservation、worker cache 或真实 GPU data
+plane。因此当前 V1 生产路径仍只支持 connector-driven P/D handoff；必须以 Phase 1/2
+的实际 fork 测试结果解除该限制。
