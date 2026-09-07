@@ -90,12 +90,20 @@ async def run(args: argparse.Namespace) -> None:
     env["LLUMNIX_TRUE_KV_MIGRATION_ONLY"] = "1"
     fork = "/data1/congmng/vllm-corex44-v1-migration"
     env["PYTHONPATH"] = f"{fork}:{ROOT}:{env.get('PYTHONPATH', '')}"
+    log_dir = Path(args.worker_log_dir) if args.worker_log_dir else None
+    source_log = target_log = None
+    if log_dir is not None:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        source_log = (log_dir / f"source-{args.source_control}.log").open("w")
+        target_log = (log_dir / f"target-{args.target_control}.log").open("w")
+        print(f"WORKER_LOG source={source_log.name} target={target_log.name}", flush=True)
     source = await asyncio.create_subprocess_exec(
         *common, "--role", "source", "--control-port", str(args.source_control),
         "--control-host", args.source_host, "--p2p-host", args.source_p2p_host,
         "--p2p-port", str(args.source_p2p), "--peer-p2p", str(args.target_p2p),
         "--peer-p2p-host", args.target_p2p_host,
         env={**env, "CUDA_VISIBLE_DEVICES": str(args.source_gpu)},
+        stdout=source_log, stderr=asyncio.subprocess.STDOUT,
     )
     target_args = ["python", "-u", str(WORKER), "--model", args.model,
                    "--transport", args.transport, "--max-model-len", str(args.max_model_len),
@@ -120,7 +128,8 @@ async def run(args: argparse.Namespace) -> None:
         target = await asyncio.create_subprocess_exec("ssh", args.target_ssh, remote)
     else:
         target = await asyncio.create_subprocess_exec(
-            *target_args, env={**env, "CUDA_VISIBLE_DEVICES": str(args.target_gpu)})
+            *target_args, env={**env, "CUDA_VISIBLE_DEVICES": str(args.target_gpu)},
+            stdout=target_log, stderr=asyncio.subprocess.STDOUT)
     active_request_id: str | None = None
     active_epoch: int | None = None
     source_prepared = False
@@ -314,6 +323,9 @@ async def run(args: argparse.Namespace) -> None:
             # The test's original result must remain authoritative. A later
             # preflight on the same unique port will reveal any stale worker.
             pass
+        for handle in (source_log, target_log):
+            if handle is not None:
+                handle.close()
 
 
 def main() -> None:
@@ -339,6 +351,8 @@ def main() -> None:
     parser.add_argument("--iterations", type=int, default=1)
     parser.add_argument("--incremental-precopy", action="store_true",
                         help="run one explicit immutable-prefix pre-copy round before cutover")
+    parser.add_argument("--worker-log-dir", default="",
+                        help="write local worker stdout/stderr to this directory")
     parser.add_argument("--rpc-timeout", type=float, default=30.0,
                         help="timeout for bounded control operations")
     parser.add_argument("--inject-latency-ms", type=float, default=0.0,
