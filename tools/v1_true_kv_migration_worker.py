@@ -70,7 +70,8 @@ class Phase2Worker:
         # that blocks inside ``async for``, this leaves no orphaned generator
         # to race the next iteration after source commit.
         stream = self.adapter.engine.generate(
-            prompt, SamplingParams(temperature=0, max_tokens=self.args.max_model_len,
+            prompt, SamplingParams(temperature=self.args.temperature, seed=self.args.seed,
+                                   max_tokens=self.args.max_model_len,
                                    ignore_eos=True,
                                    output_kind=RequestOutputKind.DELTA), internal_request_id)
         for _ in range(2):
@@ -107,7 +108,9 @@ class Phase2Worker:
         if op == "baseline":
             token_ids = []
             async for output in self.adapter.engine.generate(
-                value["prompt"], SamplingParams(temperature=0, max_tokens=value.get("max_tokens", 12),
+                value["prompt"], SamplingParams(temperature=self.args.temperature,
+                                                  seed=self.args.seed,
+                                                  max_tokens=value.get("max_tokens", 12),
                                                   output_kind=RequestOutputKind.DELTA),
                 value.get("request_id", "phase2-baseline"),
             ):
@@ -120,6 +123,16 @@ class Phase2Worker:
             # in-process/unit callers receive RequestMigrationSnapshot.
             # Normalize both forms before choosing the versioned JSON wire.
             if isinstance(snapshot, dict):
+                rng_state = snapshot.get("rng_state", b"")
+                if isinstance(rng_state, str):
+                    rng_state = bytes.fromhex(rng_state)
+                elif isinstance(rng_state, (list, bytearray)):
+                    rng_state = bytes(rng_state)
+                sampling_params = snapshot["sampling_params"]
+                if isinstance(sampling_params, str):
+                    sampling_params = bytes.fromhex(sampling_params)
+                elif isinstance(sampling_params, (list, bytearray)):
+                    sampling_params = bytes(sampling_params)
                 snapshot = RequestMigrationSnapshot(
                     **{
                         **snapshot,
@@ -128,6 +141,8 @@ class Phase2Worker:
                         "output_token_ids": tuple(snapshot["output_token_ids"]),
                         "kv_group_block_counts": tuple(snapshot["kv_group_block_counts"]),
                         "feature_flags": tuple(snapshot["feature_flags"]),
+                        "sampling_params": sampling_params,
+                        "rng_state": rng_state,
                     }
                 )
             return {"snapshot": snapshot.to_wire().decode(),
@@ -275,6 +290,8 @@ def main() -> None:
     # leave the remaining ~5GiB for the short Phase-2 KV cache.
     parser.add_argument("--gpu-memory-utilization", type=float, default=.96)
     parser.add_argument("--max-model-len", type=int, default=128)
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--seed", type=int, default=None)
     args = parser.parse_args()
     os.environ.setdefault("PYTHONHASHSEED", "0")
     asyncio.run(serve(Phase2Worker(args), args.control_host, args.control_port))

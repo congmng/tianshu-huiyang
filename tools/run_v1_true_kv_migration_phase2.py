@@ -81,6 +81,9 @@ async def run(args: argparse.Namespace) -> None:
     common = [sys.executable, "-u", str(WORKER), "--model", args.model,
               "--transport", args.transport, "--max-model-len", str(args.max_model_len),
               "--gpu-memory-utilization", str(args.gpu_memory_utilization)]
+    common += ["--temperature", str(args.temperature)]
+    if args.seed is not None:
+        common += ["--seed", str(args.seed)]
     env = os.environ.copy()
     # CoreX's optional ixformer communicator is not ABI-stable across hosts;
     # standard torch NCCL is sufficient for TP=1 and the migration P2P engine.
@@ -112,6 +115,9 @@ async def run(args: argparse.Namespace) -> None:
                    "--control-host", args.target_host, "--p2p-host", args.target_p2p_host,
                    "--p2p-port", str(args.target_p2p), "--peer-p2p", str(args.source_p2p),
                    "--peer-p2p-host", args.source_p2p_host]
+    target_args += ["--temperature", str(args.temperature)]
+    if args.seed is not None:
+        target_args += ["--seed", str(args.seed)]
     if args.inject_target_capacity:
         env["LLUMNIX_INJECT_TARGET_CAPACITY"] = "1"
     if args.target_ssh:
@@ -391,6 +397,10 @@ def main() -> None:
     parser.add_argument("--expect-failure", action="store_true",
                         help="treat a deterministic injected failure as a passing test")
     parser.add_argument("--prompt", default="Explain KV cache migration in one sentence.")
+    parser.add_argument("--temperature", type=float, default=0.0,
+                        help="sampling temperature; nonzero requires --seed")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="explicit per-request seed for RNG migration")
     args = parser.parse_args()
     try:
         asyncio.run(run(args))
