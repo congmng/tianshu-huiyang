@@ -396,3 +396,12 @@ fork `150d2a8` 已在 GPU worker/InputBatch 暴露 per-request RNG state capture
 并由 EngineCore 与 Llumnix adapter 转发；接口要求 request 已位于目标 InputBatch，且
 缺失 generator 会明确报错或按恢复状态创建。当前尚未将该 state 自动接入 snapshot prepare
 或真实随机采样 cutover，仍保持随机迁移关闭。
+
+随后 fork `94c9c7b` 完成了 seeded-random 的首条接入路径：带显式 `seed` 且
+`temperature != 0` 的请求，其 SamplingParams 以版本 2 序列化，source 在冻结后的
+EngineCore 边界捕获 CUDA generator state，并将其写入带 `rng_v1` feature flag 的
+snapshot；target 从 snapshot 重建请求，在首次加入 GPU InputBatch 时恢复 generator。
+若 source request 尚未进入 InputBatch、捕获失败，prepare 会自动 abort 解冻；缺少 RNG
+state 的随机 snapshot 会被拒绝。未带显式 seed 的随机采样仍不支持。该路径已有 fork
+定向测试 34 passed，但尚未完成真实随机 GPU 双卡/跨机逐 token 验收，因此随机迁移
+仍不得标记为生产完成。
