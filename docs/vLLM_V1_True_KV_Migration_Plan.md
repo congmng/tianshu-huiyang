@@ -280,3 +280,12 @@ uninterrupted greedy baseline continuation 逐 token 一致，输出为：
 此前一次跨机启动失败是远端 GPU 被孤儿 `VLLM::EngineCore` 占满，已精确终止并复测成功；
 该故障不属于 migration 协议失败。延迟注入、超时、目标容量不足及 source actor 重启
 故障注入仍待完成，因此 Phase-3 尚未整体完成，不能将上述单次成功外推为故障覆盖验收。
+
+为使后续故障验收可重复，launcher 已提供 `--inject-latency-ms`、
+`--inject-transfer-timeout-after-layers`、`--inject-target-capacity` 和
+`--inject-source-restart-after-layers`，并以 `--expect-failure` 将注入异常规范化为
+`EXPECTED_FAILURE`；失败路径会按 target-first、source-second 顺序 best-effort abort。
+目前已完成 launcher 语法检查及 Phase-1 协议测试（4 passed）；完整 GPU 故障矩阵仍需
+在 source 首次 decode 稳定后逐项实测。一次联合 connector 测试曾触发 CoreX Python
+进程段错误（无残留 worker，单独协议测试通过），该硬件稳定性问题单独记录，不能计入
+Phase-3 通过证据。
