@@ -13,6 +13,11 @@ import time
 import os
 import socket
 from vllm.v1.migration import RequestMigrationSnapshot
+from vllm.v1.engine import (
+    MigrationInPrepareRequest,
+    MigrationOutPrepareRequest,
+    MigrationRequestCommand,
+)
 
 from vllm import SamplingParams
 from vllm.v1.engine.async_llm import AsyncLLM
@@ -268,7 +273,8 @@ class V1EngineAdapter:
     async def migration_prepare_out(self, request_id: str, migration_epoch: int):
         """Freeze source at an EngineCore token boundary and return snapshot."""
         return await self.engine.engine_core.call_utility_async(
-            "prepare_migration_out", request_id, migration_epoch
+            "prepare_migration_out",
+            MigrationOutPrepareRequest(request_id, migration_epoch),
         )
 
     async def migration_source_blocks(self, request_id: str, migration_epoch: int):
@@ -278,9 +284,7 @@ class V1EngineAdapter:
 
     async def migration_prepare_in(self, snapshot: RequestMigrationSnapshot):
         return await self.engine.engine_core.call_utility_async(
-            "prepare_migration_in_command", __import__(
-                "vllm.v1.engine", fromlist=["MigrationInPrepareRequest"]
-            ).MigrationInPrepareRequest(snapshot.to_wire())
+            "prepare_migration_in_command", MigrationInPrepareRequest(snapshot.to_wire())
         )
 
     async def migration_layer_names(self):
@@ -315,16 +319,14 @@ class V1EngineAdapter:
                                incoming: bool = False):
         method = "commit_migration_in" if incoming else "commit_migration_out"
         return await self.engine.engine_core.call_utility_async(
-            method, __import__("vllm.v1.engine", fromlist=["MigrationRequestCommand"])
-            .MigrationRequestCommand(request_id, migration_epoch)
+            method, MigrationRequestCommand(request_id, migration_epoch)
         )
 
     async def migration_abort(self, request_id: str, migration_epoch: int,
                               incoming: bool = False):
         method = "abort_migration_in" if incoming else "abort_migration_out"
         return await self.engine.engine_core.call_utility_async(
-            method, __import__("vllm.v1.engine", fromlist=["MigrationRequestCommand"])
-            .MigrationRequestCommand(request_id, migration_epoch)
+            method, MigrationRequestCommand(request_id, migration_epoch)
         )
     def shutdown(self):
         if self.state == EngineState.STOPPED:
