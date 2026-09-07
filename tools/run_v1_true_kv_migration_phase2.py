@@ -203,8 +203,19 @@ async def run(args: argparse.Namespace) -> None:
             target_prepared = True
             source_blocks = await rpc(args.source_host, args.source_control, {"op": "blocks", "request_id": request_id,
                                                         "epoch": epoch})
+            synced_pairs = []
+            if args.incremental_precopy:
+                # Reuse target's committed pre-copy mapping.  The final
+                # snapshot may have grown, so only the old ordinal prefix is
+                # skipped; the mutable/new suffix is transferred now.
+                synced_pairs = list(zip(source_ids, target_ids)) if source_ids else []
             layers = await rpc(args.source_host, args.source_control, {"op": "layers"})
             for group_src, group_dst in zip(source_blocks["blocks"], target_blocks["blocks"]):
+                skip = len(synced_pairs)
+                final_source = group_src[skip:] if skip else group_src
+                final_target = group_dst[skip:] if skip else group_dst
+                if not final_source:
+                    continue
                 for layer_index, layer in enumerate(layers["layers"], start=1):
                     if args.inject_latency_ms:
                         await asyncio.sleep(args.inject_latency_ms / 1000.0)
@@ -225,11 +236,13 @@ async def run(args: argparse.Namespace) -> None:
                     "op": "send", "request_id": request_id, "epoch": epoch,
                     "layer": layer, "source_blocks": group_src,
                     "target_blocks": group_dst,
+                    "synced_prefix_block_count": skip,
                     "peer": f"{args.target_p2p_host}:{args.target_p2p}",
                 })
                     await rpc(args.target_host, args.target_control, {
                     "op": "receive", "request_id": request_id, "epoch": epoch,
                     "manifest": manifest["manifest"],
+                    "synced_prefix_block_pairs": synced_pairs,
                     "peer": f"{args.source_p2p_host}:{args.source_p2p}",
                 })
             await rpc(args.target_host, args.target_control, {"op": "commit", "request_id": request_id,

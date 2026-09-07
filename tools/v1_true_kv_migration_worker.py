@@ -186,12 +186,13 @@ class Phase2Worker:
         if op == "send":
             wire = await self.adapter.migration_send_layer(
                 value["request_id"], value["epoch"], value["layer"], value["source_blocks"],
-                value["target_blocks"], value["peer"],
+                value["target_blocks"], value["peer"], value.get("synced_prefix_block_count", 0),
             )
             return {"manifest": wire.decode()}
         if op == "receive":
             await self.adapter.migration_receive_layer(value["request_id"], value["epoch"],
-                                                       value["manifest"].encode(), value["peer"])
+                                                       value["manifest"].encode(), value["peer"],
+                                                       tuple(tuple(pair) for pair in value.get("synced_prefix_block_pairs", ())))
             return {}
         if op == "commit":
             await self.adapter.migration_commit(value["request_id"], value["epoch"], value["incoming"])
