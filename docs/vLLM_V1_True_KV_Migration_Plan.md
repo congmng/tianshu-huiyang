@@ -291,6 +291,14 @@ exhaustion`，launcher 返回 `EXPECTED_FAILURE`（shell exit 0）并执行 sour
 这证明故障结果不会被误判为成功，但完整服务级 actor 自动重建/请求重试仍属于后续
 Llumnix Manager 集成工作。
 
+传输超时已用 `--inject-transfer-timeout-after-layers 1 --expect-failure` 实测：双方
+native NCCL communicator 成功建立，第一个 KV layer 完成后 launcher 返回
+`EXPECTED_FAILURE TimeoutError: injected migration transfer timeout after 1 layers`（shell
+exit 0），并进入 target-first/source-second abort 路径。远端无 GPU allocation 的外层
+worker 已按明确 PID 清理；两端显存均归零。至此 Phase-3 所列成功、延迟、目标容量拒绝、
+传输超时和 source actor 中断均已有实测记录；后者验证的是确定性故障结果与资源清理，
+不等同于 Llumnix 服务级自动恢复。
+
 此前一次跨机启动失败是远端 GPU 被孤儿 `VLLM::EngineCore` 占满，已精确终止并复测成功；
 该故障不属于 migration 协议失败。延迟注入、超时、目标容量不足及 source actor 重启
 故障注入仍待完成，因此 Phase-3 尚未整体完成，不能将上述单次成功外推为故障覆盖验收。
