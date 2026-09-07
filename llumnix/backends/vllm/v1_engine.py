@@ -12,6 +12,7 @@ import math
 import time
 import os
 import socket
+from vllm.v1.migration import RequestMigrationSnapshot
 
 from vllm import SamplingParams
 from vllm.v1.engine.async_llm import AsyncLLM
@@ -264,6 +265,67 @@ class V1EngineAdapter:
             except ValueError:
                 pass
 
+    async def migration_prepare_out(self, request_id: str, migration_epoch: int):
+        """Freeze source at an EngineCore token boundary and return snapshot."""
+        return await self.engine.engine_core.call_utility_async(
+            "prepare_migration_out", request_id, migration_epoch
+        )
+
+    async def migration_source_blocks(self, request_id: str, migration_epoch: int):
+        return await self.engine.engine_core.call_utility_async(
+            "migration_block_ids", request_id, migration_epoch
+        )
+
+    async def migration_prepare_in(self, snapshot: RequestMigrationSnapshot):
+        return await self.engine.engine_core.call_utility_async(
+            "prepare_migration_in_command", __import__(
+                "vllm.v1.engine", fromlist=["MigrationInPrepareRequest"]
+            ).MigrationInPrepareRequest(snapshot.to_wire())
+        )
+
+    async def migration_layer_names(self):
+        return await self.engine.engine_core.call_utility_async(
+            "migration_kv_layer_names"
+        )
+
+    async def migration_send_layer(
+        self, request_id: str, migration_epoch: int, layer_name: str,
+        source_block_ids: list[int], target_block_ids: list[int],
+        target_endpoint: str,
+    ) -> bytes:
+        """Send one layer directly between worker P2P engines.
+
+        Only the small authenticated manifest returns through EngineCore.
+        """
+        return await self.engine.engine_core.call_utility_async(
+            "send_migration_kv_layer", request_id, migration_epoch, layer_name,
+            source_block_ids, target_block_ids, target_endpoint,
+        )
+
+    async def migration_receive_layer(
+        self, request_id: str, migration_epoch: int, manifest_wire: bytes,
+        source_endpoint: str,
+    ) -> None:
+        await self.engine.engine_core.call_utility_async(
+            "receive_migration_kv_layer", request_id, migration_epoch,
+            manifest_wire, source_endpoint,
+        )
+
+    async def migration_commit(self, request_id: str, migration_epoch: int,
+                               incoming: bool = False):
+        method = "commit_migration_in" if incoming else "commit_migration_out"
+        return await self.engine.engine_core.call_utility_async(
+            method, __import__("vllm.v1.engine", fromlist=["MigrationRequestCommand"])
+            .MigrationRequestCommand(request_id, migration_epoch)
+        )
+
+    async def migration_abort(self, request_id: str, migration_epoch: int,
+                              incoming: bool = False):
+        method = "abort_migration_in" if incoming else "abort_migration_out"
+        return await self.engine.engine_core.call_utility_async(
+            method, __import__("vllm.v1.engine", fromlist=["MigrationRequestCommand"])
+            .MigrationRequestCommand(request_id, migration_epoch)
+        )
     def shutdown(self):
         if self.state == EngineState.STOPPED:
             return
