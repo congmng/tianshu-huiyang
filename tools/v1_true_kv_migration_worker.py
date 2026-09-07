@@ -82,6 +82,17 @@ class Phase2Worker:
             await asyncio.sleep(0.05)
         raise TimeoutError("source did not reach migration token boundary")
 
+    async def cleanup_source_generator(self) -> None:
+        """Cancel and await the probe stream before a new migration."""
+        if self.generator is None:
+            return
+        self.generator.cancel()
+        try:
+            await self.generator
+        except asyncio.CancelledError:
+            pass
+        self.generator = None
+
     async def command(self, value: dict) -> dict:
         op = value["op"]
         if op == "generate":
@@ -138,8 +149,7 @@ class Phase2Worker:
         if op == "commit":
             await self.adapter.migration_commit(value["request_id"], value["epoch"], value["incoming"])
             if not value["incoming"] and self.generator is not None:
-                self.generator.cancel()
-                self.generator = None
+                await self.cleanup_source_generator()
             return {}
         if op == "resume":
             if self.migration_snapshot is None:
@@ -164,11 +174,17 @@ class Phase2Worker:
                 token_ids.extend(out.outputs[0].token_ids)
                 if out.finished:
                     break
+            # The probe intentionally stops after a short continuation. Clean
+            # up both frontend and EngineCore state so repeated iterations do
+            # not accumulate live requests or KV blocks.
+            await self.adapter.engine.abort(snap.request_id)
+            self.migration_queue = None
             return {"token_ids": token_ids}
         if op == "abort":
             await self.adapter.migration_abort(value["request_id"], value["epoch"], value["incoming"])
             return {}
         if op == "shutdown":
+            await self.cleanup_source_generator()
             self.adapter.shutdown()
             return {"shutdown": True}
         raise ValueError(f"unknown op: {op}")
