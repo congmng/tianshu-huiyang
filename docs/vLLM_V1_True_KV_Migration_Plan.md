@@ -361,3 +361,9 @@ Llumnix V1 migration 回归为 51 passed；跨主机 support gate 输出
 `PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`；
 source/target 日志均记录 `ncclCommInitRank Success`，结束后 GPU allocation 为零。
 这只重新确认既有全量迁移基线，不覆盖此前 pre-copy 的 continuation mismatch。
+
+后续长 prompt pre-copy 运行已获得明确控制面错误：所有 NCCL 初始化和 layer 发送完成，
+但 source scheduler 在 append 时已回收 session（`incremental migration session not
+found`），说明 pre-copy 期间 scheduler 队列 churn 会丢失临时状态。fork `4944da5` 已将
+EngineCore mirror 作为 pre-copy session 的权威 append 状态，并加入回归测试（fork 定向
+测试 32 passed）；尚未重新取得真实长 prompt pre-copy 的端到端 decode-equivalence。
