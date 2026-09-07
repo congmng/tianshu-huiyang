@@ -262,9 +262,21 @@ native NCCL 已完成 100/100 轮连续验证。每轮均通过 source/target ba
 传输、双阶段 commit 与迁移后 decode-equivalence 检查，并每 10 轮输出 PASS。该结果
 满足 Phase-2 的 100 次循环验收（仍限定 TP=1、PP=1、greedy sampling）。
 
-### Phase-3 准备状态（2026-09-07）
+### Phase-3 实测状态（2026-09-07）
 
 跨主机 support gate 已通过：本机 `10.31.10.62` 与远端 `10.31.10.210` 双向网络可达，
 两端均有 Qwen3-14B、16 张 BI-V150，且 migration 源码摘要、vLLM 0.11.2 和 protocol v1
-一致。worker 已增加可路由 control/P2P endpoint 参数。跨机启动编排及故障注入尚待实现，
-不可将本机双卡验收外推为跨机验收。
+一致。worker 已增加可路由 control/P2P endpoint 参数，跨机启动器通过 SSH 启动远端
+target，并设置 `VLLM_FORCE_NCCL_COMM=1` 绕过 CoreX 可选 ixformer communicator。
+
+已完成一次真实跨机验收：`10.31.10.62 GPU0 → 10.31.10.210 GPU1`，Qwen3-14B、TP=1、
+PP=1、native NCCL。两端日志分别确认 `ncclCommInitRank Success`（rank 0/1），随后完成
+source freeze、target reservation、40 个 attention layer 的物理 KV block 传输（manifest
+与 payload checksum）、target/source 两阶段 commit；target 继续 decode 的 token 与 source
+uninterrupted greedy baseline continuation 逐 token 一致，输出为：
+
+`PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`
+
+此前一次跨机启动失败是远端 GPU 被孤儿 `VLLM::EngineCore` 占满，已精确终止并复测成功；
+该故障不属于 migration 协议失败。延迟注入、超时、目标容量不足及 source actor 重启
+故障注入仍待完成，因此 Phase-3 尚未整体完成，不能将上述单次成功外推为故障覆盖验收。
