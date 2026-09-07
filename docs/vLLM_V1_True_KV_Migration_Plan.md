@@ -423,6 +423,12 @@ Llumnix 提交 `d3459c8` 将 EngineCore utility 返回的 snapshot 字典规范�
 checksum 校验并返回 `RequestMigrationSnapshot`，launcher 不再维护重复转换逻辑。相关
 adapter 与迁移回归测试共 43 项通过，便于后续 Manager 编排复用同一控制面契约。
 
+Llumnix 提交 `767d7e3` 为 `V1EngineAdapter` 增加显式 `migration_capabilities()`，
+当前声明 `token_boundary_freeze`、`kv_snapshot`、`native_nccl`、`incremental_precopy`
+和 `seeded_rng`；明确不包含 `legacy_block_manager`。Manager 可据此选择 V1 控制面，
+避免通过旧接口探测或误启用不兼容的迁移 coordinator。能力集合单测已通过（v1 KV
+transfer 测试 40 passed）。
+
 随后在跨机拓扑 `10.31.10.62 GPU0 -> 10.31.10.210 GPU1` 上，以相同 Qwen3-14B、native
 NCCL、`temperature=0.7`、`seed=123` 完成 seeded-random 验收（控制端口
 `28501/28502`）。远端日志确认 NCCL communicator 成功初始化，迁移后 continuation 与
