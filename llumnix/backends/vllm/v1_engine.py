@@ -316,6 +316,28 @@ class V1EngineAdapter:
             "abort_incremental_migration", request_id
         )
 
+    async def prepare_incremental_migration_in(
+        self, session_wire: bytes, block_counts: tuple[int, ...],
+    ) -> tuple[list[int], ...]:
+        """Reserve isolated target-local blocks for initial pre-copy."""
+        return await self.engine.engine_core.call_utility_async(
+            "prepare_incremental_migration_in", session_wire, block_counts
+        )
+
+    async def validate_incremental_migration_in(
+        self, session_wire: bytes, block_counts: tuple[int, ...],
+    ) -> tuple[list[int], ...]:
+        """Validate/grow an existing target pre-copy reservation."""
+        return await self.engine.engine_core.call_utility_async(
+            "validate_incremental_migration_in", session_wire, block_counts
+        )
+
+    async def commit_incremental_migration_in(self, session_wire: bytes) -> bytes:
+        """Confirm a fully-written pre-copy suffix on the target."""
+        return await self.engine.engine_core.call_utility_async(
+            "commit_incremental_migration_in", session_wire
+        )
+
     async def migration_prepare_in(self, snapshot: RequestMigrationSnapshot):
         return await self.engine.engine_core.call_utility_async(
             "prepare_migration_in_command", MigrationInPrepareRequest(snapshot.to_wire())
