@@ -339,6 +339,9 @@ opt-in。最新 fork `1f6979e` 增加 immutable-prefix 查询：只允许 block-
 fork `6fa06b5` 增加隔离的 target incremental reservation：使用私有 owner 逐轮增长
 目标 block，validate 不推进 prefix，只有所有 layer 写入成功后的 commit 才推进 prefix；
 abort 会释放私有 reservation，EngineClient 与 Llumnix adapter 已暴露对应 API。
+fork `5f35f76` 增加 final-prepare claim：若目标已有 pre-copy reservation，最终
+`MIGRATE_IN_PREPARE` 会将其扩展到 snapshot 所需大小并原子转移 ownership 到正式
+request ID，避免重复分配；无 pre-copy 时保留全量迁移兼容路径。
 fork `96e1e43` 与 Llumnix launcher `9ce41d9` 已提供显式单轮诊断 pre-copy 编排：
 source preview session，target validate/write 所有 layer 后 commit，再由 source append；
 source block 列表必须等于 scheduler 计算的 immutable prefix。当前 launcher 在 pre-copy
