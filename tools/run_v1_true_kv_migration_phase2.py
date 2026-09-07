@@ -148,12 +148,12 @@ async def run(args: argparse.Namespace) -> None:
             print(f"START iteration {iteration + 1}/{args.iterations} baseline-source", flush=True)
             source_baseline = await checked_rpc(args.source_host, args.source_control, {
                 "op": "baseline", "request_id": f"{request_id}-baseline",
-                "prompt": args.prompt, "max_tokens": 12,
+                "prompt": args.prompt, "max_tokens": args.max_model_len,
             })
             print(f"START iteration {iteration + 1}/{args.iterations} baseline-target", flush=True)
             target_baseline = await checked_rpc(args.target_host, args.target_control, {
                 "op": "baseline", "request_id": f"{request_id}-target-baseline",
-                "prompt": args.prompt, "max_tokens": 12,
+                "prompt": args.prompt, "max_tokens": args.max_model_len,
             })
             print(f"START iteration {iteration + 1}/{args.iterations} source-generate", flush=True)
             generated = await checked_rpc(args.source_host, args.source_control, {"op": "generate", "request_id": request_id,
