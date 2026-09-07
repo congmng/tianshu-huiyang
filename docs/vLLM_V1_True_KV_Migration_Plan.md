@@ -277,6 +277,10 @@ uninterrupted greedy baseline continuation 逐 token 一致，输出为：
 
 `PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`
 
+在相同拓扑上加入每层 10 ms 的传输延迟（`--inject-latency-ms 10`）后再次完成上述
+全流程，仍通过 native NCCL 初始化、KV checksum、双阶段提交和逐 token 等价；这证明
+小幅可控网络延迟不会破坏协议。
+
 此前一次跨机启动失败是远端 GPU 被孤儿 `VLLM::EngineCore` 占满，已精确终止并复测成功；
 该故障不属于 migration 协议失败。延迟注入、超时、目标容量不足及 source actor 重启
 故障注入仍待完成，因此 Phase-3 尚未整体完成，不能将上述单次成功外推为故障覆盖验收。
