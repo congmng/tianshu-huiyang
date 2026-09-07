@@ -418,6 +418,11 @@ fork `125eefb` 进一步在 source `prepare_migration_out` 之前检查快照无
 不会改变 scheduler 队列或进入 `MIGRATING_OUT`。新增边界测试通过，fork 定向测试为
 37 passed；这些扩展能力仍需单独设计版本化快照字段后再开放。
 
+Llumnix 提交 `d3459c8` 将 EngineCore utility 返回的 snapshot 字典规范化下沉到
+`V1EngineAdapter.migration_prepare_out()`：adapter 现在统一执行 bytes/tuple 转换、
+checksum 校验并返回 `RequestMigrationSnapshot`，launcher 不再维护重复转换逻辑。相关
+adapter 与迁移回归测试共 43 项通过，便于后续 Manager 编排复用同一控制面契约。
+
 随后在跨机拓扑 `10.31.10.62 GPU0 -> 10.31.10.210 GPU1` 上，以相同 Qwen3-14B、native
 NCCL、`temperature=0.7`、`seed=123` 完成 seeded-random 验收（控制端口
 `28501/28502`）。远端日志确认 NCCL communicator 成功初始化，迁移后 continuation 与
