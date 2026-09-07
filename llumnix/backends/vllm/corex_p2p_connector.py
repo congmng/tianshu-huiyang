@@ -459,3 +459,22 @@ class CoreXP2pNcclConnector(P2pNcclConnector):
             len(getattr(metadata, "requests", ())),
         )
         return super().start_load_kv(forward_context, **kwargs)
+
+    def wait_for_save(self):
+        """Skip legacy P/D completion waits for explicit V1 migration.
+
+        The upstream worker invokes this on every inference step, even when
+        the scheduler supplied empty connector metadata.  Its P2P engine
+        polling path is meant for a prefill/decode handoff and can block a
+        standalone source decode while a remote peer is idle.  Explicit V1
+        migration sends only after ``prepare_out`` through the fork's direct
+        worker RPC, so it must not use that lifecycle.
+        """
+        if self._true_kv_migration_only:
+            return
+        return super().wait_for_save()
+
+    def get_finished(self, finished_req_ids, **kwargs):
+        if self._true_kv_migration_only:
+            return None, None
+        return super().get_finished(finished_req_ids, **kwargs)

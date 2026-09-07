@@ -127,12 +127,12 @@ async def run(args: argparse.Namespace) -> None:
                     "op": "send", "request_id": request_id, "epoch": epoch,
                     "layer": layer, "source_blocks": group_src,
                     "target_blocks": group_dst,
-                    "peer": f"127.0.0.1:{args.target_p2p}",
+                    "peer": f"{args.target_p2p_host}:{args.target_p2p}",
                 })
                     await rpc(args.target_host, args.target_control, {
                     "op": "receive", "request_id": request_id, "epoch": epoch,
                     "manifest": manifest["manifest"],
-                    "peer": f"127.0.0.1:{args.source_p2p}",
+                    "peer": f"{args.source_p2p_host}:{args.source_p2p}",
                 })
             await rpc(args.target_host, args.target_control, {"op": "commit", "request_id": request_id,
                                         "epoch": epoch, "incoming": True})
