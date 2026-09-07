@@ -43,6 +43,15 @@ def _enable_v1_kv_attention_hooks() -> None:
     loads the CoreX P2P connector restores the normal V1 connector lifecycle
     without changing the installed CoreX or NCCL libraries.
     """
+    # The true-KV migration probe owns transfer explicitly through the V1
+    # EngineCore migration commands.  Enabling CoreX's legacy P/D attention
+    # wrapper in that mode makes a request carrying a routable P2P ID enter
+    # the old layer-transfer lifecycle before it has been frozen/reserved.
+    # Apart from being redundant, it can wait for a peer on another host
+    # during ordinary source decode.  Keep the wrapper for regular P/D, but
+    # leave it disabled for the explicit migration data plane.
+    if os.getenv("LLUMNIX_TRUE_KV_MIGRATION_ONLY", "0") in {"1", "true", "TRUE"}:
+        return
     os.environ.setdefault("VLLM_SUPPORT_IXSERVER", "1")
     # ``vllm.envs`` may already have been imported by the worker before the
     # connector module is loaded, so changing the environment alone would not

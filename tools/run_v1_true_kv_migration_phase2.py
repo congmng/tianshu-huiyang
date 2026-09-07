@@ -62,6 +62,9 @@ async def run(args: argparse.Namespace) -> None:
     # CoreX's optional ixformer communicator is not ABI-stable across hosts;
     # standard torch NCCL is sufficient for TP=1 and the migration P2P engine.
     env["VLLM_FORCE_NCCL_COMM"] = "1"
+    # Freeze/import is performed by the fork's explicit V1 migration API.
+    # Do not activate the unrelated legacy P/D attention lifecycle.
+    env["LLUMNIX_TRUE_KV_MIGRATION_ONLY"] = "1"
     fork = "/data1/congmng/vllm-corex44-v1-migration"
     env["PYTHONPATH"] = f"{fork}:{ROOT}:{env.get('PYTHONPATH', '')}"
     source = await asyncio.create_subprocess_exec(
@@ -82,6 +85,7 @@ async def run(args: argparse.Namespace) -> None:
         remote = " ".join([f"'{part}'" for part in target_args])
         remote = ("source /data1/congmng/llumnix/tools/corex44_env.sh; "
                   "export VLLM_FORCE_NCCL_COMM=1; "
+                  "export LLUMNIX_TRUE_KV_MIGRATION_ONLY=1; "
                   f"PYTHONDONTWRITEBYTECODE=1 PYTHONPATH={fork}:{ROOT} "
                   f"CUDA_VISIBLE_DEVICES={args.target_gpu} exec {remote}")
         target = await asyncio.create_subprocess_exec("ssh", args.target_ssh, remote)
