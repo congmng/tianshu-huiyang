@@ -118,33 +118,6 @@ class Phase2Worker:
             return {"token_ids": token_ids}
         if op == "prepare_out":
             snapshot = await self.adapter.migration_prepare_out(value["request_id"], value["epoch"])
-            # EngineCore utility responses cross a msgspec boundary.  Frozen
-            # dataclasses are decoded there as plain dictionaries, whereas
-            # in-process/unit callers receive RequestMigrationSnapshot.
-            # Normalize both forms before choosing the versioned JSON wire.
-            if isinstance(snapshot, dict):
-                rng_state = snapshot.get("rng_state", b"")
-                if isinstance(rng_state, str):
-                    rng_state = bytes.fromhex(rng_state)
-                elif isinstance(rng_state, (list, bytearray)):
-                    rng_state = bytes(rng_state)
-                sampling_params = snapshot["sampling_params"]
-                if isinstance(sampling_params, str):
-                    sampling_params = bytes.fromhex(sampling_params)
-                elif isinstance(sampling_params, (list, bytearray)):
-                    sampling_params = bytes(sampling_params)
-                snapshot = RequestMigrationSnapshot(
-                    **{
-                        **snapshot,
-                        "prompt_token_ids": tuple(snapshot["prompt_token_ids"]),
-                        "all_token_ids": tuple(snapshot["all_token_ids"]),
-                        "output_token_ids": tuple(snapshot["output_token_ids"]),
-                        "kv_group_block_counts": tuple(snapshot["kv_group_block_counts"]),
-                        "feature_flags": tuple(snapshot["feature_flags"]),
-                        "sampling_params": sampling_params,
-                        "rng_state": rng_state,
-                    }
-                )
             return {"snapshot": snapshot.to_wire().decode(),
                     "output_token_ids": list(snapshot.output_token_ids),
                     "all_token_ids": list(snapshot.all_token_ids),

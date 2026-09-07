@@ -272,10 +272,37 @@ class V1EngineAdapter:
 
     async def migration_prepare_out(self, request_id: str, migration_epoch: int):
         """Freeze source at an EngineCore token boundary and return snapshot."""
-        return await self.engine.engine_core.call_utility_async(
+        snapshot = await self.engine.engine_core.call_utility_async(
             "prepare_migration_out",
             MigrationOutPrepareRequest(request_id, migration_epoch),
         )
+        # EngineCore utility replies cross a msgspec boundary and therefore
+        # deserialize frozen dataclasses as dictionaries. Keep this transport
+        # detail out of orchestrators: every adapter caller receives the
+        # authenticated versioned snapshot object.
+        if isinstance(snapshot, dict):
+            def as_bytes(value):
+                if isinstance(value, str):
+                    return bytes.fromhex(value)
+                if isinstance(value, (list, bytearray)):
+                    return bytes(value)
+                return value
+            snapshot = RequestMigrationSnapshot(
+                **{
+                    **snapshot,
+                    "prompt_token_ids": tuple(snapshot["prompt_token_ids"]),
+                    "all_token_ids": tuple(snapshot["all_token_ids"]),
+                    "output_token_ids": tuple(snapshot["output_token_ids"]),
+                    "kv_group_block_counts": tuple(snapshot["kv_group_block_counts"]),
+                    "feature_flags": tuple(snapshot["feature_flags"]),
+                    "sampling_params": as_bytes(snapshot["sampling_params"]),
+                    "rng_state": as_bytes(snapshot.get("rng_state", b"")),
+                }
+            )
+        if not isinstance(snapshot, RequestMigrationSnapshot):
+            raise TypeError("EngineCore returned an invalid migration snapshot")
+        snapshot.validate()
+        return snapshot
 
     async def migration_source_blocks(self, request_id: str, migration_epoch: int):
         return await self.engine.engine_core.call_utility_async(
