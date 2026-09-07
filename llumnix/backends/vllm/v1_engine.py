@@ -298,6 +298,16 @@ class V1EngineAdapter:
             source_target_pairs,
         )
 
+    async def preview_incremental_migration(
+        self, request_id: str, migration_epoch: int,
+        source_target_pairs: tuple[tuple[int, int], ...],
+    ) -> bytes:
+        """Build a peer-verifiable suffix session without committing it."""
+        return await self.engine.engine_core.call_utility_async(
+            "preview_incremental_migration", request_id, migration_epoch,
+            source_target_pairs,
+        )
+
     async def incremental_migration_session(self, request_id: str) -> bytes:
         return await self.engine.engine_core.call_utility_async(
             "incremental_migration_session", request_id
