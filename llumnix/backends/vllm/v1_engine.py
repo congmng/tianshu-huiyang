@@ -348,6 +348,25 @@ class V1EngineAdapter:
             "commit_incremental_migration_in", session_wire
         )
 
+    async def send_incremental_migration_kv_layer(
+        self, session_wire: bytes, layer_name: str,
+        source_block_ids: list[int], target_block_ids: list[int],
+        target_endpoint: str, block_axis: int | None = None,
+    ) -> bytes:
+        return await self.engine.engine_core.call_utility_async(
+            "send_incremental_migration_kv_layer", session_wire, layer_name,
+            source_block_ids, target_block_ids, target_endpoint, block_axis,
+        )
+
+    async def receive_incremental_migration_kv_layer(
+        self, session_wire: bytes, manifest_wire: bytes,
+        source_endpoint: str,
+    ) -> None:
+        await self.engine.engine_core.call_utility_async(
+            "receive_incremental_migration_kv_layer", session_wire,
+            manifest_wire, source_endpoint,
+        )
+
     async def migration_prepare_in(self, snapshot: RequestMigrationSnapshot):
         return await self.engine.engine_core.call_utility_async(
             "prepare_migration_in_command", MigrationInPrepareRequest(snapshot.to_wire())
