@@ -99,12 +99,17 @@ async def run(args: argparse.Namespace) -> None:
     else:
         target = await asyncio.create_subprocess_exec(
             *target_args, env={**env, "CUDA_VISIBLE_DEVICES": str(args.target_gpu)})
+    active_request_id: str | None = None
+    active_epoch: int | None = None
+    source_prepared = False
+    target_prepared = False
     try:
         await asyncio.gather(wait_ready(args.source_host, args.source_control, source),
                              wait_ready(args.target_host, args.target_control, target))
         for iteration in range(args.iterations):
             request_id = args.request_id if args.iterations == 1 else f"{args.request_id}-{iteration}"
             epoch = args.epoch + iteration
+            active_request_id, active_epoch = request_id, epoch
             # The source baseline is the authoritative greedy sequence. A
             # target baseline is diagnostic evidence for device differences.
             print(f"START iteration {iteration + 1}/{args.iterations} baseline-source", flush=True)
@@ -123,8 +128,10 @@ async def run(args: argparse.Namespace) -> None:
             request_id = generated["request_id"]
             out = await rpc(args.source_host, args.source_control, {"op": "prepare_out", "request_id": request_id,
                                               "epoch": epoch})
+            source_prepared = True
             snapshot = out["snapshot"]
             target_blocks = await rpc(args.target_host, args.target_control, {"op": "prepare_in", "snapshot": snapshot})
+            target_prepared = True
             source_blocks = await rpc(args.source_host, args.source_control, {"op": "blocks", "request_id": request_id,
                                                         "epoch": epoch})
             layers = await rpc(args.source_host, args.source_control, {"op": "layers"})
@@ -147,6 +154,7 @@ async def run(args: argparse.Namespace) -> None:
                                         "epoch": epoch, "incoming": True})
             await rpc(args.source_host, args.source_control, {"op": "commit", "request_id": request_id,
                                         "epoch": epoch, "incoming": False})
+            source_prepared = target_prepared = False
             resumed = await rpc(args.target_host, args.target_control, {"op": "resume", "request_id": request_id,
                                                    "epoch": epoch, "prompt": args.prompt,
                                                    "tokens": args.verify_tokens})
@@ -166,6 +174,26 @@ async def run(args: argparse.Namespace) -> None:
             if iteration == 0 or (iteration + 1) % 10 == 0:
                 print(f"PASS iteration {iteration + 1}/{args.iterations}", flush=True)
         print("PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence", flush=True)
+    except BaseException:
+        # A rejected reservation, interrupted peer, or bounded RPC timeout
+        # must restore the source before shutdown.  Abort calls are best
+        # effort here because the original failure is the authoritative one.
+        if active_request_id is not None and active_epoch is not None:
+            if target_prepared:
+                try:
+                    await asyncio.wait_for(rpc(args.target_host, args.target_control, {
+                        "op": "abort", "request_id": active_request_id,
+                        "epoch": active_epoch, "incoming": True}), timeout=10)
+                except Exception:
+                    pass
+            if source_prepared:
+                try:
+                    await asyncio.wait_for(rpc(args.source_host, args.source_control, {
+                        "op": "abort", "request_id": active_request_id,
+                        "epoch": active_epoch, "incoming": False}), timeout=10)
+                except Exception:
+                    pass
+        raise
     finally:
         for port, process in ((args.source_control, source), (args.target_control, target)):
             if process.returncode is None:
