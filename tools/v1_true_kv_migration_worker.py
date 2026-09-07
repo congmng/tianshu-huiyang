@@ -55,6 +55,8 @@ class Phase2Worker:
         self.migration_queue = None
 
     async def generate(self, request_id: str, prompt: str) -> dict:
+        self.token_count = 0
+        self.generated_token_ids = []
         internal_request_id = decorate_p2p_pd_request_id(
             request_id,
             f"127.0.0.1:{self.args.peer_p2p}",
@@ -135,6 +137,9 @@ class Phase2Worker:
             return {}
         if op == "commit":
             await self.adapter.migration_commit(value["request_id"], value["epoch"], value["incoming"])
+            if not value["incoming"] and self.generator is not None:
+                self.generator.cancel()
+                self.generator = None
             return {}
         if op == "resume":
             if self.migration_snapshot is None:

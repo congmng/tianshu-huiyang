@@ -66,61 +66,64 @@ async def run(args: argparse.Namespace) -> None:
     try:
         await asyncio.gather(wait_ready(args.source_control, source),
                              wait_ready(args.target_control, target))
-        request_id, epoch = args.request_id, args.epoch
-        # The source baseline is the authoritative greedy sequence. A target
-        # baseline is retained as diagnostic evidence because different CoreX
-        # devices may have non-bitwise-identical FP16 reductions.
-        source_baseline = await rpc(args.source_control, {
-            "op": "baseline", "request_id": f"{request_id}-baseline",
-            "prompt": args.prompt, "max_tokens": 12,
-        })
-        target_baseline = await rpc(args.target_control, {
-            "op": "baseline", "request_id": f"{request_id}-target-baseline",
-            "prompt": args.prompt, "max_tokens": 12,
-        })
-        generated = await rpc(args.source_control, {"op": "generate", "request_id": request_id,
-                                                    "prompt": args.prompt})
-        request_id = generated["request_id"]
-        out = await rpc(args.source_control, {"op": "prepare_out", "request_id": request_id,
+        for iteration in range(args.iterations):
+            request_id = args.request_id if args.iterations == 1 else f"{args.request_id}-{iteration}"
+            epoch = args.epoch + iteration
+            # The source baseline is the authoritative greedy sequence. A
+            # target baseline is diagnostic evidence for device differences.
+            source_baseline = await rpc(args.source_control, {
+                "op": "baseline", "request_id": f"{request_id}-baseline",
+                "prompt": args.prompt, "max_tokens": 12,
+            })
+            target_baseline = await rpc(args.target_control, {
+                "op": "baseline", "request_id": f"{request_id}-target-baseline",
+                "prompt": args.prompt, "max_tokens": 12,
+            })
+            generated = await rpc(args.source_control, {"op": "generate", "request_id": request_id,
+                                                        "prompt": args.prompt})
+            request_id = generated["request_id"]
+            out = await rpc(args.source_control, {"op": "prepare_out", "request_id": request_id,
                                               "epoch": epoch})
-        snapshot = out["snapshot"]
-        target_blocks = await rpc(args.target_control, {"op": "prepare_in", "snapshot": snapshot})
-        source_blocks = await rpc(args.source_control, {"op": "blocks", "request_id": request_id,
+            snapshot = out["snapshot"]
+            target_blocks = await rpc(args.target_control, {"op": "prepare_in", "snapshot": snapshot})
+            source_blocks = await rpc(args.source_control, {"op": "blocks", "request_id": request_id,
                                                         "epoch": epoch})
-        layers = await rpc(args.source_control, {"op": "layers"})
-        for group_src, group_dst in zip(source_blocks["blocks"], target_blocks["blocks"]):
-            for layer in layers["layers"]:
-                manifest = await rpc(args.source_control, {
+            layers = await rpc(args.source_control, {"op": "layers"})
+            for group_src, group_dst in zip(source_blocks["blocks"], target_blocks["blocks"]):
+                for layer in layers["layers"]:
+                    manifest = await rpc(args.source_control, {
                     "op": "send", "request_id": request_id, "epoch": epoch,
                     "layer": layer, "source_blocks": group_src,
                     "target_blocks": group_dst,
                     "peer": f"127.0.0.1:{args.target_p2p}",
                 })
-                await rpc(args.target_control, {
+                    await rpc(args.target_control, {
                     "op": "receive", "request_id": request_id, "epoch": epoch,
                     "manifest": manifest["manifest"],
                     "peer": f"127.0.0.1:{args.source_p2p}",
                 })
-        await rpc(args.target_control, {"op": "commit", "request_id": request_id,
+            await rpc(args.target_control, {"op": "commit", "request_id": request_id,
                                         "epoch": epoch, "incoming": True})
-        await rpc(args.source_control, {"op": "commit", "request_id": request_id,
+            await rpc(args.source_control, {"op": "commit", "request_id": request_id,
                                         "epoch": epoch, "incoming": False})
-        resumed = await rpc(args.target_control, {"op": "resume", "request_id": request_id,
+            resumed = await rpc(args.target_control, {"op": "resume", "request_id": request_id,
                                                    "epoch": epoch, "prompt": args.prompt,
                                                    "tokens": args.verify_tokens})
         # EngineCore may execute one pending decode input before the control
         # command reaches its boundary.  The snapshot's serialized output
         # history, rather than the frontend's observation timing, defines the
         # exact continuation point.
-        continuation = len(out["output_token_ids"])
-        expected = source_baseline["token_ids"][continuation:
+            continuation = len(out["output_token_ids"])
+            expected = source_baseline["token_ids"][continuation:
                                                  continuation + args.verify_tokens]
-        if resumed["token_ids"] != expected:
-            raise AssertionError(
+            if resumed["token_ids"] != expected:
+                raise AssertionError(
                 f"post-migration token mismatch: source={generated['token_ids']}, "
                 f"source_baseline={source_baseline['token_ids']}, "
                 f"target_baseline={target_baseline['token_ids']}, expected={expected}, "
                 f"got={resumed['token_ids']}")
+            if iteration == 0 or (iteration + 1) % 10 == 0:
+                print(f"PASS iteration {iteration + 1}/{args.iterations}", flush=True)
         print("PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence", flush=True)
     finally:
         for port, process in ((args.source_control, source), (args.target_control, target)):
@@ -147,6 +150,7 @@ def main() -> None:
     parser.add_argument("--gpu-memory-utilization", type=float, default=.96)
     parser.add_argument("--transport", choices=("nccl", "zmq_cpu"), default="nccl")
     parser.add_argument("--verify-tokens", type=int, default=2)
+    parser.add_argument("--iterations", type=int, default=1)
     parser.add_argument("--prompt", default="Explain KV cache migration in one sentence.")
     asyncio.run(run(parser.parse_args()))
 

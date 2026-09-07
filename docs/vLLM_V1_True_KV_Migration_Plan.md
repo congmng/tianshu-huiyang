@@ -249,5 +249,14 @@ Request 重建时缺失的 prefix block hashes 后，实测输出为：
 `PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`
 
 该次验证以 source 同一 EngineCore 的 uninterrupted greedy 序列为基线，目标端迁移后
-继续生成的 token 与基线 continuation 逐 token 相等。仍未完成文档要求的 100 次连续
-循环及 native NCCL 数据面验证，因此不能宣称 Phase-2 全部验收完成。
+继续生成的 token 与基线 continuation 逐 token 相等。
+
+随后在同一双卡拓扑上使用 `--transport nccl` 完成真实数据面验证。两端日志均出现
+`ncclCommInitRank Success`，并再次通过：
+
+`PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`
+
+Phase-2 launcher 现支持 `--iterations N`，每轮使用递增 migration epoch 与唯一 request ID，
+并在 source commit 后释放挂起 generator。CPU-staged 路径已完成 2 轮连续验证；native
+NCCL 已完成单轮验证。文档要求的 100 次连续循环尚未执行完毕，因此不能宣称 Phase-2
+全部验收完成。
