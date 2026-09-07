@@ -303,6 +303,14 @@ class V1EngineAdapter:
             "incremental_migration_session", request_id
         )
 
+    async def incremental_migration_immutable_blocks(
+        self, request_id: str,
+    ) -> tuple[tuple[list[int], ...], tuple[int, ...]]:
+        """Get the block-aligned, immutable prefix safe for a pre-copy round."""
+        return await self.engine.engine_core.call_utility_async(
+            "incremental_migration_immutable_blocks", request_id
+        )
+
     async def abort_incremental_migration(self, request_id: str) -> None:
         await self.engine.engine_core.call_utility_async(
             "abort_incremental_migration", request_id
