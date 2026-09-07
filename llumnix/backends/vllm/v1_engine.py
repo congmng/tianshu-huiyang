@@ -282,6 +282,32 @@ class V1EngineAdapter:
             "migration_block_ids", request_id, migration_epoch
         )
 
+    async def begin_incremental_migration(self, request_id: str,
+                                          migration_epoch: int) -> bytes:
+        """Open scheduler-owned pre-copy bookkeeping for a live V1 request."""
+        return await self.engine.engine_core.call_utility_async(
+            "begin_incremental_migration", request_id, migration_epoch
+        )
+
+    async def append_incremental_migration(
+        self, request_id: str, migration_epoch: int,
+        source_target_pairs: tuple[tuple[int, int], ...],
+    ) -> bytes:
+        return await self.engine.engine_core.call_utility_async(
+            "append_incremental_migration", request_id, migration_epoch,
+            source_target_pairs,
+        )
+
+    async def incremental_migration_session(self, request_id: str) -> bytes:
+        return await self.engine.engine_core.call_utility_async(
+            "incremental_migration_session", request_id
+        )
+
+    async def abort_incremental_migration(self, request_id: str) -> None:
+        await self.engine.engine_core.call_utility_async(
+            "abort_incremental_migration", request_id
+        )
+
     async def migration_prepare_in(self, snapshot: RequestMigrationSnapshot):
         return await self.engine.engine_core.call_utility_async(
             "prepare_migration_in_command", MigrationInPrepareRequest(snapshot.to_wire())

@@ -331,8 +331,10 @@ source→target block pairs，要求 epoch 严格递增，拒绝空 suffix、负
 随后 fork `4132c90` 已把 opt-in prefix count/pairs 贯穿 EngineCore、GPU worker 与
 direct P2P layer RPC：source 仅发送 suffix，target 在写入前以本地 prefix pairs 验证
 manifest。Llumnix `V1EngineAdapter` 也暴露同一可选参数，默认仍为全量迁移。
-该契约尚未接入 EngineCore migration RPC 的持久 session state、跨轮增量调度或真实服务
-路径；因此 Phase-4
+fork `294808d` 进一步在 Scheduler/EngineCore 中加入 scheduler-owned session registry，
+并由 Llumnix adapter 暴露 begin/append/query/abort 控制面 API；session wire 自带完整
+prefix mapping checksum，且在请求释放或 source/target abort 时清理。该实现仍是显式
+opt-in，尚未自动触发 pre-copy、跨轮传输或在真实服务中驱动增量 block 分配，因此 Phase‑4
 增量迁移仍未完成。随机采样/RNG、structured output、LoRA、多模态、TP>1 和 speculative
 decoding 也继续保持显式不支持，待分别具备快照字段、回滚测试和实测数据后再启用。
 
