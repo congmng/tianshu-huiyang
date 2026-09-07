@@ -70,7 +70,8 @@ class Phase2Worker:
         # that blocks inside ``async for``, this leaves no orphaned generator
         # to race the next iteration after source commit.
         stream = self.adapter.engine.generate(
-            prompt, SamplingParams(temperature=0, max_tokens=12,
+            prompt, SamplingParams(temperature=0, max_tokens=self.args.max_model_len,
+                                   ignore_eos=True,
                                    output_kind=RequestOutputKind.DELTA), internal_request_id)
         for _ in range(2):
             output = await anext(stream)
