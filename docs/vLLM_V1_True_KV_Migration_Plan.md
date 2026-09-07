@@ -328,8 +328,11 @@ target 若以不同前缀计数或同长度但不同 block 映射导入，都会
 `IncrementalMigrationSession`：以 request ID 和 migration epoch 维护已同步的有序
 source→target block pairs，要求 epoch 严格递增，拒绝空 suffix、负 ID、源/目标 block
 重复及跨轮映射冲突，并为 prefix count/checksum 提供单一状态源；该对象单测为 25 passed。
-该契约当前保持 opt-in，尚未接入 EngineCore migration RPC 的 session state、跨轮增量
-调度或真实服务路径；因此 Phase-4
+随后 fork `4132c90` 已把 opt-in prefix count/pairs 贯穿 EngineCore、GPU worker 与
+direct P2P layer RPC：source 仅发送 suffix，target 在写入前以本地 prefix pairs 验证
+manifest。Llumnix `V1EngineAdapter` 也暴露同一可选参数，默认仍为全量迁移。
+该契约尚未接入 EngineCore migration RPC 的持久 session state、跨轮增量调度或真实服务
+路径；因此 Phase-4
 增量迁移仍未完成。随机采样/RNG、structured output、LoRA、多模态、TP>1 和 speculative
 decoding 也继续保持显式不支持，待分别具备快照字段、回滚测试和实测数据后再启用。
 

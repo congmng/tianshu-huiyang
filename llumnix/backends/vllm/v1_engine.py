@@ -295,7 +295,7 @@ class V1EngineAdapter:
     async def migration_send_layer(
         self, request_id: str, migration_epoch: int, layer_name: str,
         source_block_ids: list[int], target_block_ids: list[int],
-        target_endpoint: str,
+        target_endpoint: str, synced_prefix_block_count: int = 0,
     ) -> bytes:
         """Send one layer directly between worker P2P engines.
 
@@ -303,16 +303,18 @@ class V1EngineAdapter:
         """
         return await self.engine.engine_core.call_utility_async(
             "send_migration_kv_layer", request_id, migration_epoch, layer_name,
-            source_block_ids, target_block_ids, target_endpoint,
+            source_block_ids, target_block_ids, target_endpoint, None,
+            synced_prefix_block_count,
         )
 
     async def migration_receive_layer(
         self, request_id: str, migration_epoch: int, manifest_wire: bytes,
         source_endpoint: str,
+        synced_prefix_block_pairs: tuple[tuple[int, int], ...] = (),
     ) -> None:
         await self.engine.engine_core.call_utility_async(
             "receive_migration_kv_layer", request_id, migration_epoch,
-            manifest_wire, source_endpoint,
+            manifest_wire, source_endpoint, synced_prefix_block_pairs,
         )
 
     async def migration_commit(self, request_id: str, migration_epoch: int,
