@@ -342,6 +342,9 @@ abort 会释放私有 reservation，EngineClient 与 Llumnix adapter 已暴露�
 fork `5f35f76` 增加 final-prepare claim：若目标已有 pre-copy reservation，最终
 `MIGRATE_IN_PREPARE` 会将其扩展到 snapshot 所需大小并原子转移 ownership 到正式
 request ID，避免重复分配；无 pre-copy 时保留全量迁移兼容路径。
+Llumnix launcher `c1f8dd9` 现于 final cutover 跳过已确认的 ordinal prefix，仅传输新增
+mutable suffix，并向 manifest/target receive 传递 prefix mapping 以完成认证；无
+pre-copy 时 skip=0，行为与既有全量路径一致。
 fork `96e1e43` 与 Llumnix launcher `9ce41d9` 已提供显式单轮诊断 pre-copy 编排：
 source preview session，target validate/write 所有 layer 后 commit，再由 source append；
 source block 列表必须等于 scheduler 计算的 immutable prefix。当前 launcher 在 pre-copy
