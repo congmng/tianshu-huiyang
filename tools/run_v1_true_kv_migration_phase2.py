@@ -125,6 +125,8 @@ async def run(args: argparse.Namespace) -> None:
     active_epoch: int | None = None
     source_prepared = False
     target_prepared = False
+    incremental_source = False
+    incremental_target = False
     try:
         await asyncio.gather(wait_ready(args.source_host, args.source_control, source),
                              wait_ready(args.target_host, args.target_control, target))
@@ -148,6 +150,42 @@ async def run(args: argparse.Namespace) -> None:
             generated = await checked_rpc(args.source_host, args.source_control, {"op": "generate", "request_id": request_id,
                                                         "prompt": args.prompt}, args.rpc_timeout)
             request_id = generated["request_id"]
+            if args.incremental_precopy:
+                # Pre-copy only immutable full blocks while source remains
+                # runnable. This is deliberately explicit, one round at a
+                # time; final cutover below still transfers the mutable tail.
+                source_session = await rpc(args.source_host, args.source_control, {
+                    "op": "incremental_begin", "request_id": request_id, "epoch": epoch})
+                incremental_source = True
+                immutable = await rpc(args.source_host, args.source_control, {
+                    "op": "incremental_immutable_blocks", "request_id": request_id})
+                if len(immutable["blocks"]) != 1:
+                    raise RuntimeError("incremental precopy requires one KV cache group")
+                target_session = await rpc(args.target_host, args.target_control, {
+                    "op": "incremental_prepare_in", "session": source_session["session"],
+                    "counts": immutable["counts"]})
+                incremental_target = True
+                source_ids, target_ids = immutable["blocks"][0], target_session["blocks"][0]
+                if source_ids:
+                    candidate = await rpc(args.source_host, args.source_control, {
+                        "op": "incremental_preview", "request_id": request_id, "epoch": epoch + 1,
+                        "pairs": list(zip(source_ids, target_ids))})
+                    layers = await rpc(args.source_host, args.source_control, {"op": "layers"})
+                    for layer in layers["layers"]:
+                        manifest = await rpc(args.source_host, args.source_control, {
+                            "op": "incremental_send", "session": candidate["session"],
+                            "layer": layer, "source_blocks": source_ids,
+                            "target_blocks": target_ids,
+                            "peer": f"{args.target_p2p_host}:{args.target_p2p}"})
+                        await rpc(args.target_host, args.target_control, {
+                            "op": "incremental_receive", "session": candidate["session"],
+                            "manifest": manifest["manifest"],
+                            "peer": f"{args.source_p2p_host}:{args.source_p2p}"})
+                    await rpc(args.target_host, args.target_control, {
+                        "op": "incremental_commit_in", "session": candidate["session"]})
+                    await rpc(args.source_host, args.source_control, {
+                        "op": "incremental_append", "request_id": request_id, "epoch": epoch + 1,
+                        "pairs": list(zip(source_ids, target_ids))})
             out = await rpc(args.source_host, args.source_control, {"op": "prepare_out", "request_id": request_id,
                                               "epoch": epoch})
             source_prepared = True
@@ -190,6 +228,12 @@ async def run(args: argparse.Namespace) -> None:
             await rpc(args.source_host, args.source_control, {"op": "commit", "request_id": request_id,
                                         "epoch": epoch, "incoming": False})
             source_prepared = target_prepared = False
+            if incremental_source:
+                await rpc(args.source_host, args.source_control, {"op": "incremental_abort", "request_id": request_id})
+                incremental_source = False
+            if incremental_target:
+                await rpc(args.target_host, args.target_control, {"op": "incremental_abort", "request_id": request_id})
+                incremental_target = False
             resumed = await rpc(args.target_host, args.target_control, {"op": "resume", "request_id": request_id,
                                                    "epoch": epoch, "prompt": args.prompt,
                                                    "tokens": args.verify_tokens})
@@ -214,6 +258,18 @@ async def run(args: argparse.Namespace) -> None:
         # must restore the source before shutdown.  Abort calls are best
         # effort here because the original failure is the authoritative one.
         if active_request_id is not None and active_epoch is not None:
+            if incremental_target:
+                try:
+                    await asyncio.wait_for(rpc(args.target_host, args.target_control, {
+                        "op": "incremental_abort", "request_id": active_request_id}), timeout=10)
+                except Exception:
+                    pass
+            if incremental_source:
+                try:
+                    await asyncio.wait_for(rpc(args.source_host, args.source_control, {
+                        "op": "incremental_abort", "request_id": active_request_id}), timeout=10)
+                except Exception:
+                    pass
             if target_prepared:
                 try:
                     await asyncio.wait_for(rpc(args.target_host, args.target_control, {
@@ -281,6 +337,8 @@ def main() -> None:
     parser.add_argument("--transport", choices=("nccl", "zmq_cpu"), default="nccl")
     parser.add_argument("--verify-tokens", type=int, default=2)
     parser.add_argument("--iterations", type=int, default=1)
+    parser.add_argument("--incremental-precopy", action="store_true",
+                        help="run one explicit immutable-prefix pre-copy round before cutover")
     parser.add_argument("--rpc-timeout", type=float, default=30.0,
                         help="timeout for bounded control operations")
     parser.add_argument("--inject-latency-ms", type=float, default=0.0,

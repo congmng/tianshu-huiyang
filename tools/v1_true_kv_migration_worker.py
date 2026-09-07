@@ -144,6 +144,44 @@ class Phase2Worker:
             return {"blocks": await self.adapter.migration_source_blocks(value["request_id"], value["epoch"])}
         if op == "layers":
             return {"layers": await self.adapter.migration_layer_names()}
+        if op == "incremental_begin":
+            wire = await self.adapter.begin_incremental_migration(
+                value["request_id"], value["epoch"])
+            return {"session": wire.decode()}
+        if op == "incremental_immutable_blocks":
+            blocks, counts = await self.adapter.incremental_migration_immutable_blocks(
+                value["request_id"])
+            return {"blocks": blocks, "counts": counts}
+        if op == "incremental_prepare_in":
+            blocks = await self.adapter.prepare_incremental_migration_in(
+                value["session"].encode(), tuple(value["counts"]))
+            return {"blocks": blocks}
+        if op == "incremental_preview":
+            wire = await self.adapter.preview_incremental_migration(
+                value["request_id"], value["epoch"],
+                tuple(tuple(pair) for pair in value["pairs"]))
+            return {"session": wire.decode()}
+        if op == "incremental_send":
+            wire = await self.adapter.send_incremental_migration_kv_layer(
+                value["session"].encode(), value["layer"],
+                value["source_blocks"], value["target_blocks"], value["peer"])
+            return {"manifest": wire.decode()}
+        if op == "incremental_receive":
+            await self.adapter.receive_incremental_migration_kv_layer(
+                value["session"].encode(), value["manifest"].encode(), value["peer"])
+            return {}
+        if op == "incremental_commit_in":
+            wire = await self.adapter.commit_incremental_migration_in(
+                value["session"].encode())
+            return {"session": wire.decode()}
+        if op == "incremental_append":
+            wire = await self.adapter.append_incremental_migration(
+                value["request_id"], value["epoch"],
+                tuple(tuple(pair) for pair in value["pairs"]))
+            return {"session": wire.decode()}
+        if op == "incremental_abort":
+            await self.adapter.abort_incremental_migration(value["request_id"])
+            return {}
         if op == "send":
             wire = await self.adapter.migration_send_layer(
                 value["request_id"], value["epoch"], value["layer"], value["source_blocks"],
