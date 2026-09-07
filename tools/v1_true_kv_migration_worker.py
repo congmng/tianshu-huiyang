@@ -22,7 +22,6 @@ from vllm.v1.engine.output_processor import RequestOutputCollector
 from vllm.sampling_params import RequestOutputKind
 
 from llumnix.backends.vllm.v1_engine import V1EngineAdapter
-from llumnix.backends.vllm.v1_kv_transfer import decorate_p2p_pd_request_id
 
 
 class Phase2Worker:
@@ -58,11 +57,13 @@ class Phase2Worker:
     async def generate(self, request_id: str, prompt: str) -> dict:
         self.token_count = 0
         self.generated_token_ids = []
-        internal_request_id = decorate_p2p_pd_request_id(
-            request_id,
-            f"{self.args.peer_p2p_host}:{self.args.peer_p2p}",
-            f"{self.args.p2p_host}:{self.args.p2p_port}",
-        )
+        # The explicit V1 migration commands below carry peer addresses as
+        # RPC arguments.  Do not encode legacy P/D routing markers into this
+        # request ID: even with empty connector metadata, CoreX-specific P/D
+        # paths can inspect those markers while scheduling the source decode.
+        # Keeping the EngineCore ID equal to the public migration ID is also
+        # what makes snapshot/commit identity unambiguous across hosts.
+        internal_request_id = request_id
         self.active_request_id = internal_request_id
         # Register the normal frontend request, then hold its stream open
         # until EngineCore has emitted the migration boundary.  Unlike a task
