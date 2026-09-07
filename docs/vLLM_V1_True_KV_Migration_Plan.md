@@ -219,5 +219,8 @@ LoRA、多模态、logits processor、logprobs 和 structured output；这些状
 路由至 EngineCore；prepare 返回 target-local reservation block IDs 给数据面。commit 后
 首次调度把完整本地 block table 和既有 output token state 作为 worker 新请求下发。source
 在未显式提供 group counts 时从 coordinator 提取真实物理 block counts，避免目标错误预留零块。
-尚未将跨进程 NCCL 数据面、target worker 的实际 GPU 写入和两 EngineCore 首次 decode 确认
-接成端到端流程，因此仍不得宣称 Decode-to-Decode 已可用。
+`7600c65` 已将 export/import 通过 GPU Worker RPC 暴露，`614901a` 增加 KV layout block
+axis 自动识别与歧义拒绝；fork head 当前为 `614901a`，相关测试 16 项通过。RPC 仅允许
+TP=1、PP=1，并在 EngineCore 侧检查 frozen request 与 migration epoch。尚未将跨进程
+NCCL 数据面、target worker 的实际 GPU 写入和两 EngineCore 首次 decode 确认接成端到端
+流程，因此仍不得宣称 Decode-to-Decode 已可用。
