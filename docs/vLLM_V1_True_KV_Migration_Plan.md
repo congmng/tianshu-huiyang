@@ -405,3 +405,10 @@ snapshot；target 从 snapshot 重建请求，在首次加入 GPU InputBatch 时
 state 的随机 snapshot 会被拒绝。未带显式 seed 的随机采样仍不支持。该路径已有 fork
 定向测试 34 passed，但尚未完成真实随机 GPU 双卡/跨机逐 token 验收，因此随机迁移
 仍不得标记为生产完成。
+
+随后使用双卡 BI-V150、Qwen3-14B、native NCCL、`temperature=0.7`、`seed=123` 完成
+一次真实随机迁移验收（控制端口 `28301/28302`）：source/target baseline 与迁移后
+continuation 均逐 token 一致，输出 `PASS iteration 1/1` 及
+`PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`，
+且两端 worker 正常清理。该证据覆盖单次 seeded-random GPU 路径；多轮、跨机随机验收
+以及无 seed 随机采样仍未支持。
