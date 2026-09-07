@@ -48,7 +48,8 @@ async def wait_ready(port: int, process: asyncio.subprocess.Process) -> None:
 
 async def run(args: argparse.Namespace) -> None:
     common = [sys.executable, "-u", str(WORKER), "--model", args.model,
-              "--transport", args.transport, "--max-model-len", str(args.max_model_len)]
+              "--transport", args.transport, "--max-model-len", str(args.max_model_len),
+              "--gpu-memory-utilization", str(args.gpu_memory_utilization)]
     env = os.environ.copy()
     fork = "/data1/congmng/vllm-corex44-v1-migration"
     env["PYTHONPATH"] = f"{fork}:{ROOT}:{env.get('PYTHONPATH', '')}"
@@ -115,6 +116,7 @@ def main() -> None:
     parser.add_argument("--epoch", type=int, default=1)
     parser.add_argument("--request-id", default="phase2-real-migration")
     parser.add_argument("--max-model-len", type=int, default=128)
+    parser.add_argument("--gpu-memory-utilization", type=float, default=.96)
     parser.add_argument("--transport", choices=("nccl", "zmq_cpu"), default="nccl")
     parser.add_argument("--prompt", default="Explain KV cache migration in one sentence.")
     asyncio.run(run(parser.parse_args()))

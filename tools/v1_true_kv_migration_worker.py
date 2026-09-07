@@ -122,7 +122,9 @@ def main() -> None:
     parser.add_argument("--p2p-port", type=int, required=True)
     parser.add_argument("--model", default=str(Path(__file__).resolve().parents[1] / ".models/Qwen3-14B"))
     parser.add_argument("--transport", choices=("nccl", "zmq_cpu"), default="nccl")
-    parser.add_argument("--gpu-memory-utilization", type=float, default=.74)
+    # Qwen3-14B FP16 weights occupy about 27.5GiB on a 32GiB BI-V150;
+    # leave the remaining ~5GiB for the short Phase-2 KV cache.
+    parser.add_argument("--gpu-memory-utilization", type=float, default=.96)
     parser.add_argument("--max-model-len", type=int, default=128)
     args = parser.parse_args()
     os.environ.setdefault("PYTHONHASHSEED", "0")
