@@ -334,13 +334,15 @@ manifest。Llumnix `V1EngineAdapter` 也暴露同一可选参数，默认仍为�
 fork `294808d` 进一步在 Scheduler/EngineCore 中加入 scheduler-owned session registry，
 并由 Llumnix adapter 暴露 begin/append/query/abort 控制面 API；session wire 自带完整
 prefix mapping checksum，且在请求释放或 source/target abort 时清理。该实现仍是显式
-opt-in，尚未自动触发 pre-copy、跨轮传输或在真实服务中驱动增量 block 分配，因此 Phase‑4
+opt-in。最新 fork `1f6979e` 增加 immutable-prefix 查询：只允许 block-aligned、不会被
+后续 decode 改写的前缀进入 pre-copy，最后一个可变 block 保留到最终冻结 cutover。
+尚未自动触发 pre-copy、跨轮传输或在真实服务中驱动增量 block 分配，因此 Phase‑4
 增量迁移仍未完成。随机采样/RNG、structured output、LoRA、多模态、TP>1 和 speculative
 decoding 也继续保持显式不支持，待分别具备快照字段、回滚测试和实测数据后再启用。
 
 本轮验证记录（2026-09-07）：CoreX fork `f1340f1` 的定向 KV 测试为 25 passed；
 Llumnix V1 migration 回归为 51 passed；跨主机 support gate 输出
 `SUPPORT_GATE_PASS`，在数据面参数贯通后的最新 migration digest 为
-`752f0e1fe122a40d352ac8935e4c82d0117d3429815f9be7649aeb49d9dd1fd4`，协议版本为
+`090a1d8e7eeda5dc851458115add368d32225d9827c1e0070c965d54fc61d794`，协议版本为
 `0.11.2 1`。这些结果验证的是现有全量真实迁移及增量协议对象，不改变 Phase-4
 尚未接入生产跨轮调度的结论。
