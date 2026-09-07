@@ -48,11 +48,12 @@ class Phase2Worker:
             kv_transfer_config=config,
         )
         self.adapter = V1EngineAdapter(engine_args, f"phase2-{args.role}")
-        self.generator: asyncio.Task | None = None
+        self.generator = None
         self.token_count = 0
         self.generated_token_ids: list[int] = []
         self.migration_snapshot = None
         self.migration_queue = None
+        self.active_request_id: str | None = None
 
     async def generate(self, request_id: str, prompt: str) -> dict:
         self.token_count = 0
@@ -62,19 +63,22 @@ class Phase2Worker:
             f"127.0.0.1:{self.args.peer_p2p}",
             f"127.0.0.1:{self.args.p2p_port}",
         )
-        async def consume():
-            async for output in self.adapter.engine.generate(
-                prompt, SamplingParams(temperature=0, max_tokens=12,
-                                       output_kind=RequestOutputKind.DELTA), internal_request_id
-            ):
-                token_ids = output.outputs[0].token_ids
-                self.token_count += len(token_ids)
-                self.generated_token_ids.extend(token_ids)
-                if self.token_count >= 2:
-                    # Hold the generator open so source remains live/frozen
-                    # only through the explicit migration protocol.
-                    await asyncio.Event().wait()
-        self.generator = asyncio.create_task(consume())
+        self.active_request_id = internal_request_id
+        # Register the normal frontend request, then hold its stream open
+        # until EngineCore has emitted the migration boundary.  Unlike a task
+        # that blocks inside ``async for``, this leaves no orphaned generator
+        # to race the next iteration after source commit.
+        stream = self.adapter.engine.generate(
+            prompt, SamplingParams(temperature=0, max_tokens=12,
+                                   output_kind=RequestOutputKind.DELTA), internal_request_id)
+        for _ in range(2):
+            output = await anext(stream)
+            token_ids = output.outputs[0].token_ids
+            self.token_count += len(token_ids)
+            self.generated_token_ids.extend(token_ids)
+            if self.token_count >= 2:
+                break
+        self.generator = stream
         for _ in range(600):
             if self.token_count >= 2:
                 return {"tokens": self.token_count, "token_ids": self.generated_token_ids,
@@ -83,15 +87,16 @@ class Phase2Worker:
         raise TimeoutError("source did not reach migration token boundary")
 
     async def cleanup_source_generator(self) -> None:
-        """Cancel and await the probe stream before a new migration."""
+        """Discard a stream whose EngineCore request was committed away."""
         if self.generator is None:
             return
-        self.generator.cancel()
-        try:
-            await self.generator
-        except asyncio.CancelledError:
-            pass
+        # commit_migration_out has already removed the request in EngineCore.
+        # Calling AsyncLLM.abort/Generator.aclose here can wait forever for an
+        # output that can no longer arrive.  The stream owns no running task
+        # (we consumed it synchronously through anext), so dropping it is the
+        # correct teardown for this migration-only probe.
         self.generator = None
+        self.active_request_id = None
 
     async def command(self, value: dict) -> dict:
         op = value["op"]
