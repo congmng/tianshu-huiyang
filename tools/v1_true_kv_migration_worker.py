@@ -195,7 +195,7 @@ class Phase2Worker:
         raise ValueError(f"unknown op: {op}")
 
 
-async def serve(worker: Phase2Worker, port: int) -> None:
+async def serve(worker: Phase2Worker, host: str, port: int) -> None:
     async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         try:
             raw = await reader.readline()
@@ -209,8 +209,8 @@ async def serve(worker: Phase2Worker, port: int) -> None:
         finally:
             writer.close()
             await writer.wait_closed()
-    server = await asyncio.start_server(handler, "127.0.0.1", port)
-    print(f"READY role={worker.args.role} control=127.0.0.1:{port}", flush=True)
+    server = await asyncio.start_server(handler, host, port)
+    print(f"READY role={worker.args.role} control={host}:{port}", flush=True)
     async with server:
         await server.serve_forever()
 
@@ -218,6 +218,7 @@ async def serve(worker: Phase2Worker, port: int) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--role", choices=("source", "target"), required=True)
+    parser.add_argument("--control-host", default="127.0.0.1")
     parser.add_argument("--control-port", type=int, required=True)
     parser.add_argument("--p2p-port", type=int, required=True)
     parser.add_argument("--p2p-host", default="127.0.0.1",
@@ -233,7 +234,7 @@ def main() -> None:
     parser.add_argument("--max-model-len", type=int, default=128)
     args = parser.parse_args()
     os.environ.setdefault("PYTHONHASHSEED", "0")
-    asyncio.run(serve(Phase2Worker(args), args.control_port))
+    asyncio.run(serve(Phase2Worker(args), args.control_host, args.control_port))
 
 
 if __name__ == "__main__":
