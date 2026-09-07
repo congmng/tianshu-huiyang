@@ -391,3 +391,8 @@ fork `19c435b` 已为 snapshot 增加可选 `rng_state` 字段，并要求携带
 flag 后才允许序列化；wire round-trip 与缺失 flag 拒绝测试已通过（fork 定向测试
 33 passed）。该字段目前仅完成协议准备，尚未从 worker 捕获/恢复 RNG，也未开放随机
 采样迁移。
+
+fork `150d2a8` 已在 GPU worker/InputBatch 暴露 per-request RNG state capture/restore，
+并由 EngineCore 与 Llumnix adapter 转发；接口要求 request 已位于目标 InputBatch，且
+缺失 generator 会明确报错或按恢复状态创建。当前尚未将该 state 自动接入 snapshot prepare
+或真实随机采样 cutover，仍保持随机迁移关闭。
