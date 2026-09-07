@@ -226,3 +226,23 @@ worker 在本 GPU 进程内复用 P2P connector engine 的 `send_tensor/recv_ten
 兼容路径。fork head 当前为 `d9af571`，相关测试 17 项通过。RPC 仅允许 TP=1、PP=1，并
 在 EngineCore 侧检查 frozen request 与 migration epoch。尚未完成两 EngineCore 的真实
 GPU KV 导入、首次 decode 确认及 100 次循环验证，因此仍不得宣称 Decode-to-Decode 已可用。
+
+### 2026-09-07 实测进展
+
+已在 CoreX 4.4、Qwen3-14B、两张 BI-V150（两个独立 TP=1 EngineCore）上完成一次
+真实 Phase-2 的 CPU-staged 数据面验证，命令使用 `--transport zmq_cpu`。实测通过
+source 生成至少两个 token、source freeze/snapshot、target reservation、每个 KV layer
+按物理 block 导出/传输/导入（manifest 与 payload checksum 校验）、target commit 以及
+source commit。此次运行输出：
+
+`PASS phase2 migration control+KV transfer+two-phase-commit`
+
+为避免旧 P/D connector 的 chunked-prefill 状态机干扰显式迁移，Phase-2 使用
+`true_kv_migration_only` 配置，禁用自动 `save_kv_layer`/`start_load_kv`，但保留 worker
+P2P engine 作为显式数据面。控制面跨 msgspec 返回的 snapshot 字典也已规范化为版本化
+`RequestMigrationSnapshot` 后再传输。对应 Llumnix 单元测试为 42 passed，vLLM fork 的
+KV block 定向测试为 17 passed。
+
+这仍不是 Decode-to-Decode 完成证明：目标 commit 后的首次 decode 尚未接入独立的
+EngineCore 输出采集/未迁移基线逐 token 比较，也未完成 100 次循环和 native NCCL
+数据面验证；因此 Phase-2 验收项仍保持未完成状态。
