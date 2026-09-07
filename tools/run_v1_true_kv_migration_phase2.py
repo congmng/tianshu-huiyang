@@ -55,20 +55,21 @@ async def run(args: argparse.Namespace) -> None:
     env["PYTHONPATH"] = f"{fork}:{ROOT}:{env.get('PYTHONPATH', '')}"
     source = await asyncio.create_subprocess_exec(
         *common, "--role", "source", "--control-port", str(args.source_control),
-        "--p2p-port", str(args.source_p2p),
+        "--p2p-port", str(args.source_p2p), "--peer-p2p", str(args.target_p2p),
         env={**env, "CUDA_VISIBLE_DEVICES": str(args.source_gpu)},
     )
     target = await asyncio.create_subprocess_exec(
         *common, "--role", "target", "--control-port", str(args.target_control),
-        "--p2p-port", str(args.target_p2p),
+        "--p2p-port", str(args.target_p2p), "--peer-p2p", str(args.source_p2p),
         env={**env, "CUDA_VISIBLE_DEVICES": str(args.target_gpu)},
     )
     try:
         await asyncio.gather(wait_ready(args.source_control, source),
                              wait_ready(args.target_control, target))
         request_id, epoch = args.request_id, args.epoch
-        await rpc(args.source_control, {"op": "generate", "request_id": request_id,
-                                        "prompt": args.prompt})
+        generated = await rpc(args.source_control, {"op": "generate", "request_id": request_id,
+                                                    "prompt": args.prompt})
+        request_id = generated["request_id"]
         out = await rpc(args.source_control, {"op": "prepare_out", "request_id": request_id,
                                               "epoch": epoch})
         snapshot = out["snapshot"]

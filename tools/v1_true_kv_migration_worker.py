@@ -19,6 +19,7 @@ from vllm.config import KVTransferConfig
 from vllm.v1.migration import RequestMigrationSnapshot
 
 from llumnix.backends.vllm.v1_engine import V1EngineAdapter
+from llumnix.backends.vllm.v1_kv_transfer import decorate_p2p_pd_request_id
 
 
 class Phase2Worker:
@@ -42,9 +43,14 @@ class Phase2Worker:
         self.token_count = 0
 
     async def generate(self, request_id: str, prompt: str) -> dict:
+        internal_request_id = decorate_p2p_pd_request_id(
+            request_id,
+            f"127.0.0.1:{self.args.peer_p2p}",
+            f"127.0.0.1:{self.args.p2p_port}",
+        )
         async def consume():
             async for output in self.adapter.engine.generate(
-                prompt, SamplingParams(temperature=0, max_tokens=12), request_id
+                prompt, SamplingParams(temperature=0, max_tokens=12), internal_request_id
             ):
                 self.token_count += len(output.outputs[0].token_ids)
                 if self.token_count >= 2:
@@ -54,7 +60,7 @@ class Phase2Worker:
         self.generator = asyncio.create_task(consume())
         for _ in range(600):
             if self.token_count >= 2:
-                return {"tokens": self.token_count}
+                return {"tokens": self.token_count, "request_id": internal_request_id}
             await asyncio.sleep(0.05)
         raise TimeoutError("source did not reach migration token boundary")
 
@@ -120,6 +126,7 @@ def main() -> None:
     parser.add_argument("--role", choices=("source", "target"), required=True)
     parser.add_argument("--control-port", type=int, required=True)
     parser.add_argument("--p2p-port", type=int, required=True)
+    parser.add_argument("--peer-p2p", type=int, required=True)
     parser.add_argument("--model", default=str(Path(__file__).resolve().parents[1] / ".models/Qwen3-14B"))
     parser.add_argument("--transport", choices=("nccl", "zmq_cpu"), default="nccl")
     # Qwen3-14B FP16 weights occupy about 27.5GiB on a 32GiB BI-V150;
