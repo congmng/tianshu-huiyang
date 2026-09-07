@@ -136,9 +136,22 @@ async def run(args: argparse.Namespace) -> None:
                                                         "epoch": epoch})
             layers = await rpc(args.source_host, args.source_control, {"op": "layers"})
             for group_src, group_dst in zip(source_blocks["blocks"], target_blocks["blocks"]):
-                for layer in layers["layers"]:
+                for layer_index, layer in enumerate(layers["layers"], start=1):
                     if args.inject_latency_ms:
                         await asyncio.sleep(args.inject_latency_ms / 1000.0)
+                    if (args.inject_transfer_timeout_after_layers
+                            and layer_index > args.inject_transfer_timeout_after_layers):
+                        raise TimeoutError(
+                            "injected migration transfer timeout after "
+                            f"{args.inject_transfer_timeout_after_layers} layers")
+                    if (args.inject_source_restart_after_layers
+                            and layer_index > args.inject_source_restart_after_layers):
+                        # This is intentionally the exact source process
+                        # launched above, never a broad process match.
+                        source.send_signal(signal.SIGKILL)
+                        raise RuntimeError(
+                            "injected source actor restart after "
+                            f"{args.inject_source_restart_after_layers} layers")
                     manifest = await rpc(args.source_host, args.source_control, {
                     "op": "send", "request_id": request_id, "epoch": epoch,
                     "layer": layer, "source_blocks": group_src,
@@ -231,8 +244,20 @@ def main() -> None:
                         help="delay before each layer transfer (fault injection)")
     parser.add_argument("--inject-target-capacity", action="store_true",
                         help="make target reservation fail deterministically")
+    parser.add_argument("--inject-transfer-timeout-after-layers", type=int, default=0,
+                        help="raise a deterministic timeout after this many KV layers")
+    parser.add_argument("--inject-source-restart-after-layers", type=int, default=0,
+                        help="kill only this launcher's source worker after this many layers")
+    parser.add_argument("--expect-failure", action="store_true",
+                        help="treat a deterministic injected failure as a passing test")
     parser.add_argument("--prompt", default="Explain KV cache migration in one sentence.")
-    asyncio.run(run(parser.parse_args()))
+    args = parser.parse_args()
+    try:
+        asyncio.run(run(args))
+    except Exception as exc:
+        if not args.expect_failure:
+            raise
+        print(f"EXPECTED_FAILURE {type(exc).__name__}: {exc}", flush=True)
 
 
 if __name__ == "__main__":
