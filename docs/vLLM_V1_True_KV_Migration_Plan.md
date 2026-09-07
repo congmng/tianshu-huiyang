@@ -324,7 +324,11 @@ fork `da74076`/`c577dd9` 为 `KVLayerTransferManifest` 增加了可选的
 `synced_prefix_block_count`：增量发送只携带已同步 ordinal 前缀之后的 block suffix，
 并将前缀计数纳入 manifest checksum；同时绑定有序 source→target 前缀 block-pair 摘要。
 target 若以不同前缀计数或同长度但不同 block 映射导入，都会在写入前拒绝。
-对应 fork 单测为 20 passed，support gate 仍为 PASS。该契约当前保持 opt-in，尚未接入
-EngineCore migration RPC 的 session state、跨轮增量调度或真实服务路径；因此 Phase-4
+对应 fork 单测为 20 passed，support gate 仍为 PASS。随后 fork `f1340f1` 增加
+`IncrementalMigrationSession`：以 request ID 和 migration epoch 维护已同步的有序
+source→target block pairs，要求 epoch 严格递增，拒绝空 suffix、负 ID、源/目标 block
+重复及跨轮映射冲突，并为 prefix count/checksum 提供单一状态源；该对象单测为 25 passed。
+该契约当前保持 opt-in，尚未接入 EngineCore migration RPC 的 session state、跨轮增量
+调度或真实服务路径；因此 Phase-4
 增量迁移仍未完成。随机采样/RNG、structured output、LoRA、多模态、TP>1 和 speculative
 decoding 也继续保持显式不支持，待分别具备快照字段、回滚测试和实测数据后再启用。
