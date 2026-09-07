@@ -412,3 +412,11 @@ continuation 均逐 token 一致，输出 `PASS iteration 1/1` 及
 `PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`，
 且两端 worker 正常清理。该证据覆盖单次 seeded-random GPU 路径；多轮、跨机随机验收
 以及无 seed 随机采样仍未支持。
+
+随后在跨机拓扑 `10.31.10.62 GPU0 -> 10.31.10.210 GPU1` 上，以相同 Qwen3-14B、native
+NCCL、`temperature=0.7`、`seed=123` 完成 seeded-random 验收（控制端口
+`28501/28502`）。远端日志确认 NCCL communicator 成功初始化，迁移后 continuation 与
+source baseline 逐 token 一致，输出同样为 `PASS iteration 1/1` 及完整
+`PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`。
+至此已有本机三轮和跨机单轮随机迁移证据；仍未宣称无 seed 随机、多轮跨机服务级自动
+重试等能力。
