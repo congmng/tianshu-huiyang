@@ -339,7 +339,13 @@ opt-in。最新 fork `1f6979e` 增加 immutable-prefix 查询：只允许 block-
 fork `6fa06b5` 增加隔离的 target incremental reservation：使用私有 owner 逐轮增长
 目标 block，validate 不推进 prefix，只有所有 layer 写入成功后的 commit 才推进 prefix；
 abort 会释放私有 reservation，EngineClient 与 Llumnix adapter 已暴露对应 API。
-尚未自动触发 pre-copy、跨轮传输或在真实服务中驱动增量 block 写入，因此 Phase‑4
+fork `96e1e43` 与 Llumnix launcher `9ce41d9` 已提供显式单轮诊断 pre-copy 编排：
+source preview session，target validate/write 所有 layer 后 commit，再由 source append；
+source block 列表必须等于 scheduler 计算的 immutable prefix。当前 launcher 在 pre-copy
+之后仍会执行完整 final cutover，作为不覆盖可变 tail 的安全兜底，因此尚未验证 cutover
+只传未同步 suffix，也尚未自动触发或接入生产 Manager。一次本机双卡 native NCCL
+`--incremental-precopy` 启动后未取得完整 PASS/错误文本，虽已确认 worker、控制端口和
+GPU allocation 均清理，不能计作 GPU pre-copy 通过证据，因此 Phase‑4
 增量迁移仍未完成。随机采样/RNG、structured output、LoRA、多模态、TP>1 和 speculative
 decoding 也继续保持显式不支持，待分别具备快照字段、回滚测试和实测数据后再启用。
 
