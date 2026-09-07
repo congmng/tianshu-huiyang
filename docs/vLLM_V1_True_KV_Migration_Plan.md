@@ -257,6 +257,7 @@ Request 重建时缺失的 prefix block hashes 后，实测输出为：
 `PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`
 
 Phase-2 launcher 现支持 `--iterations N`，每轮使用递增 migration epoch 与唯一 request ID，
-并在 source commit 后释放挂起 generator。CPU-staged 路径已完成 2 轮连续验证；native
-NCCL 已完成单轮验证。文档要求的 100 次连续循环尚未执行完毕，因此不能宣称 Phase-2
-全部验收完成。
+并在 source commit 后释放迁移 probe 的 stream。CPU-staged 路径已完成 2 轮连续验证；
+native NCCL 已完成 100/100 轮连续验证。每轮均通过 source/target baseline、真实 KV
+传输、双阶段 commit 与迁移后 decode-equivalence 检查，并每 10 轮输出 PASS。该结果
+满足 Phase-2 的 100 次循环验收（仍限定 TP=1、PP=1、greedy sampling）。

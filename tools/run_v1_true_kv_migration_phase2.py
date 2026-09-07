@@ -32,6 +32,14 @@ async def rpc(port: int, command: dict) -> dict:
     return response["result"]
 
 
+async def checked_rpc(port: int, command: dict, timeout_s: float = 30.0) -> dict:
+    """Bound every probe control call and identify its failed phase."""
+    try:
+        return await asyncio.wait_for(rpc(port, command), timeout=timeout_s)
+    except TimeoutError as exc:
+        raise TimeoutError(f"timeout op={command['op']} port={port}") from exc
+
+
 async def wait_ready(port: int, process: asyncio.subprocess.Process) -> None:
     for _ in range(600):
         if process.returncode is not None:
@@ -71,15 +79,18 @@ async def run(args: argparse.Namespace) -> None:
             epoch = args.epoch + iteration
             # The source baseline is the authoritative greedy sequence. A
             # target baseline is diagnostic evidence for device differences.
-            source_baseline = await rpc(args.source_control, {
+            print(f"START iteration {iteration + 1}/{args.iterations} baseline-source", flush=True)
+            source_baseline = await checked_rpc(args.source_control, {
                 "op": "baseline", "request_id": f"{request_id}-baseline",
                 "prompt": args.prompt, "max_tokens": 12,
             })
-            target_baseline = await rpc(args.target_control, {
+            print(f"START iteration {iteration + 1}/{args.iterations} baseline-target", flush=True)
+            target_baseline = await checked_rpc(args.target_control, {
                 "op": "baseline", "request_id": f"{request_id}-target-baseline",
                 "prompt": args.prompt, "max_tokens": 12,
             })
-            generated = await rpc(args.source_control, {"op": "generate", "request_id": request_id,
+            print(f"START iteration {iteration + 1}/{args.iterations} source-generate", flush=True)
+            generated = await checked_rpc(args.source_control, {"op": "generate", "request_id": request_id,
                                                         "prompt": args.prompt})
             request_id = generated["request_id"]
             out = await rpc(args.source_control, {"op": "prepare_out", "request_id": request_id,
