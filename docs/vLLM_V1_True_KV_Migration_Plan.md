@@ -317,3 +317,13 @@ SSH 远端清理逻辑不会遗留 wrapper 或占卡。
 目前已完成 launcher 语法检查及 Phase-1 协议测试（4 passed）。一次联合 connector 测试曾触发 CoreX Python
 进程段错误（无残留 worker，单独协议测试通过），该硬件稳定性问题单独记录，不能计入
 Phase-3 通过证据。
+
+### Phase-4 首项准备（增量 blocks）
+
+fork `da74076` 为 `KVLayerTransferManifest` 增加了可选的
+`synced_prefix_block_count`：增量发送只携带已同步 ordinal 前缀之后的 block suffix，
+并将前缀计数纳入 manifest checksum；target 若以不同前缀计数导入会在写入前拒绝。
+对应 fork 单测为 19 passed，support gate 仍为 PASS。该契约当前保持 opt-in，尚未接入
+EngineCore migration RPC 的 session state、跨轮增量调度或真实服务路径；因此 Phase-4
+增量迁移仍未完成。随机采样/RNG、structured output、LoRA、多模态、TP>1 和 speculative
+decoding 也继续保持显式不支持，待分别具备快照字段、回滚测试和实测数据后再启用。
