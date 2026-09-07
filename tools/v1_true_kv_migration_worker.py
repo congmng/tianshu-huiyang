@@ -32,7 +32,7 @@ class Phase2Worker:
             kv_connector="CoreXP2pNcclConnector",
             kv_connector_module_path="llumnix.backends.vllm.corex_p2p_connector",
             kv_role="kv_producer" if args.role == "source" else "kv_consumer",
-            kv_rank=0, kv_parallel_size=2, kv_ip="127.0.0.1", kv_port=args.p2p_port,
+            kv_rank=0, kv_parallel_size=2, kv_ip=args.p2p_host, kv_port=args.p2p_port,
             kv_connector_extra_config={
                 "corex_transport": args.transport,
                 "send_type": "PUT",
@@ -60,8 +60,8 @@ class Phase2Worker:
         self.generated_token_ids = []
         internal_request_id = decorate_p2p_pd_request_id(
             request_id,
-            f"127.0.0.1:{self.args.peer_p2p}",
-            f"127.0.0.1:{self.args.p2p_port}",
+            f"{self.args.peer_p2p_host}:{self.args.peer_p2p}",
+            f"{self.args.p2p_host}:{self.args.p2p_port}",
         )
         self.active_request_id = internal_request_id
         # Register the normal frontend request, then hold its stream open
@@ -220,7 +220,11 @@ def main() -> None:
     parser.add_argument("--role", choices=("source", "target"), required=True)
     parser.add_argument("--control-port", type=int, required=True)
     parser.add_argument("--p2p-port", type=int, required=True)
+    parser.add_argument("--p2p-host", default="127.0.0.1",
+                        help="advertised/bound routable P2P address")
     parser.add_argument("--peer-p2p", type=int, required=True)
+    parser.add_argument("--peer-p2p-host", default="127.0.0.1",
+                        help="peer's advertised routable P2P address")
     parser.add_argument("--model", default=str(Path(__file__).resolve().parents[1] / ".models/Qwen3-14B"))
     parser.add_argument("--transport", choices=("nccl", "zmq_cpu"), default="nccl")
     # Qwen3-14B FP16 weights occupy about 27.5GiB on a 32GiB BI-V150;
