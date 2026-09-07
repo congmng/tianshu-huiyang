@@ -220,7 +220,9 @@ LoRA、多模态、logits processor、logprobs 和 structured output；这些状
 首次调度把完整本地 block table 和既有 output token state 作为 worker 新请求下发。source
 在未显式提供 group counts 时从 coordinator 提取真实物理 block counts，避免目标错误预留零块。
 `7600c65` 已将 export/import 通过 GPU Worker RPC 暴露，`614901a` 增加 KV layout block
-axis 自动识别与歧义拒绝；fork head 当前为 `614901a`，相关测试 16 项通过。RPC 仅允许
-TP=1、PP=1，并在 EngineCore 侧检查 frozen request 与 migration epoch。尚未将跨进程
-NCCL 数据面、target worker 的实际 GPU 写入和两 EngineCore 首次 decode 确认接成端到端
-流程，因此仍不得宣称 Decode-to-Decode 已可用。
+axis 自动识别与歧义拒绝。`23d0a30` 将 payload 移出 EngineCore socket：source/target
+worker 在本 GPU 进程内复用 P2P connector engine 的 `send_tensor/recv_tensor`，控制面仅
+返回携带 checksum 的 layer manifest；CoreX 默认走 native NCCL，保留 ZMQ CPU staging
+兼容路径。fork head 当前为 `d9af571`，相关测试 17 项通过。RPC 仅允许 TP=1、PP=1，并
+在 EngineCore 侧检查 frozen request 与 migration epoch。尚未完成两 EngineCore 的真实
+GPU KV 导入、首次 decode 确认及 100 次循环验证，因此仍不得宣称 Decode-to-Decode 已可用。
