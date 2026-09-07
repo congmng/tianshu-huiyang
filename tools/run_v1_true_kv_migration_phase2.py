@@ -12,6 +12,7 @@ import asyncio
 import json
 import os
 import signal
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -53,6 +54,27 @@ async def wait_ready(host: str, port: int, process: asyncio.subprocess.Process) 
         except OSError:
             await asyncio.sleep(0.1)
     raise TimeoutError(f"worker did not open control port {port}")
+
+
+async def cleanup_remote_target(ssh_destination: str, control_port: int) -> None:
+    """Remove only the remote worker belonging to this launcher invocation.
+
+    A killed local SSH channel can leave the remote Python wrapper alive after
+    its EngineCore has exited.  The control port is unique per invocation, so
+    select the exact worker command rather than using a broad process match.
+    """
+    if not ssh_destination:
+        return
+    script = (
+        "pids=$(ps -eo pid=,args= | awk -v port="
+        + shlex.quote(str(control_port))
+        + " '$0 ~ /v1_true_kv_migration_worker.py/ "
+          "&& index($0, \"--control-port \" port) {print $1}'); "
+          "for pid in $pids; do kill -TERM \"$pid\" 2>/dev/null || true; done; "
+          "sleep 1; for pid in $pids; do kill -KILL \"$pid\" 2>/dev/null || true; done"
+    )
+    process = await asyncio.create_subprocess_exec("ssh", ssh_destination, script)
+    await asyncio.wait_for(process.wait(), timeout=15)
 
 
 async def run(args: argparse.Namespace) -> None:
@@ -227,6 +249,15 @@ async def run(args: argparse.Namespace) -> None:
                 if process.returncode is None:
                     process.kill()
             await asyncio.gather(source.wait(), target.wait())
+        # ``ssh`` does not guarantee that a remote Python child receives the
+        # local channel's termination signal. Clean the exact per-run target
+        # wrapper after its local SSH process is no longer needed.
+        try:
+            await cleanup_remote_target(args.target_ssh, args.target_control)
+        except Exception:
+            # The test's original result must remain authoritative. A later
+            # preflight on the same unique port will reveal any stale worker.
+            pass
 
 
 def main() -> None:
