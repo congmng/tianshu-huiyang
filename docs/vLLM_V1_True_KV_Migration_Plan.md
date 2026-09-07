@@ -261,3 +261,10 @@ Phase-2 launcher 现支持 `--iterations N`，每轮使用递增 migration epoch
 native NCCL 已完成 100/100 轮连续验证。每轮均通过 source/target baseline、真实 KV
 传输、双阶段 commit 与迁移后 decode-equivalence 检查，并每 10 轮输出 PASS。该结果
 满足 Phase-2 的 100 次循环验收（仍限定 TP=1、PP=1、greedy sampling）。
+
+### Phase-3 准备状态（2026-09-07）
+
+跨主机 support gate 已通过：本机 `10.31.10.62` 与远端 `10.31.10.210` 双向网络可达，
+两端均有 Qwen3-14B、16 张 BI-V150，且 migration 源码摘要、vLLM 0.11.2 和 protocol v1
+一致。worker 已增加可路由 control/P2P endpoint 参数。跨机启动编排及故障注入尚待实现，
+不可将本机双卡验收外推为跨机验收。
