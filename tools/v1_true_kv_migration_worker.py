@@ -30,7 +30,13 @@ class Phase2Worker:
             kv_connector_module_path="llumnix.backends.vllm.corex_p2p_connector",
             kv_role="kv_producer" if args.role == "source" else "kv_consumer",
             kv_rank=0, kv_parallel_size=2, kv_ip="127.0.0.1", kv_port=args.p2p_port,
-            kv_connector_extra_config={"corex_transport": args.transport, "send_type": "PUT"},
+            kv_connector_extra_config={
+                "corex_transport": args.transport,
+                "send_type": "PUT",
+                # The connector still owns the P2P engine/endpoints, but
+                # normal P/D hooks must not transfer an unfrozen request.
+                "true_kv_migration_only": True,
+            },
         )
         engine_args = AsyncEngineArgs(
             model=args.model, dtype="float16", gpu_memory_utilization=args.gpu_memory_utilization,
@@ -70,6 +76,21 @@ class Phase2Worker:
             return await self.generate(value["request_id"], value["prompt"])
         if op == "prepare_out":
             snapshot = await self.adapter.migration_prepare_out(value["request_id"], value["epoch"])
+            # EngineCore utility responses cross a msgspec boundary.  Frozen
+            # dataclasses are decoded there as plain dictionaries, whereas
+            # in-process/unit callers receive RequestMigrationSnapshot.
+            # Normalize both forms before choosing the versioned JSON wire.
+            if isinstance(snapshot, dict):
+                snapshot = RequestMigrationSnapshot(
+                    **{
+                        **snapshot,
+                        "prompt_token_ids": tuple(snapshot["prompt_token_ids"]),
+                        "all_token_ids": tuple(snapshot["all_token_ids"]),
+                        "output_token_ids": tuple(snapshot["output_token_ids"]),
+                        "kv_group_block_counts": tuple(snapshot["kv_group_block_counts"]),
+                        "feature_flags": tuple(snapshot["feature_flags"]),
+                    }
+                )
             return {"snapshot": snapshot.to_wire().decode()}
         if op == "prepare_in":
             snapshot = RequestMigrationSnapshot.from_wire(value["snapshot"].encode())

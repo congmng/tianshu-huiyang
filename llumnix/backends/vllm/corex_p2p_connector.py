@@ -363,6 +363,13 @@ class CoreXP2pNcclConnector(P2pNcclConnector):
 
     def __init__(self, vllm_config, role, kv_cache_config=None):
         config = vllm_config.kv_transfer_config
+        # True V1 request migration uses the worker RPCs added by the local
+        # vLLM fork to move an explicitly frozen block set.  Do not also run
+        # the ordinary prefill/decode connector lifecycle for that request:
+        # it would publish every prefill layer before the target has reserved
+        # the migration blocks, and races the direct transfer protocol.
+        self._true_kv_migration_only = bool(config.get_from_extra_config(
+            "true_kv_migration_only", False))
         # Native NCCL is now the validated CoreX 4.4 production default.
         # ``zmq_cpu`` remains an explicit compatibility fallback for a site
         # that has not yet opened/validated its GPU P2P data path.
@@ -411,6 +418,13 @@ class CoreXP2pNcclConnector(P2pNcclConnector):
         return host, int(port)
 
     def build_connector_meta(self, scheduler_output):
+        if self._true_kv_migration_only:
+            # P2pNcclConnector's scheduler bookkeeping assumes each request
+            # follows its P/D prefill lifecycle.  A migrating request instead
+            # keeps its block table in EngineCore until the explicit freeze,
+            # so return its normal empty metadata object and leave that state
+            # untouched.
+            return upstream_p2p_connector.P2pNcclConnectorMetadata()
         meta = super().build_connector_meta(scheduler_output)
         logger.info(
             "CoreX P2P metadata role=%s requests=%d ids=%s",
@@ -421,10 +435,14 @@ class CoreXP2pNcclConnector(P2pNcclConnector):
         return meta
 
     def save_kv_layer(self, layer_name, kv_layer, attn_metadata, **kwargs):
+        if self._true_kv_migration_only:
+            return
         logger.info("CoreX P2P save layer=%s shape=%s", layer_name, tuple(kv_layer.shape))
         return super().save_kv_layer(layer_name, kv_layer, attn_metadata, **kwargs)
 
     def start_load_kv(self, forward_context, **kwargs):
+        if self._true_kv_migration_only:
+            return
         metadata = self._get_connector_metadata()
         logger.info(
             "CoreX P2P load role=%s metadata_requests=%d",
