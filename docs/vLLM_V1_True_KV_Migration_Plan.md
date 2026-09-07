@@ -386,3 +386,8 @@ native NCCL pre-copy 在控制端口 `27801/27802` 实测通过：输出
 两端日志均确认 `ncclCommInitRank Success`，结束后 GPU allocation 为零。offset=1
 表示 frontend 观察与 EngineCore token-boundary freeze 间多完成一个 decode step，验证器
 基于 source baseline 连续窗口校验，未放宽任意 token 匹配。
+
+fork `19c435b` 已为 snapshot 增加可选 `rng_state` 字段，并要求携带 `rng_v1` feature
+flag 后才允许序列化；wire round-trip 与缺失 flag 拒绝测试已通过（fork 定向测试
+33 passed）。该字段目前仅完成协议准备，尚未从 worker 捕获/恢复 RNG，也未开放随机
+采样迁移。
