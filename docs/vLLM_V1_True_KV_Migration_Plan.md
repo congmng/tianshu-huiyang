@@ -343,16 +343,15 @@ fork `96e1e43` 与 Llumnix launcher `9ce41d9` 已提供显式单轮诊断 pre-co
 source preview session，target validate/write 所有 layer 后 commit，再由 source append；
 source block 列表必须等于 scheduler 计算的 immutable prefix。当前 launcher 在 pre-copy
 之后仍会执行完整 final cutover，作为不覆盖可变 tail 的安全兜底，因此尚未验证 cutover
-只传未同步 suffix，也尚未自动触发或接入生产 Manager。一次本机双卡 native NCCL
-`--incremental-precopy` 启动后未取得完整 PASS/错误文本，虽已确认 worker、控制端口和
-GPU allocation 均清理，不能计作 GPU pre-copy 通过证据，因此 Phase‑4
+只传未同步 suffix，也尚未自动触发或接入生产 Manager。此前一次本机双卡 native NCCL
+启动未取得完整 PASS/错误文本，已作为负面证据保留；后续已完成可观测性与边界修复。
 增量迁移仍未完成。随机采样/RNG、structured output、LoRA、多模态、TP>1 和 speculative
 decoding 也继续保持显式不支持，待分别具备快照字段、回滚测试和实测数据后再启用。
 
 本轮验证记录（2026-09-07）：CoreX fork `f1340f1` 的定向 KV 测试为 25 passed；
 Llumnix V1 migration 回归为 51 passed；跨主机 support gate 输出
 `SUPPORT_GATE_PASS`，在数据面参数贯通后的最新 migration digest 为
-`f14dd321d903b25dea152a802048b40d0f19d5f649421abffcd7970158653868`，协议版本为
+`955137f3dcdb49ec7d69597ca698090782293b153141312d261d5ea55592ccfe`，协议版本为
 `0.11.2 1`。这些结果验证的是现有全量真实迁移及增量协议对象，不改变 Phase‑4
 尚未接入生产跨轮调度的结论。
 
@@ -367,3 +366,11 @@ source/target 日志均记录 `ncclCommInitRank Success`，结束后 GPU allocat
 found`），说明 pre-copy 期间 scheduler 队列 churn 会丢失临时状态。fork `4944da5` 已将
 EngineCore mirror 作为 pre-copy session 的权威 append 状态，并加入回归测试（fork 定向
 测试 32 passed）；尚未重新取得真实长 prompt pre-copy 的端到端 decode-equivalence。
+
+修复 immutable boundary、EngineCore session mirror 和诊断 probe 对齐后，长 prompt
+native NCCL pre-copy 在控制端口 `27801/27802` 实测通过：输出
+`continuation_alignment_offset=1`、`PASS iteration 1/1` 与完整
+`PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`；
+两端日志均确认 `ncclCommInitRank Success`，结束后 GPU allocation 为零。offset=1
+表示 frontend 观察与 EngineCore token-boundary freeze 间多完成一个 decode step，验证器
+基于 source baseline 连续窗口校验，未放宽任意 token 匹配。
