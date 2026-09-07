@@ -214,6 +214,10 @@ block mapping、dtype、shape、payload SHA-256 与 manifest metadata SHA-256。
 并保持 token history、`num_computed_tokens`、`max_tokens`、EOS 与 stop-token 语义。
 首版只接受 temperature=0 的纯 greedy causal-LM 请求，显式拒绝 RNG、penalty、grammar、
 LoRA、多模态、logits processor、logprobs 和 structured output；这些状态的 wire 版本化
-尚待 Phase 4。当前 fork head 是 `bd30a04`，KV block + snapshot 重建单元测试 11 项通过。
-尚未将 target scheduler 的 reservation、worker request-index/input batch 恢复和 NCCL
-数据面接成端到端 EngineCore，因此仍不得宣称 Decode-to-Decode 已可用。
+尚待 Phase 4。当前 fork head 是 `c4d71f7`，KV block + snapshot 重建 + target lifecycle
+单元测试 13 项通过。目标端控制面 `MIGRATE_IN_PREPARE/COMMIT/ABORT` 已经 msgpack
+路由至 EngineCore；prepare 返回 target-local reservation block IDs 给数据面。commit 后
+首次调度把完整本地 block table 和既有 output token state 作为 worker 新请求下发。source
+在未显式提供 group counts 时从 coordinator 提取真实物理 block counts，避免目标错误预留零块。
+尚未将跨进程 NCCL 数据面、target worker 的实际 GPU 写入和两 EngineCore 首次 decode 确认
+接成端到端流程，因此仍不得宣称 Decode-to-Decode 已可用。
