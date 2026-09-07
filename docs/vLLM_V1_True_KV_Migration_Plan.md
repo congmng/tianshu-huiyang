@@ -243,6 +243,11 @@ P2P engine 作为显式数据面。控制面跨 msgspec 返回的 snapshot 字�
 `RequestMigrationSnapshot` 后再传输。对应 Llumnix 单元测试为 42 passed，vLLM fork 的
 KV block 定向测试为 17 passed。
 
-这仍不是 Decode-to-Decode 完成证明：目标 commit 后的首次 decode 尚未接入独立的
-EngineCore 输出采集/未迁移基线逐 token 比较，也未完成 100 次循环和 native NCCL
-数据面验证；因此 Phase-2 验收项仍保持未完成状态。
+随后补齐了目标端 commit 后的 frontend 输出注册与真实 EngineCore decode。修正目标
+Request 重建时缺失的 prefix block hashes 后，实测输出为：
+
+`PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`
+
+该次验证以 source 同一 EngineCore 的 uninterrupted greedy 序列为基线，目标端迁移后
+继续生成的 token 与基线 continuation 逐 token 相等。仍未完成文档要求的 100 次连续
+循环及 native NCCL 数据面验证，因此不能宣称 Phase-2 全部验收完成。
