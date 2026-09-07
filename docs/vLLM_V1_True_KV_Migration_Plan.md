@@ -353,5 +353,11 @@ decoding 也继续保持显式不支持，待分别具备快照字段、回滚�
 Llumnix V1 migration 回归为 51 passed；跨主机 support gate 输出
 `SUPPORT_GATE_PASS`，在数据面参数贯通后的最新 migration digest 为
 `f14dd321d903b25dea152a802048b40d0f19d5f649421abffcd7970158653868`，协议版本为
-`0.11.2 1`。这些结果验证的是现有全量真实迁移及增量协议对象，不改变 Phase-4
+`0.11.2 1`。这些结果验证的是现有全量真实迁移及增量协议对象，不改变 Phase‑4
 尚未接入生产跨轮调度的结论。
+
+随后启用 worker 独立日志后，native NCCL 全量回归在控制端口 `27101/27102` 明确输出
+`PASS iteration 1/1` 与
+`PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`；
+source/target 日志均记录 `ncclCommInitRank Success`，结束后 GPU allocation 为零。
+这只重新确认既有全量迁移基线，不覆盖此前 pre-copy 的 continuation mismatch。
