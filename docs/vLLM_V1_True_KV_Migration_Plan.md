@@ -299,6 +299,10 @@ worker 已按明确 PID 清理；两端显存均归零。至此 Phase-3 所列�
 传输超时和 source actor 中断均已有实测记录；后者验证的是确定性故障结果与资源清理，
 不等同于 Llumnix 服务级自动恢复。
 
+随后以独立 control port 运行容量拒绝回归探针，`EXPECTED_FAILURE` 后按该 port 精确检索
+远端进程未发现对应 worker（仅检索命令自身），`ixsmi` 显示无 GPU allocation，确认新加的
+SSH 远端清理逻辑不会遗留 wrapper 或占卡。
+
 此前一次跨机启动失败是远端 GPU 被孤儿 `VLLM::EngineCore` 占满，已精确终止并复测成功；
 该故障不属于 migration 协议失败。
 
