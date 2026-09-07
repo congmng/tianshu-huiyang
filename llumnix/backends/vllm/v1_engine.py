@@ -179,6 +179,17 @@ class V1EngineAdapter:
     def get_all_request_ids(self):
         return list(self.requests)
 
+    def migration_capabilities(self) -> frozenset[str]:
+        """Capabilities exposed by the V1 migration adapter.
+
+        Keep this explicit so Manager can select the V1 control/data plane
+        without probing legacy block-manager methods.
+        """
+        return frozenset({
+            "token_boundary_freeze", "kv_snapshot", "native_nccl",
+            "incremental_precopy", "seeded_rng",
+        })
+
     def abort_request(self, request_id):
         ids = (request_id,) if isinstance(request_id, str) else tuple(request_id)
         # ``abort`` resolves aliases before removing local state. Passing the

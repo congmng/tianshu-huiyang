@@ -580,6 +580,16 @@ def test_v1_adapter_advertises_p2p_base_port(monkeypatch):
     assert adapter.get_kv_endpoint() == "10.31.10.210:19052"
 
 
+def test_v1_adapter_reports_explicit_migration_capabilities():
+    from llumnix.backends.vllm.v1_engine import V1EngineAdapter
+    adapter = object.__new__(V1EngineAdapter)
+    capabilities = adapter.migration_capabilities()
+    assert "token_boundary_freeze" in capabilities
+    assert "native_nccl" in capabilities
+    assert "seeded_rng" in capabilities
+    assert "legacy_block_manager" not in capabilities
+
+
 def test_v1_adapter_uses_explicit_vllm_kv_ip(monkeypatch):
     from llumnix.backends.vllm.v1_engine import V1EngineAdapter
 
