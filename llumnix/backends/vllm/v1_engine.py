@@ -377,6 +377,16 @@ class V1EngineAdapter:
             "migration_kv_layer_names"
         )
 
+    async def export_migration_rng_state(self, request_id: str) -> bytes:
+        return await self.engine.engine_core.call_utility_async(
+            "export_migration_rng_state", request_id
+        )
+
+    async def import_migration_rng_state(self, request_id: str, state: bytes) -> None:
+        await self.engine.engine_core.call_utility_async(
+            "import_migration_rng_state", request_id, state
+        )
+
     async def migration_send_layer(
         self, request_id: str, migration_epoch: int, layer_name: str,
         source_block_ids: list[int], target_block_ids: list[int],
