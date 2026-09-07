@@ -341,6 +341,6 @@ decoding 也继续保持显式不支持，待分别具备快照字段、回滚�
 本轮验证记录（2026-09-07）：CoreX fork `f1340f1` 的定向 KV 测试为 25 passed；
 Llumnix V1 migration 回归为 51 passed；跨主机 support gate 输出
 `SUPPORT_GATE_PASS`，在数据面参数贯通后的最新 migration digest 为
-`e494560610a8196d08183837a26c5b8ecdc2b1fc81899061c40ecf02df78a511`，协议版本为
+`752f0e1fe122a40d352ac8935e4c82d0117d3429815f9be7649aeb49d9dd1fd4`，协议版本为
 `0.11.2 1`。这些结果验证的是现有全量真实迁移及增量协议对象，不改变 Phase-4
 尚未接入生产跨轮调度的结论。
