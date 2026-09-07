@@ -281,6 +281,16 @@ uninterrupted greedy baseline continuation 逐 token 一致，输出为：
 全流程，仍通过 native NCCL 初始化、KV checksum、双阶段提交和逐 token 等价；这证明
 小幅可控网络延迟不会破坏协议。
 
+目标容量拒绝已在同一真实双机配置用 `--inject-target-capacity --expect-failure` 实测：
+source 已冻结后，target 在 reserve/import 前返回 `RuntimeError: injected target capacity
+exhaustion`，launcher 返回 `EXPECTED_FAILURE`（shell exit 0）并执行 source abort；没有
+遗留 GPU allocation。source actor restart 用 `--inject-source-restart-after-layers 1`
+实测，双方已经完成 native NCCL communicator 初始化后仅杀死本 launcher 所创建的 source
+进程，结果为 `EXPECTED_FAILURE ProcessLookupError`（shell exit 0）。由于 source 不可达，
+其 abort 只能 best-effort；target 外层 worker/EngineCore 已按明确 PID 清理且显存归零。
+这证明故障结果不会被误判为成功，但完整服务级 actor 自动重建/请求重试仍属于后续
+Llumnix Manager 集成工作。
+
 此前一次跨机启动失败是远端 GPU 被孤儿 `VLLM::EngineCore` 占满，已精确终止并复测成功；
 该故障不属于 migration 协议失败。延迟注入、超时、目标容量不足及 source actor 重启
 故障注入仍待完成，因此 Phase-3 尚未整体完成，不能将上述单次成功外推为故障覆盖验收。
