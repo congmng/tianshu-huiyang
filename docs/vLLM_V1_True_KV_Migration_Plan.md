@@ -413,6 +413,11 @@ continuation 均逐 token 一致，输出 `PASS iteration 1/1` 及
 且两端 worker 正常清理。该证据覆盖单次 seeded-random GPU 路径；多轮、跨机随机验收
 以及无 seed 随机采样仍未支持。
 
+fork `125eefb` 进一步在 source `prepare_migration_out` 之前检查快照无法表达的请求
+状态：prompt embeddings、多模态输入、LoRA 和 structured output 均会明确拒绝，且
+不会改变 scheduler 队列或进入 `MIGRATING_OUT`。新增边界测试通过，fork 定向测试为
+37 passed；这些扩展能力仍需单独设计版本化快照字段后再开放。
+
 随后在跨机拓扑 `10.31.10.62 GPU0 -> 10.31.10.210 GPU1` 上，以相同 Qwen3-14B、native
 NCCL、`temperature=0.7`、`seed=123` 完成 seeded-random 验收（控制端口
 `28501/28502`）。远端日志确认 NCCL communicator 成功初始化，迁移后 continuation 与
