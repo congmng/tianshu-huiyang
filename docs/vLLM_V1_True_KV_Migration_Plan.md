@@ -303,6 +303,10 @@ worker 已按明确 PID 清理；两端显存均归零。至此 Phase-3 所列�
 远端进程未发现对应 worker（仅检索命令自身），`ixsmi` 显示无 GPU allocation，确认新加的
 SSH 远端清理逻辑不会遗留 wrapper 或占卡。
 
+最后以 control port `23902` 运行成功迁移回归：输出仍为
+`PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`，随后
+同一端口的远端 worker 检索为空且退出码为 0，验证成功路径也会清理远端 wrapper。
+
 此前一次跨机启动失败是远端 GPU 被孤儿 `VLLM::EngineCore` 占满，已精确终止并复测成功；
 该故障不属于 migration 协议失败。
 
