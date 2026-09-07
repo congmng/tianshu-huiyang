@@ -13,6 +13,7 @@ import json
 import os
 import signal
 import sys
+import time
 from pathlib import Path
 
 
@@ -81,13 +82,19 @@ async def run(args: argparse.Namespace) -> None:
                    "--control-host", args.target_host, "--p2p-host", args.target_p2p_host,
                    "--p2p-port", str(args.target_p2p), "--peer-p2p", str(args.source_p2p),
                    "--peer-p2p-host", args.source_p2p_host]
+    if args.inject_target_capacity:
+        env["LLUMNIX_INJECT_TARGET_CAPACITY"] = "1"
     if args.target_ssh:
         remote = " ".join([f"'{part}'" for part in target_args])
-        remote = ("source /data1/congmng/llumnix/tools/corex44_env.sh; "
-                  "export VLLM_FORCE_NCCL_COMM=1; "
-                  "export LLUMNIX_TRUE_KV_MIGRATION_ONLY=1; "
-                  f"PYTHONDONTWRITEBYTECODE=1 PYTHONPATH={fork}:{ROOT} "
-                  f"CUDA_VISIBLE_DEVICES={args.target_gpu} exec {remote}")
+        remote = (
+            "source /data1/congmng/llumnix/tools/corex44_env.sh; "
+            "export VLLM_FORCE_NCCL_COMM=1; "
+            "export LLUMNIX_TRUE_KV_MIGRATION_ONLY=1; "
+            + ("export LLUMNIX_INJECT_TARGET_CAPACITY=1; "
+               if args.inject_target_capacity else "")
+            + f"PYTHONDONTWRITEBYTECODE=1 PYTHONPATH={fork}:{ROOT} "
+            + f"CUDA_VISIBLE_DEVICES={args.target_gpu} exec {remote}"
+        )
         target = await asyncio.create_subprocess_exec("ssh", args.target_ssh, remote)
     else:
         target = await asyncio.create_subprocess_exec(
@@ -112,7 +119,7 @@ async def run(args: argparse.Namespace) -> None:
             })
             print(f"START iteration {iteration + 1}/{args.iterations} source-generate", flush=True)
             generated = await checked_rpc(args.source_host, args.source_control, {"op": "generate", "request_id": request_id,
-                                                        "prompt": args.prompt})
+                                                        "prompt": args.prompt}, args.rpc_timeout)
             request_id = generated["request_id"]
             out = await rpc(args.source_host, args.source_control, {"op": "prepare_out", "request_id": request_id,
                                               "epoch": epoch})
@@ -123,6 +130,8 @@ async def run(args: argparse.Namespace) -> None:
             layers = await rpc(args.source_host, args.source_control, {"op": "layers"})
             for group_src, group_dst in zip(source_blocks["blocks"], target_blocks["blocks"]):
                 for layer in layers["layers"]:
+                    if args.inject_latency_ms:
+                        await asyncio.sleep(args.inject_latency_ms / 1000.0)
                     manifest = await rpc(args.source_host, args.source_control, {
                     "op": "send", "request_id": request_id, "epoch": epoch,
                     "layer": layer, "source_blocks": group_src,
@@ -188,6 +197,12 @@ def main() -> None:
     parser.add_argument("--transport", choices=("nccl", "zmq_cpu"), default="nccl")
     parser.add_argument("--verify-tokens", type=int, default=2)
     parser.add_argument("--iterations", type=int, default=1)
+    parser.add_argument("--rpc-timeout", type=float, default=30.0,
+                        help="timeout for bounded control operations")
+    parser.add_argument("--inject-latency-ms", type=float, default=0.0,
+                        help="delay before each layer transfer (fault injection)")
+    parser.add_argument("--inject-target-capacity", action="store_true",
+                        help="make target reservation fail deterministically")
     parser.add_argument("--prompt", default="Explain KV cache migration in one sentence.")
     asyncio.run(run(parser.parse_args()))
 

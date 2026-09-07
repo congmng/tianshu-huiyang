@@ -134,6 +134,8 @@ class Phase2Worker:
                     "all_token_ids": list(snapshot.all_token_ids),
                     "num_computed_tokens": snapshot.num_computed_tokens}
         if op == "prepare_in":
+            if os.getenv("LLUMNIX_INJECT_TARGET_CAPACITY", "0") in {"1", "true", "TRUE"}:
+                raise RuntimeError("injected target capacity exhaustion")
             snapshot = RequestMigrationSnapshot.from_wire(value["snapshot"].encode())
             self.migration_snapshot = snapshot
             blocks = await self.adapter.migration_prepare_in(snapshot)
