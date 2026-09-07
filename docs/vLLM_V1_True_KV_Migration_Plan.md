@@ -345,6 +345,12 @@ request ID，避免重复分配；无 pre-copy 时保留全量迁移兼容路径
 Llumnix launcher `c1f8dd9` 现于 final cutover 跳过已确认的 ordinal prefix，仅传输新增
 mutable suffix，并向 manifest/target receive 传递 prefix mapping 以完成认证；无
 pre-copy 时 skip=0，行为与既有全量路径一致。
+fork `eb1a502` 修复 pre-copy reservation claim 后未登记 regular commit table 的问题。
+随后在控制端口 `28001/28002` 进行长 prompt native NCCL suffix-only 端到端验收，输出
+`continuation_alignment_offset=1`、`PASS iteration 1/1` 及完整
+`PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`；
+两端日志均确认 NCCL communicator 初始化，退出后 GPU allocation 清零。该结果证明
+单轮显式 pre-copy + suffix-only cutover 已可运行（仍非自动 Manager 调度）。
 fork `96e1e43` 与 Llumnix launcher `9ce41d9` 已提供显式单轮诊断 pre-copy 编排：
 source preview session，target validate/write 所有 layer 后 commit，再由 source append；
 source block 列表必须等于 scheduler 计算的 immutable prefix。当前 launcher 在 pre-copy
