@@ -211,10 +211,22 @@ async def run(args: argparse.Namespace) -> None:
         for port, process in ((args.source_control, source), (args.target_control, target)):
             if process.returncode is None:
                 try:
-                    await rpc(args.source_host if port == args.source_control else args.target_host, port, {"op": "shutdown"})
+                    await asyncio.wait_for(
+                        rpc(args.source_host if port == args.source_control
+                            else args.target_host, port, {"op": "shutdown"}),
+                        timeout=10,
+                    )
                 except Exception:
                     process.send_signal(signal.SIGTERM)
-        await asyncio.gather(source.wait(), target.wait())
+        try:
+            await asyncio.wait_for(asyncio.gather(source.wait(), target.wait()), timeout=15)
+        except TimeoutError:
+            # The PID is owned by this launcher: kill only this exact local
+            # child (an SSH child terminates its remote exec session too).
+            for process in (source, target):
+                if process.returncode is None:
+                    process.kill()
+            await asyncio.gather(source.wait(), target.wait())
 
 
 def main() -> None:
