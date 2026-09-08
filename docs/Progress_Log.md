@@ -41,10 +41,10 @@
   native NCCL 一轮
   `PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`
   复验通过。
-- 当前 Phase 4 边界仍为：TP=1、causal-LM、greedy 与 seeded RNG、native NCCL/
-  `zmq_cpu`、增量 pre-copy 已通过 Manager 真 E2E；无 seed 随机、structured output、
-  LoRA、多模态、TP>1 与 speculative decoding 仍未开通/验证，不宣称完整 Phase 4
-  完成。
+- 当前 Phase 4 边界仍为：TP=1、causal-LM、greedy/seeded RNG、无 seed witness
+  continuation、native NCCL/`zmq_cpu`、增量 pre-copy 已通过 Manager 真 E2E；
+  structured output、LoRA、多模态、TP>1 与 speculative decoding 仍未开通/验证，
+  不宣称完整 Phase 4 完成。
 
 ## 2026-09-06：vLLM V1 真正 KV 迁移实施规划
 
