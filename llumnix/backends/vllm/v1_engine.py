@@ -168,10 +168,16 @@ class V1EngineAdapter:
         # endpoint for this actor.  Prefer the authoritative Ray node address
         # supplied by Llumlet, while retaining an explicit per-node override
         # for multi-NIC deployments.
-        host = os.getenv("LLUMNIX_KV_IP") or advertise_host or getattr(
-            config, "kv_ip", None
-        )
-        if not host or host in {"0.0.0.0", "127.0.0.1"}:
+        host = os.getenv("LLUMNIX_KV_IP") or advertise_host
+        if not host:
+            host = getattr(config, "kv_ip", None)
+        # An explicit loopback address means the connector really binds
+        # 127.0.0.1 (single-host smoke tests, local P/D).  Rewriting it to
+        # the node hostname advertises an endpoint the socket does not listen
+        # on, which hangs the peer's NCCL/ZMQ handshake.  Only derive a
+        # routable address when the connector itself did not get a concrete
+        # bind host.
+        if not host or host == "0.0.0.0":
             try:
                 host = socket.gethostbyname(socket.gethostname())
             except OSError:
