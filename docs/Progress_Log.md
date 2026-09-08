@@ -1,5 +1,23 @@
 # Llumnix CoreX 4.4/4.5 双栈与 Phase-4 进展
 
+## 2026-09-08：CoreX 4.5 V300 单卡服务级 HTTP E2E 与 Manager V1 识别
+
+- `Manager` 不再用 `vLLM.__version__.startswith("0.11")` 判断 V1，改为探测
+  `vllm.v1.engine` 模块；CoreX 4.4（vLLM 0.11）与 CoreX 4.5（vLLM 0.25）都会
+  进入统一的 V1 控制面选择路径。新增
+  `test_vllm_v1_backend_detection_is_version_independent` 并纳入统一 unit gate。
+- 在 `10.66.0.11` 的 TG-V300 / CoreX 4.5.0 / vLLM 0.25.1 / GPU2 上跑通
+  `tools/run_llumnix_v1_http_e2e.py --model /data/tianshu/models/Qwen3-14B
+  --gpu-memory-utilization 0.9`，输出 `llumnix_v1_http_corex: PASS`。
+- 4.5 Triton 卡死根因已定位：JIT 实际使用动态加载的
+  `triton.backends.backends["iluvatar"]`，普通 import 路径补丁无效；TG-V300 的
+  `sm_81` 必须映射为 `ivcore30`。远端临时 `sitecustomize` 已携带该映射，仓库内
+  尚未固化。
+- `tools/corex_env.sh` 补充 4.5 原生 `torch/ixformer` 扩展库路径和 venv `.pth`
+  阶段 `PYTHONPATH` 兜底，4.4 路径保持不变。
+- CoreX 4.5 真 KV 迁移 fork 尚未从 0.11 移植到 0.25；当前 4.5 仅完成单实例
+  V1 HTTP 服务级验收，4.4 双栈真 KV Manager 迁移仍以 4.4 为准。
+
 ## 2026-09-08：异构 V1 调度兼容性分组准备
 
 - `InstanceInfo` 新增 `migration_protocol_version`、`migration_kv_layout_version`、

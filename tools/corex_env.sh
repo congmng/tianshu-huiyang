@@ -100,6 +100,35 @@ fi
 if [[ -d "/data/tianshu/20260720/driver/corex/lib64" ]]; then
   _corex_lib_paths+=("/data/tianshu/20260720/driver/corex/lib64")
 fi
+# The 4.5 vllm_iluvatar plugin ships native torch/ixformer extensions in the
+# Python site-packages tree rather than the SDK lib64 directory.  Expose them
+# so importing ``vllm_iluvatar._C`` can resolve its shared-library deps on
+# V300 nodes without changing the 4.4 runtime path.
+if [[ "${_corex_stack}" == "45" ]]; then
+  for _corex_python_libdir in \
+      "${CONDA_PREFIX}/lib/python3.12/site-packages/torch/lib" \
+      "${CONDA_PREFIX}/lib/python3.12/site-packages/ixformer"; do
+    if [[ -d "${_corex_python_libdir}" ]]; then
+      _corex_lib_paths+=("${_corex_python_libdir}")
+    fi
+  done
+
+  # ``.conda-corex45`` is a venv layered on the shared CoreX 4.5 base env.
+  # Python processes .pth files in the venv site-packages before adding the
+  # base env site-packages to sys.path.  The Iluvatar startup .pth imports
+  # torch while applying its early compat patch, so expose the base site-packages
+  # through PYTHONPATH to make torch/typing_extensions importable at that stage.
+  if [[ -f "${CONDA_PREFIX}/pyvenv.cfg" ]]; then
+    _corex_venv_home="$(awk -F ' = ' '$1 == "home" {print $2}' "${CONDA_PREFIX}/pyvenv.cfg")"
+    if [[ -n "${_corex_venv_home}" ]]; then
+      _corex_base_prefix="${_corex_venv_home%/bin}"
+      _corex_base_site="${_corex_base_prefix}/lib/python3.12/site-packages"
+      if [[ -d "${_corex_base_site}" ]]; then
+        export PYTHONPATH="${CONDA_PREFIX}/lib/python3.12/site-packages:${_corex_base_site}${PYTHONPATH:+:${PYTHONPATH}}"
+      fi
+    fi
+  fi
+fi
 _corex_ld_library_path="$(IFS=:; echo "${_corex_lib_paths[*]}"):${CONDA_PREFIX}/lib"
 _corex_cpath="$(IFS=:; echo "${_corex_include_paths[*]}"):${CONDA_PREFIX}/include"
 
@@ -121,4 +150,4 @@ export VLLM_ENFORCE_CUDA_GRAPH="${VLLM_ENFORCE_CUDA_GRAPH:-0}"
 # ownership keys; configure_v1_kv_transfer also preserves this invariant.
 export PYTHONHASHSEED="${PYTHONHASHSEED:-0}"
 
-unset _corex_project_root _corex_stack _corex_sdk_root _corex_candidates _corex_candidate _corex_default_env _corex_lib_paths _corex_include_paths _corex_toolkit_root _corex_libdir _corex_incdir _corex_ld_library_path _corex_cpath
+unset _corex_project_root _corex_stack _corex_sdk_root _corex_candidates _corex_candidate _corex_default_env _corex_lib_paths _corex_include_paths _corex_toolkit_root _corex_libdir _corex_incdir _corex_ld_library_path _corex_cpath _corex_python_libdir

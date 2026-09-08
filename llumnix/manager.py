@@ -16,6 +16,7 @@ import random
 import time
 import csv
 import os
+import importlib.util
 from typing import Dict, List, Tuple, Union, Iterable
 from collections import defaultdict
 import traceback
@@ -70,6 +71,18 @@ logger = init_logger(__name__)
 V1_MIGRATION_MIN_RESIDENCY_SECONDS = 2.0
 
 
+def _vllm_v1_backend_available() -> bool:
+    """Return whether the installed vLLM exposes its V1 engine package.
+
+    Llumnix selects the V1 control plane based on backend capability rather
+    than a hard-coded version prefix.  CoreX 4.4 ships vLLM 0.11 and CoreX 4.5
+    ships vLLM 0.25, both of which expose ``vllm.v1.engine``; legacy 0.6 does
+    not.  Keeping this as an import-based probe lets the mixed 4.4/4.5
+    deployment share the same Manager path.
+    """
+    return importlib.util.find_spec("vllm.v1.engine") is not None
+
+
 class Manager:
     def __init__(
         self,
@@ -106,8 +119,8 @@ class Manager:
         self.is_vllm_v1 = False
         if launch_args is not None and launch_args.backend_type == BackendType.VLLM:
             try:
-                import vllm
-                self.is_vllm_v1 = getattr(vllm, "__version__", "").startswith("0.11")
+                import vllm  # noqa: F401
+                self.is_vllm_v1 = _vllm_v1_backend_available()
             except ImportError:
                 pass
 

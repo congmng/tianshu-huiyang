@@ -25,7 +25,7 @@ from vllm import EngineArgs
 
 from llumnix.launcher import Launcher
 from llumnix.arg_utils import ManagerArgs, EntrypointsArgs, LaunchArgs, InstanceArgs
-from llumnix.manager import Manager
+from llumnix.manager import Manager, _vllm_v1_backend_available
 from llumnix.instance_info import InstanceInfo, InstanceLoadCalculator
 from llumnix.server_info import ServerInfo
 from llumnix.queue.queue_type import QueueType
@@ -38,6 +38,26 @@ from llumnix.utils import (get_placement_group_name, get_server_name, get_instan
 
 # pylint: disable=unused-import
 from tests.conftest import ray_env
+
+
+def test_vllm_v1_backend_detection_is_version_independent(monkeypatch):
+    """CoreX 4.4 (vLLM 0.11) and 4.5 (vLLM 0.25) must both select V1."""
+    import importlib.util
+
+    original = importlib.util.find_spec
+    monkeypatch.setattr(
+        importlib.util,
+        "find_spec",
+        lambda name: object() if name == "vllm.v1.engine" else original(name),
+    )
+    assert _vllm_v1_backend_available() is True
+
+    monkeypatch.setattr(
+        importlib.util,
+        "find_spec",
+        lambda name: None if name == "vllm.v1.engine" else original(name),
+    )
+    assert _vllm_v1_backend_available() is False
 
 
 @ray.remote(num_cpus=1)
