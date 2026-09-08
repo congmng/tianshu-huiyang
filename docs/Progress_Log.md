@@ -1,5 +1,20 @@
 # Llumnix CoreX 4.4/4.5 双栈与 Phase-4 进展
 
+## 2026-09-08：真实多模态 V1 true-KV 迁移通过
+
+- fork `vllm/v1/migration.py` 原先只保存多模态占位符范围，导致目标端
+  Qwen2.5-VL 重建后 `image_grid_thw` 为空并触发 mrope 越界。现序列化并恢复
+  `image_grid_thw`/`video_grid_thw`/`second_per_grid_ts` 轻量 CPU 字段，新增
+  round-trip 单测；fork 提交 `14dfc02`。
+- `tools/run_v1_true_kv_migration_manager.py` 增加 `--multimodal-image`、
+  `--multimodal-prompt`、`--max-model-len`，并自动补 Qwen2.5-VL 的
+  `<|image_pad|>` 模板；提交 `d5d8af9`。
+- 双卡真实 `Qwen2.5-VL-7B-Instruct` + `docs/pdd_design.png` Manager 真 KV 迁移
+  通过：`PASS manager_v1_true_kv_migration`，
+  `continuation_alignment_offset=0`。
+- Phase 4 剩余真实 GPU/服务级证据：TP>1、speculative decoding。
+
+
 ## 2026-09-08：CoreX 4.5 Manager 单实例 E2E 与 unseeded RNG 迁移复验
 
 - 将 V1 backend 探测从 `vLLM.__version__` 替换为 `vllm.v1.engine`，补齐
