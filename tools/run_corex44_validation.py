@@ -60,21 +60,30 @@ def unit_commands() -> list[list[str]]:
 def run_integration(local_ip: str, remote_ip: str, remote_host: str,
                     remote_project: str, dry_run: bool, model_pd: bool = False,
                     model: str = "/data1/congmng/llumnix/.models/Qwen3-14B",
-                    corex_transport: str = "nccl") -> None:
-    run([sys.executable, "tools/corex44_support_check.py", "--remote-host", remote_host,
-         "--remote-project", remote_project], dry_run)
+                    corex_transport: str = "nccl", corex_stack: str = "44",
+                    remote_stack: str | None = None,
+                    ssh_password: str | None = None) -> None:
+    remote_stack = remote_stack or corex_stack
+    support_cmd = [sys.executable, "tools/corex44_support_check.py",
+                   "--remote-host", remote_host, "--remote-project", remote_project,
+                   "--corex-stack", corex_stack, "--remote-stack", remote_stack,
+                   "--mixed-stack"]
+    if ssh_password:
+        support_cmd.extend(["--ssh-password", ssh_password])
+    run(support_cmd, dry_run)
     event_port = free_port()
     # Some CoreX deployments firewall arbitrary ZMQ ports between nodes even
     # though SSH is allowed.  Use an SSH reverse tunnel for the event control
     # plane; the publisher/subscriber and msgspec payload remain real vLLM
     # ZMQ traffic, while the validation is not coupled to firewall policy.
     event_remote_cmd = (
-        f"cd {remote_project} && source tools/corex44_env.sh && "
+        f"cd {remote_project} && source tools/corex_env.sh && LLUMNIX_COREX_STACK={remote_stack} && "
         f"PYTHONPATH=. python tools/corex44_kv_event_probe.py --role consumer "
         f"--host 127.0.0.1 --port {event_port} --timeout 15"
     )
     event_local_cmd = [sys.executable, "tools/corex44_kv_event_probe.py", "--role", "publisher",
                        "--host", "127.0.0.1", "--port", str(event_port), "--timeout", "4"]
+    ssh_prefix = (["sshpass", "-p", ssh_password] if ssh_password else [])
     print("+ ssh", remote_host, event_remote_cmd, flush=True)
     if dry_run:
         print("+", " ".join(event_local_cmd), flush=True)
@@ -84,7 +93,7 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
         # socket and a one-shot ZMQ subscriber can observe connection-refused.
         event_publisher = subprocess.Popen(event_local_cmd, cwd=ROOT)
         time.sleep(0.5)
-        event_remote = subprocess.Popen([
+        event_remote = subprocess.Popen(ssh_prefix + [
             "ssh", "-o", "ExitOnForwardFailure=yes", "-R",
             f"{event_port}:127.0.0.1:{event_port}", remote_host, event_remote_cmd,
         ])
@@ -106,7 +115,7 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
     consumer_port = free_port()
     producer_port = free_port()
     remote_cmd = (
-        f"cd {remote_project} && source tools/corex44_env.sh && "
+        f"cd {remote_project} && source tools/corex_env.sh && LLUMNIX_COREX_STACK={remote_stack} && "
         f"CUDA_VISIBLE_DEVICES=0 python tools/corex44_zmq_kv_probe.py "
         f"--role consumer --host {remote_ip} --port {consumer_port} --timeout 30"
     )
@@ -117,7 +126,7 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
     if dry_run:
         print("+", " ".join(local_cmd), flush=True)
     else:
-        remote = subprocess.Popen(["ssh", remote_host, remote_cmd])
+        remote = subprocess.Popen(ssh_prefix + ["ssh", remote_host, remote_cmd])
         try:
             time.sleep(2)
             if remote.poll() is not None:
@@ -142,7 +151,7 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
     request_id = "corex-pd-model-validation"
     transport_arg = f" --corex-transport {corex_transport}"
     remote_pd_cmd = (
-        f"cd {remote_project} && source tools/corex44_env.sh && "
+        f"cd {remote_project} && source tools/corex_env.sh && LLUMNIX_COREX_STACK={remote_stack} && "
         f"CUDA_VISIBLE_DEVICES=0 PYTHONHASHSEED=0 python tools/v1_p2p_model_probe.py "
         f"--role consumer --model {model} --host {remote_ip} "
         f"--peer {local_ip}:{pd_port} --port {pd_port} --request-id {request_id} "
@@ -158,7 +167,7 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
     if dry_run:
         print("+", " ".join(local_pd_cmd), flush=True)
         return
-    remote_pd = subprocess.Popen(["ssh", remote_host, remote_pd_cmd])
+    remote_pd = subprocess.Popen(ssh_prefix + ["ssh", remote_host, remote_pd_cmd])
     try:
         time.sleep(2)
         if remote_pd.poll() is not None:
@@ -179,6 +188,12 @@ def main() -> None:
     parser.add_argument("--local-ip", default="10.31.10.62")
     parser.add_argument("--remote-ip", default="10.31.10.210")
     parser.add_argument("--remote-project", default="/data1/congmng/llumnix")
+    parser.add_argument("--corex-stack", default=os.getenv("LLUMNIX_COREX_STACK", "44"),
+                        choices=("44", "45"))
+    parser.add_argument("--remote-stack", default=None, choices=("44", "45"),
+                        help="remote stack; defaults to --corex-stack")
+    parser.add_argument("--ssh-password", default=None,
+                        help="optional password for sshpass-based remote login")
     parser.add_argument("--tp", type=int, default=1, choices=(1, 2))
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--model-pd", action="store_true",
@@ -198,7 +213,8 @@ def main() -> None:
     elif args.level == "integration":
         run_integration(args.local_ip, args.remote_ip, args.remote_host,
                         args.remote_project, args.dry_run, args.model_pd, args.model,
-                        args.corex_transport)
+                        args.corex_transport, args.corex_stack, args.remote_stack,
+                        args.ssh_password)
     else:
         visible = "0" if args.tp == 1 else "0,1"
         command = ["env", f"CUDA_VISIBLE_DEVICES={visible}",

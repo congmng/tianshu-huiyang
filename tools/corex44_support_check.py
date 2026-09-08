@@ -11,6 +11,7 @@ import json
 import platform
 import sys
 import argparse
+import re
 import subprocess
 import hashlib
 import os
@@ -50,9 +51,41 @@ SOURCE_FINGERPRINT_FILES = (
     "tools/run_llumnix_v1_http_e2e.py",
     "tools/v1_p2p_model_probe.py",
     "tools/corex44_native_nccl_probe.py",
+    "tools/corex_env.sh",
+    "tools/corex44_env.sh",
+    "tools/corex45_env.sh",
     "configs/corex44_v1_pd.yml",
     "docs/vLLM_V1_True_KV_Migration_Plan.md",
 )
+
+
+
+CORE_X_STACKS = {
+    "44": {
+        "sdk_marker": "4.4.0",
+        "device_names": ("Iluvatar BI-V150",),
+        "torch_prefixes": ("2.7.",),
+    },
+    "45": {
+        "sdk_marker": "4.5.0",
+        "device_names": ("Iluvatar TG-V300", "Iluvatar BI-V300"),
+        "torch_prefixes": ("2.10.",),
+    },
+}
+
+
+def normalize_stack(value: str | None) -> str:
+    """Return the canonical ``44`` or ``45`` stack key from a CLI value."""
+    if value is None:
+        value = os.getenv("LLUMNIX_COREX_STACK", "44")
+    value = str(value)
+    if value.startswith("4.4"):
+        return "44"
+    if value.startswith("4.5"):
+        return "45"
+    if value in CORE_X_STACKS:
+        return value
+    raise ValueError(f"unsupported CoreX stack: {value!r}")
 
 
 def source_fingerprint() -> str:
@@ -63,38 +96,67 @@ def source_fingerprint() -> str:
     return digest.hexdigest()
 
 
-def validate_versions(versions: Mapping[str, str]) -> list[str]:
-    """Return actionable errors for versions outside the supported V1 stack."""
+def validate_versions(versions: Mapping[str, str], stack: str = "44") -> list[str]:
+    """Return actionable errors for versions outside a supported V1 stack."""
+    stack = normalize_stack(stack)
+    stack_spec = CORE_X_STACKS[stack]
     errors = []
     if not versions["python"].startswith("3.12."):
         errors.append(f"Python 3.12 is required, found {versions['python']}")
     if not versions["vllm"].startswith("0.11."):
         errors.append(f"vLLM 0.11.x is required, found {versions['vllm']}")
-    if not versions["torch"].startswith("2.7."):
-        errors.append(f"CoreX PyTorch 2.7.x is required, found {versions['torch']}")
+    if not any(versions["torch"].startswith(prefix)
+               for prefix in stack_spec["torch_prefixes"]):
+        errors.append(
+            f"CoreX {stack} PyTorch {stack_spec['torch_prefixes']} is required, "
+            f"found {versions['torch']}"
+        )
     if not versions["ray"].startswith("2.52."):
         errors.append(f"CoreX Ray 2.52.x is required, found {versions['ray']}")
     return errors
 
 
-def validate_corex_runtime(runtime: Mapping[str, object]) -> list[str]:
+def validate_corex_runtime(runtime: Mapping[str, object], stack: str = "44") -> list[str]:
     """Validate that the supported Python stack is actually CoreX-backed."""
+    stack = normalize_stack(stack)
+    stack_spec = CORE_X_STACKS[stack]
     errors = []
     sdk = str(runtime.get("corex_sdk", ""))
-    if "4.4.0" not in sdk:
-        errors.append(f"CoreX SDK 4.4.0 is required, found {sdk!r}")
+    if stack_spec["sdk_marker"] not in sdk:
+        errors.append(
+            f"CoreX SDK {stack_spec['sdk_marker']} is required, found {sdk!r}"
+        )
     if not bool(runtime.get("cuda_available", False)):
         errors.append("CoreX accelerator is unavailable to PyTorch")
-    if not str(runtime.get("device_name", "")).startswith("Iluvatar"):
-        errors.append(f"Iluvatar CoreX device is required, found {runtime.get('device_name')!r}")
+    device_name = str(runtime.get("device_name", ""))
+    if not device_name.startswith("Iluvatar"):
+        errors.append(f"Iluvatar CoreX device is required, found {device_name!r}")
+    elif not device_name.startswith(stack_spec["device_names"]):
+        errors.append(
+            f"CoreX {stack} device {stack_spec['device_names']} is required, "
+            f"found {device_name!r}"
+        )
     return errors
 
 
-def compare_hosts(local: Mapping[str, object], remote: Mapping[str, object]) -> list[str]:
-    """Return mismatches that invalidate a deterministic two-host gate."""
+def compare_hosts(local: Mapping[str, object], remote: Mapping[str, object],
+                 mixed_stack: bool = False) -> list[str]:
+    """Return mismatches that invalidate a multi-host scheduling gate.
+
+    By default a mixed V150/4.4 and V300/4.5 deployment is allowed; the
+    per-node SDK/device/torch fields are intentionally allowed to differ.
+    Code fingerprint and the migration protocol must remain identical so a
+    request can move between stacks without silently changing semantics.
+    """
     mismatches = []
-    for key in ("python", "vllm", "ray", "torch", "corex_sdk", "cuda_available",
-                "device_name", "affinity_hashes", "source_fingerprint"):
+    if mixed_stack:
+        common = ("python", "vllm", "ray", "affinity_hashes",
+                  "source_fingerprint", "migration_protocol_version")
+    else:
+        common = ("python", "vllm", "ray", "torch", "corex_sdk",
+                  "cuda_available", "device_name", "affinity_hashes",
+                  "source_fingerprint", "migration_protocol_version")
+    for key in common:
         if local.get(key) != remote.get(key):
             mismatches.append(f"{key} differs: local={local.get(key)!r} remote={remote.get(key)!r}")
     if not remote.get("supported", False):
@@ -102,15 +164,17 @@ def compare_hosts(local: Mapping[str, object], remote: Mapping[str, object]) -> 
     return mismatches
 
 
-def collect_result() -> dict[str, object]:
+def collect_result(stack: str = "44") -> dict[str, object]:
     import torch
     import vllm
     import ray
 
+    from vllm.v1.migration import MIGRATION_PROTOCOL_VERSION
     from llumnix.backends.vllm.corex_p2p_connector import CoreXP2pNcclConnector
     from llumnix.backends.vllm.v1_engine import V1EngineAdapter
     from llumnix.backends.vllm.v1_kv import KVCacheAffinityIndex
 
+    stack = normalize_stack(stack)
     tokens = (1, 2, 3, 4, 5, 6, 7, 8)
     hashes = KVCacheAffinityIndex().prefix_hashes(tokens, 4, "sha256_cbor")
     index = KVCacheAffinityIndex()
@@ -125,7 +189,12 @@ def collect_result() -> dict[str, object]:
         "ray": ray.__version__,
         "torch": torch.__version__,
     }
-    release_file = os.getenv("LLUMNIX_COREX_RELEASE_FILE", "/usr/local/corex/release-corex.txt")
+    stack_root = os.getenv(
+        "LLUMNIX_COREX_ROOT", f"/usr/local/corex-4.{'5' if stack == '45' else '4'}.0"
+    )
+    release_file = os.getenv(
+        "LLUMNIX_COREX_RELEASE_FILE", f"{stack_root}/release-corex.txt"
+    )
     try:
         corex_sdk = Path(release_file).read_text(encoding="utf-8").strip()
     except OSError:
@@ -136,11 +205,13 @@ def collect_result() -> dict[str, object]:
         "device_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "",
         "cuda_device_count": torch.cuda.device_count(),
     }
-    errors = validate_versions(versions) + validate_corex_runtime(runtime)
+    errors = validate_versions(versions, stack) + validate_corex_runtime(runtime, stack)
     result = {
         **versions,
         **runtime,
+        "corex_stack": stack,
         "corex_v1_imports": True,
+        "migration_protocol_version": MIGRATION_PROTOCOL_VERSION,
         "affinity_hashes": [value.hex() for value in hashes],
         "affinity_rank": index.rank(hashes, ("candidate-a", "candidate-b")),
         "connector": CoreXP2pNcclConnector.__name__,
@@ -154,25 +225,48 @@ def collect_result() -> dict[str, object]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--corex-stack", default=os.getenv("LLUMNIX_COREX_STACK", "44"),
+                        help="local CoreX stack: 44 or 45")
     parser.add_argument("--remote-host", help="SSH host to check as a second node")
     parser.add_argument("--remote-project", default="/data1/congmng/llumnix")
+    parser.add_argument("--remote-stack", default=None,
+                        help="remote CoreX stack; defaults to --corex-stack")
+    parser.add_argument("--mixed-stack", action="store_true",
+                        help="allow V150/4.4 and V300/4.5 nodes in one gate")
+    parser.add_argument("--ssh-password", default=None,
+                        help="optional password for sshpass-based remote login")
     args = parser.parse_args()
-    result = collect_result()
+    stack = normalize_stack(args.corex_stack)
+    remote_stack = normalize_stack(args.remote_stack or stack)
+    result = collect_result(stack)
     errors = list(result["errors"])
     if args.remote_host:
-        command = (
-            f"cd {args.remote_project} && source tools/corex44_env.sh && "
-            "PYTHONPATH=. python tools/corex44_support_check.py"
+        remote_cli = (
+            f"cd {args.remote_project} && source tools/corex_env.sh && "
+            f"LLUMNIX_COREX_STACK={remote_stack} "
+            "PYTHONPATH=. python tools/corex44_support_check.py "
+            f"--corex-stack {remote_stack}"
         )
+        ssh_command = ["ssh", "-o", "StrictHostKeyChecking=no",
+                       "-o", "UserKnownHostsFile=/dev/null"]
+        if args.ssh_password:
+            ssh_command = ["sshpass", "-p", args.ssh_password, *ssh_command]
+        else:
+            ssh_command.extend(["-o", "BatchMode=yes"])
+        ssh_command.extend([args.remote_host, remote_cli])
         completed = subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", args.remote_host, command],
-            check=False, capture_output=True, text=True,
+            ssh_command, check=False, capture_output=True, text=True,
         )
         if completed.returncode:
             errors.append(f"remote gate failed with exit code {completed.returncode}")
+            if completed.stderr:
+                errors.append(completed.stderr.strip().splitlines()[-1])
         else:
             remote = json.loads(completed.stdout.strip().splitlines()[-1])
-            errors.extend(compare_hosts(result, remote))
+            errors.extend(compare_hosts(
+                result, remote,
+                mixed_stack=args.mixed_stack or stack != remote_stack,
+            ))
             result["remote"] = remote
     result["supported"] = not errors
     result["errors"] = errors

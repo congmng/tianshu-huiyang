@@ -15,6 +15,7 @@ import socket
 from vllm.v1.migration import (
     RequestMigrationSnapshot,
     deserialize_greedy_sampling_params,
+    deserialize_lora_request,
 )
 from vllm.v1.engine import (
     EngineCoreRequest,
@@ -199,7 +200,7 @@ class V1EngineAdapter:
         """
         return frozenset({
             "token_boundary_freeze", "kv_snapshot", "native_nccl",
-            "incremental_precopy", "seeded_rng",
+            "incremental_precopy", "seeded_rng", "lora",
         })
 
     @staticmethod
@@ -239,6 +240,7 @@ class V1EngineAdapter:
         """
         snapshot.validate()
         params = deserialize_greedy_sampling_params(snapshot.sampling_params)
+        lora_request = deserialize_lora_request(snapshot.lora_request)
         request = EngineCoreRequest(
             request_id=snapshot.request_id,
             prompt_token_ids=list(snapshot.prompt_token_ids),
@@ -247,7 +249,7 @@ class V1EngineAdapter:
             pooling_params=None,
             eos_token_id=snapshot.eos_token_id,
             arrival_time=0.0,
-            lora_request=None,
+            lora_request=lora_request,
             cache_salt=None,
             data_parallel_rank=None,
         )

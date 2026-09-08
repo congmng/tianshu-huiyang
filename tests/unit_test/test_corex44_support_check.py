@@ -40,6 +40,42 @@ def test_corex44_runtime_gate_requires_vendor_device_and_sdk():
     assert len(errors) == 3
 
 
+def test_corex45_gate_accepts_v300_stack():
+    gate = _load_gate()
+    assert gate.validate_versions({
+        "python": "3.12.13", "vllm": "0.11.2",
+        "torch": "2.10.0", "ray": "2.52.1",
+    }, "45") == []
+    assert gate.validate_corex_runtime({
+        "corex_sdk": "Iluvatar CoreX SDK 4.5.0", "cuda_available": True,
+        "device_name": "Iluvatar TG-V300 OAM",
+    }, "45") == []
+
+
+def test_corex45_gate_rejects_v150_device_on_v300_stack():
+    gate = _load_gate()
+    errors = gate.validate_corex_runtime({
+        "corex_sdk": "Iluvatar CoreX SDK 4.5.0", "cuda_available": True,
+        "device_name": "Iluvatar BI-V150",
+    }, "45")
+    assert any("device" in error for error in errors)
+
+
+def test_mixed_stack_gate_compares_code_and_protocol_not_vendor_versions():
+    gate = _load_gate()
+    local = {"python": "3.12.13", "vllm": "0.11.2", "ray": "2.52.1",
+             "torch": "2.7.1", "corex_sdk": "Iluvatar CoreX SDK 4.4.0",
+             "device_name": "Iluvatar BI-V150", "affinity_hashes": ["a"],
+             "source_fingerprint": "same", "migration_protocol_version": 1,
+             "supported": True}
+    remote = dict(local)
+    remote.update({"torch": "2.10.0", "corex_sdk": "Iluvatar CoreX SDK 4.5.0",
+                   "device_name": "Iluvatar TG-V300 OAM"})
+    assert gate.compare_hosts(local, remote, mixed_stack=True) == []
+    remote["source_fingerprint"] = "different"
+    assert gate.compare_hosts(local, remote, mixed_stack=True)
+
+
 def test_corex44_gate_compares_two_hosts():
     gate = _load_gate()
     local = {"python": "3.12.13", "vllm": "0.11.2", "ray": "2.52.1",
@@ -78,6 +114,9 @@ def test_corex44_source_fingerprint_covers_all_v1_serving_boundaries():
         "tools/run_corex44_validation.py", "tools/run_llumnix_v1_http_e2e.py",
         "tools/v1_p2p_model_probe.py",
         "tools/corex44_native_nccl_probe.py",
+        "tools/corex_env.sh",
+        "tools/corex44_env.sh",
+        "tools/corex45_env.sh",
         "configs/corex44_v1_pd.yml",
         "docs/vLLM_V1_True_KV_Migration_Plan.md",
     }

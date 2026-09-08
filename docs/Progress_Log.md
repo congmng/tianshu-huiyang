@@ -1,3 +1,32 @@
+# Llumnix CoreX 4.4/4.5 双栈与 Phase-4 进展
+
+## 2026-09-08：双栈环境与门禁泛化
+
+- 新增 `tools/corex_env.sh`，按 `LLUMNIX_COREX_STACK` 选择 CoreX 4.4.0 或
+  4.5.0 SDK、conda 环境和 `LD_LIBRARY_PATH`；在 4.5.0 V300 节点自动包含
+  `/data/tianshu/20260720/corex/corex/corex-toolkit/*/lib64`，不再假设所有
+  vendor runtime 都集中在 `/usr/local/corex-4.5.0/lib64`。`tools/corex44_env.sh`
+  保持为 4.4 wrapper，新增 `tools/corex45_env.sh`。
+- `tools/corex44_support_check.py` 泛化为 44/45 双栈 gate：分别校验
+  BI-V150/4.4/torch2.7 与 TG-V300/4.5/torch2.10，`--mixed-stack` 下允许异构
+  SDK/设备共存，但要求源码 fingerprint、vLLM 0.11、affinity hash 和迁移协议
+  version 一致。支持 `--ssh-password`，便于 10.66.0.11 的密码登录远端 gate。
+- `tools/run_corex44_validation.py` 增加 `--corex-stack`、`--remote-stack`、
+  `--ssh-password`，远端命令改用 `tools/corex_env.sh` 并保持原有 4.4 兼容参数。
+- 相关单测 `tools/run_corex44_validation.py unit` 为 **118 passed**。
+
+## 2026-09-08：LoRA 请求身份纳入迁移快照
+
+- fork `vllm/v1/migration.py` 新增 `lora_v1` 特征字段和
+  `serialize_lora_request`/`deserialize_lora_request`：只传输 adapter 身份
+  （name/id/path 等），不复制 adapter 权重；目标 EngineCore 必须已加载同一
+  adapter。
+- `Request.from_migration_snapshot` 重建 `LoRARequest`；`Scheduler.prepare_migration_out`
+  不再拒绝 LoRA，并在 snapshot 中写入 `lora_v1`；缺 flag 的 LoRA snapshot 被拒绝。
+- Llumnix `V1EngineAdapter.add_migrated_request` 重建目标 frontend 的
+  `EngineCoreRequest.lora_request`，`migration_capabilities` 增加 `lora`。
+- fork 定向 V1 单测为 **39 passed**；llumnix 相关迁移回归通过。
+
 # Llumnix CoreX 4.4.0 适配进度
 
 ## 2026-09-08：V1 真 KV 迁移接入 Manager 编排
