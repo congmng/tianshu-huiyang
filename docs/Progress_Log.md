@@ -18,14 +18,33 @@
   best-effort 目标 abort + 源解冻，并对瞬态数据面错误做一次退避重试。
 - 目标端通过 `V1EngineAdapter.add_migrated_request()` 从 versioned snapshot 重建
   `EngineCoreRequest` 并注册 `AsyncLLM` 输出，避免依赖 legacy `generate()` 路径。
+- 修复 `V1EngineAdapter.get_kv_endpoint()`：显式 `kv_ip=127.0.0.1` 不再被改写成
+  节点主机名，避免实际绑定在 loopback 的 P2P engine 被发布成不可达地址；新增
+  对应单测。
+- `Manager._migrate_v1_request()` 现根据源/目标 `migration_capabilities` 自动启用
+  `incremental_precopy`：源端先导出 immutable block 前缀并传输，final cutover 只
+  补传 mutable/new suffix；失败自动回退全量传输，并在成功/失败后清理两侧预拷贝
+  会话。Llumlet 同步暴露增量预拷贝 wire 方法。
+- 新增真实 Ray E2E 探针 `tools/run_v1_true_kv_migration_manager.py`，用两个
+  `@ray.remote(num_gpus=1)` 实例直接调用 `Manager._migrate_v1_request()`。已实测
+  native NCCL、`zmq_cpu`、增量 pre-copy 和 seeded RNG 均通过，输出
+  `PASS manager_v1_true_kv_migration`，`continuation_alignment_offset=0`。
+- 新增完整服务级 E2E 探针 `tools/run_v1_true_kv_migration_service.py`，启动真实
+  `llumnix.entrypoints.vllm.api_server`、两个同构 V1 Llumlet 和 Manager，实际消费
+  streaming `/generate`，已输出 `PASS service_v1_true_kv_migration`。
+- Manager 跨轮调度增加目标实例 `max_num_seqs` 容量门禁和请求最小驻留时间，并在
+  EngineCore 暴露 `migration_candidate_request_ids`，避免已完成/不可迁移请求被再次
+  选中；`BFloat16` KV payload checksum 改为原始字节视图，修复 CoreX 导出失败。
 - 单测新增 `tests/unit_test/global_scheduler/test_v1_migration.py`，覆盖能力门禁、
-  配对过滤、源请求选择、两阶段调用顺序与重试。统一 CoreX V1 unit gate 现为
-  **109 passed**；既有 `v1_true_kv_migration_phase2` 单机双卡 native NCCL 一轮
+  配对过滤、源请求选择、两阶段调用顺序、增量 pre-copy 与重试。统一 CoreX V1
+  unit gate 现为 **112 passed**；既有 `v1_true_kv_migration_phase2` 单机双卡
+  native NCCL 一轮
   `PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`
   复验通过。
-- 当前 Phase 4 边界仍为：增量 pre-copy 与 seeded-RNG 已有真实验证，但 Manager
-  生产跨轮调度、无 seed 随机、structured output、LoRA、多模态、TP>1 与
-  speculative decoding 尚未全部开通/验证；不宣称 Phase 4 完成。
+- 当前 Phase 4 边界仍为：TP=1、causal-LM、greedy 与 seeded RNG、native NCCL/
+  `zmq_cpu`、增量 pre-copy 已通过 Manager 真 E2E；无 seed 随机、structured output、
+  LoRA、多模态、TP>1 与 speculative decoding 仍未开通/验证，不宣称完整 Phase 4
+  完成。
 
 ## 2026-09-06：vLLM V1 真正 KV 迁移实施规划
 

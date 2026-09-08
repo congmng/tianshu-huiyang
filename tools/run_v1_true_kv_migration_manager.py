@@ -82,6 +82,46 @@ class MigrationInstance:
             raise RuntimeError("no prepared migration snapshot")
         return len(self.migration_snapshot.output_token_ids)
 
+    def migration_replay_context(self):
+        if self.migration_snapshot is None:
+            raise RuntimeError("no prepared migration snapshot")
+        if not self.migration_snapshot.rng_state:
+            raise RuntimeError("migration snapshot has no RNG state")
+        return {
+            "prompt_token_ids": list(self.migration_snapshot.all_token_ids),
+            "rng_state": self.migration_snapshot.rng_state,
+        }
+
+    async def replay_rng(self, request_id: str, prompt_token_ids: list[int],
+                         rng_state: bytes, temperature: float,
+                         tokens: int) -> list[int]:
+        """Replay post-migration sampling from the exported process RNG state.
+
+        Unseeded random requests normally share the process CUDA generator, so
+        there is no seeded source baseline to compare against.  This method
+        reconstructs the exact next-token sequence from the snapshot's captured
+        global RNG state and the already-generated prefix.
+        """
+        await self.adapter.engine.engine_core.call_utility_async(
+            "set_migration_process_rng_state", rng_state
+        )
+        stream = self.adapter.engine.generate(
+            {"prompt_token_ids": prompt_token_ids},
+            SamplingParams(temperature=temperature, seed=None, max_tokens=64,
+                           ignore_eos=True,
+                           output_kind=RequestOutputKind.DELTA),
+            request_id,
+        )
+        token_ids = []
+        try:
+            for _ in range(tokens):
+                output = await anext(stream)
+                token_ids.extend(output.outputs[0].token_ids)
+        finally:
+            await stream.aclose()
+            await self.adapter.engine.abort(request_id)
+        return token_ids
+
     async def baseline(self, request_id: str, prompt: str, temperature: float,
                        seed: int | None) -> list[int]:
         stream = self.adapter.engine.generate(
@@ -323,20 +363,34 @@ async def run(args: argparse.Namespace) -> None:
     continuation = ray.get(source.migration_snapshot_output_len.remote())
     observed = ray.get(target.drain_migrated.remote(args.verify_tokens))
 
-    candidates = []
-    for offset in range(0, 3):
-        expected = source_baseline[
-            continuation + offset: continuation + offset + len(observed)
-        ]
-        if observed == expected:
-            candidates.append((offset, expected))
-    if len(candidates) != 1:
-        raise AssertionError(
-            f"post-migration token mismatch: generated={generated}, "
-            f"continuation={continuation}, source_baseline={source_baseline}, "
-            f"target_baseline={target_baseline}, observed={observed}"
-        )
-    print(f"INFO continuation_alignment_offset={candidates[0][0]}", flush=True)
+    if args.seed is None and args.temperature > 0:
+        replay = ray.get(source.migration_replay_context.remote())
+        expected = ray.get(target.replay_rng.remote(
+            f"{args.request_id}-rng-replay", replay["prompt_token_ids"],
+            replay["rng_state"], args.temperature, len(observed),
+        ))
+        if observed != expected:
+            raise AssertionError(
+                f"post-migration RNG replay mismatch: generated={generated}, "
+                f"continuation={continuation}, expected={expected}, "
+                f"observed={observed}"
+            )
+        print("INFO continuation_alignment_offset=0", flush=True)
+    else:
+        candidates = []
+        for offset in range(0, 3):
+            expected = source_baseline[
+                continuation + offset: continuation + offset + len(observed)
+            ]
+            if observed == expected:
+                candidates.append((offset, expected))
+        if len(candidates) != 1:
+            raise AssertionError(
+                f"post-migration token mismatch: generated={generated}, "
+                f"continuation={continuation}, source_baseline={source_baseline}, "
+                f"target_baseline={target_baseline}, observed={observed}"
+            )
+        print(f"INFO continuation_alignment_offset={candidates[0][0]}", flush=True)
     print("PASS manager_v1_true_kv_migration", flush=True)
 
     ray.get(source.shutdown.remote())

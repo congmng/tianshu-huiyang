@@ -12,6 +12,7 @@
 # limitations under the License.
 
 import asyncio
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -79,12 +80,53 @@ def _remote(value=None, side_effect=None):
 async def test_manager_selects_source_owned_request_for_v1_migration():
     manager = object.__new__(Manager)
     manager.v1_migrating_requests = set()
+    manager.v1_request_last_migration_time = {}
     manager.request_instance = {"active": "src"}
     manager.instances = {
         "src": SimpleNamespace(get_all_request_ids=_remote(["other", "active"])),
     }
     request_id = await manager._select_v1_migration_request("src")
     assert request_id == "active"
+
+
+@pytest.mark.asyncio
+async def test_manager_selects_v1_request_respects_residency_cooldown():
+    manager = object.__new__(Manager)
+    manager.v1_migrating_requests = set()
+    manager.v1_request_last_migration_time = {"active": time.monotonic()}
+    manager.request_instance = {"active": "src"}
+    manager.instances = {
+        "src": SimpleNamespace(get_all_request_ids=_remote(["active"])),
+    }
+    assert await manager._select_v1_migration_request("src") is None
+
+
+@pytest.mark.asyncio
+async def test_manager_migrate_v1_pair_skips_full_target():
+    manager = object.__new__(Manager)
+    manager.instance_migrating = {}
+    manager.global_scheduler = SimpleNamespace(
+        instance_info={
+            "src": InstanceInfo(
+                instance_id="src", max_num_seqs=1, num_running_requests=1,
+                kv_endpoint="10.0.0.1:19000",
+                migration_capabilities=frozenset({
+                    "token_boundary_freeze", "kv_snapshot", "native_nccl",
+                }),
+            ),
+            "dst": InstanceInfo(
+                instance_id="dst", max_num_seqs=1, num_running_requests=1,
+                kv_endpoint="10.0.0.2:19000",
+                migration_capabilities=frozenset({
+                    "token_boundary_freeze", "kv_snapshot", "native_nccl",
+                }),
+            ),
+        }
+    )
+    manager.instances = {"src": object(), "dst": object()}
+    await manager._migrate_v1_pair("src", "dst")
+    assert manager.instance_migrating["src"] is False
+    assert manager.instance_migrating["dst"] is False
 
 
 @pytest.mark.asyncio
@@ -186,6 +228,7 @@ async def test_manager_migrate_v1_request_with_retry_retries_transient_failure()
     manager.request_instance = {}
     manager.request_instances = {}
     manager.v1_migration_retries = {}
+    manager.v1_request_last_migration_time = {}
     manager._migrate_v1_request = AsyncMock(
         side_effect=[RuntimeError("transient"), None]
     )
@@ -201,6 +244,27 @@ async def test_manager_migrate_v1_request_with_retry_retries_transient_failure()
     assert manager.request_instance["request-1"] == "dst"
     assert manager.request_instances["request-1"] == {"dst"}
     assert "request-1" not in manager.v1_migration_retries
+
+
+@pytest.mark.asyncio
+async def test_manager_migrate_v1_request_skips_finished_request_without_cleanup():
+    manager = object.__new__(Manager)
+    manager.request_instance = {}
+    manager.request_instances = {}
+    manager.v1_migration_retries = {}
+    manager.v1_request_last_migration_time = {}
+    manager._migrate_v1_request = AsyncMock(
+        side_effect=RuntimeError("request is not migratable: request-1")
+    )
+    manager._cleanup_v1_migration = AsyncMock()
+    manager._check_instance_error = AsyncMock(return_value=[False, False])
+
+    await manager._migrate_v1_request_with_retry(
+        "src", "dst", "request-1", 1,
+        "10.0.0.1:19000", "10.0.0.2:19000", None,
+    )
+    manager._migrate_v1_request.assert_awaited_once()
+    manager._cleanup_v1_migration.assert_not_awaited()
 
 
 @pytest.mark.asyncio

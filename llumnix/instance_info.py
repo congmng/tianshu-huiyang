@@ -47,6 +47,7 @@ class InstanceInfo:
     timestamp: float = None
     num_batched_tokens: int = None
     num_seqs = None
+    max_num_seqs: int = 0
     running_seq_lens: List[int] = field(default_factory=list)
     waiting_seq_lens: List[int] = field(default_factory=list)
     last_inference_latency: float = None

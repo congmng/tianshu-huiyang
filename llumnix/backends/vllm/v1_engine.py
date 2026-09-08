@@ -289,6 +289,12 @@ class V1EngineAdapter:
         info.num_waiting_requests = len(self.waiting)
         info.num_seqs = info.num_running_requests
         try:
+            info.max_num_seqs = int(
+                self.engine.vllm_config.scheduler_config.max_num_seqs
+            )
+        except Exception:
+            info.max_num_seqs = 0
+        try:
             parallel = self.engine.vllm_config.parallel_config
             info.gpu_count = max(
                 int(getattr(parallel, "tensor_parallel_size", 1))
@@ -485,6 +491,11 @@ class V1EngineAdapter:
     async def migration_layer_names(self):
         return await self.engine.engine_core.call_utility_async(
             "migration_kv_layer_names"
+        )
+
+    async def migration_candidate_request_ids(self):
+        return await self.engine.engine_core.call_utility_async(
+            "migration_candidate_request_ids"
         )
 
     async def export_migration_rng_state(self, request_id: str) -> bytes:

@@ -67,6 +67,7 @@ logger = init_logger(__name__)
 
 # TODO(s5u13b): Handle exception of ray operations.
 # TODO(s5u13b): Refactor manager to divide functions into different classes.
+V1_MIGRATION_MIN_RESIDENCY_SECONDS = 2.0
 
 
 class Manager:
@@ -205,6 +206,7 @@ class Manager:
         self.v1_migrating_requests: set[str] = set()
         self.v1_migration_epochs: Dict[str, int] = {}
         self.v1_migration_retries: Dict[str, int] = {}
+        self.v1_request_last_migration_time: Dict[str, float] = {}
 
         # auto-scaling states
         self.scale_up_time = -1
@@ -567,7 +569,15 @@ class Manager:
 
         instance_ids: List[str] = []
         instances: List[Llumlet] = []
-        for _ in range(self.manager_args.initial_instances):
+        original_kv_port = os.environ.get("LLUMNIX_KV_PORT")
+        base_kv_port = int(original_kv_port or "14579")
+        for index in range(self.manager_args.initial_instances):
+            # Each homogeneous V1 instance owns a P2pNcclEngine socket.  Ray
+            # actor options capture the process environment when the actor is
+            # submitted, so assigning a fresh base port per loop iteration is
+            # the only way two same-role instances on one host can bind
+            # without racing on the shared default.
+            os.environ["LLUMNIX_KV_PORT"] = str(base_kv_port + index)
             instance_id = random_uuid()
             placement_group = self.launcher.init_placement_group(
                 get_placement_group_name(instance_id), engine_args, backend_type
@@ -584,6 +594,11 @@ class Manager:
             instance_ids.append(instance_id)
             instances.append(instance)
             asyncio.create_task(instance_ready_scale_up(instance_id, instance))
+
+        if original_kv_port is None:
+            os.environ.pop("LLUMNIX_KV_PORT", None)
+        else:
+            os.environ["LLUMNIX_KV_PORT"] = original_kv_port
 
         return instance_ids, instances
 
@@ -602,7 +617,10 @@ class Manager:
             raise RuntimeError("init_global_instances is only valid for global launch")
         self._global_initial_instances_launched = True
         instance_ids: List[str] = []
-        for _ in range(self.manager_args.initial_instances):
+        original_kv_port = os.environ.get("LLUMNIX_KV_PORT")
+        base_kv_port = int(original_kv_port or "14579")
+        for index in range(self.manager_args.initial_instances):
+            os.environ["LLUMNIX_KV_PORT"] = str(base_kv_port + index)
             instance_id = random_uuid()
             placement_group = self.launcher.init_placement_group(
                 get_placement_group_name(instance_id),
@@ -622,6 +640,10 @@ class Manager:
                 instance_ready_cb=self.scale_up,
             )
             instance_ids.append(instance_id)
+        if original_kv_port is None:
+            os.environ.pop("LLUMNIX_KV_PORT", None)
+        else:
+            os.environ["LLUMNIX_KV_PORT"] = original_kv_port
         return instance_ids
 
     async def is_ready(self) -> bool:
@@ -842,6 +864,19 @@ class Manager:
             target_info = self.global_scheduler.instance_info.get(target_id)
             if source_info is None or target_info is None:
                 return
+            target_capacity = int(getattr(target_info, "max_num_seqs", 0) or 0)
+            if target_capacity > 0:
+                target_occupancy = (
+                    int(getattr(target_info, "num_running_requests", 0) or 0)
+                    + int(getattr(target_info, "num_waiting_requests", 0) or 0)
+                )
+                if target_occupancy >= target_capacity:
+                    logger.info(
+                        "V1 migration skipped: target %s has no free "
+                        "request slot (%d/%d)",
+                        target_id, target_occupancy, target_capacity,
+                    )
+                    return
             source_endpoint = getattr(source_info, "kv_endpoint", None)
             target_endpoint = getattr(target_info, "kv_endpoint", None)
             from llumnix.backends.vllm.v1_kv_transfer import valid_p2p_endpoint
@@ -883,20 +918,36 @@ class Manager:
             self.instance_migrating[target_id] = False
 
     async def _select_v1_migration_request(self, source_id: str):
+        instance = self.instances[source_id]
+        candidate_remote = getattr(
+            instance, "migration_candidate_request_ids", None
+        )
+        if candidate_remote is None:
+            candidate_remote = getattr(instance, "get_all_request_ids")
         try:
-            request_ids = await self.instances[source_id].get_all_request_ids.remote()
+            request_ids = await candidate_remote.remote()
         except (ray.exceptions.RayActorError, KeyError):
             return None
         if not request_ids:
             return None
+        now = time.monotonic()
+        min_residency = V1_MIGRATION_MIN_RESIDENCY_SECONDS
         # Prefer requests whose public routing still points at this source.
         for request_id in request_ids:
             if request_id in self.v1_migrating_requests:
+                continue
+            if now - self.v1_request_last_migration_time.get(
+                request_id, 0.0
+            ) < min_residency:
                 continue
             if self.request_instance.get(request_id) == source_id:
                 return request_id
         for request_id in request_ids:
             if request_id not in self.v1_migrating_requests:
+                if now - self.v1_request_last_migration_time.get(
+                    request_id, 0.0
+                ) < min_residency:
+                    continue
                 return request_id
         return None
 
@@ -917,6 +968,7 @@ class Manager:
                 self.request_instance[request_id] = target_id
                 self.request_instances[request_id] = {target_id}
                 self.v1_migration_retries.pop(request_id, None)
+                self.v1_request_last_migration_time[request_id] = time.monotonic()
                 logger.info(
                     "Instance %s->%s migrated request %s", source_id,
                     target_id, request_id,
@@ -930,6 +982,12 @@ class Manager:
                 await self._check_instance_error((source_id, target_id))
                 return
             except Exception as exc:
+                if "request is not migratable" in str(exc):
+                    logger.info(
+                        "V1 migration %s->%s request %s skipped: %s",
+                        source_id, target_id, request_id, exc,
+                    )
+                    return
                 logger.warning(
                     "V1 migration %s->%s request %s attempt %d failed: %s",
                     source_id, target_id, request_id, attempt + 1, exc,

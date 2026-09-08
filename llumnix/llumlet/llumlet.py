@@ -453,6 +453,9 @@ class Llumlet:
     async def migration_layer_names(self):
         return await self.backend_engine.migration_layer_names()
 
+    async def migration_candidate_request_ids(self):
+        return await self.backend_engine.migration_candidate_request_ids()
+
     async def migration_send_layer(self, request_id: str, migration_epoch: int,
                                     layer_name: str, source_block_ids,
                                     target_block_ids, target_endpoint: str,

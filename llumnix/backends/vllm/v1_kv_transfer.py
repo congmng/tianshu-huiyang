@@ -33,6 +33,7 @@ V1_KV_RUNTIME_ENV_KEYS = (
     "LLUMNIX_KV_DECODE_ADDRESS",
     "LLUMNIX_KV_EVENTS_ENDPOINT",
     "LLUMNIX_KV_EVENTS_REPLAY_ENDPOINT",
+    "LLUMNIX_TRUE_KV_MIGRATION_ONLY",
     "PYTHONHASHSEED",
 )
 
@@ -232,6 +233,11 @@ def configure_v1_kv_transfer(
             # send/recv APIs continue to use the vendor library unchanged.
             connector = "CoreXP2pNcclConnector"
             connector_module_path = "llumnix.backends.vllm.corex_p2p_connector"
+        if connector == "CoreXP2pNcclConnector":
+            # The CoreX shim is not registered in vLLM's connector factory.
+            # Always advertise its import path so worker processes can load
+            # it even when the configured spelling is already CoreX-specific.
+            connector_module_path = "llumnix.backends.vllm.corex_p2p_connector"
         default_role = {
             "prefill": "kv_producer",
             "decode": "kv_consumer",
@@ -251,6 +257,18 @@ def configure_v1_kv_transfer(
             # SharedStorageConnector uses a filesystem path; retain the
             # historical naming URL as an explicit connector option.
             extra["shared_storage_path"] = naming.removeprefix("file:")
+        # Homogeneous true-KV migration (as opposed to P/D) owns transfer
+        # through the EngineCore migration RPCs.  Keep the connector's
+        # prefill/decode lifecycle disabled so a source request is not
+        # published before it is frozen, while still using its P2P engine
+        # for the explicit send/recv data plane.
+        if connector in P2P_CONNECTORS and instance_type not in ("prefill", "decode"):
+            extra["true_kv_migration_only"] = True
+            extra["send_type"] = "PUT"
+            extra.setdefault(
+                "corex_transport",
+                os.getenv("LLUMNIX_COREX_TRANSPORT", "nccl"),
+            )
         current = KVTransferConfig(
             kv_connector=connector,
             kv_role=role,
