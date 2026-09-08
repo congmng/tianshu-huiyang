@@ -49,6 +49,7 @@ SOURCE_FINGERPRINT_FILES = (
     # boundary and must not silently drift between deployment nodes.
     "tools/run_corex44_validation.py",
     "tools/run_llumnix_v1_http_e2e.py",
+    "tools/run_v1_true_kv_migration_service.py",
     "tools/v1_p2p_model_probe.py",
     "tools/corex44_native_nccl_probe.py",
     "tools/corex_env.sh",

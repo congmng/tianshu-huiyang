@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 from pathlib import Path
 
 import ray
 from vllm import AsyncEngineArgs, SamplingParams
 from vllm.config import KVTransferConfig
-from vllm.sampling_params import RequestOutputKind
+from vllm.sampling_params import RequestOutputKind, StructuredOutputsParams
 
 from llumnix.backends.vllm.v1_engine import V1EngineAdapter
 from llumnix.manager import Manager
@@ -76,6 +77,26 @@ class MigrationInstance:
     def is_ready(self):
         return True
 
+    @staticmethod
+    def _sampling_params(temperature: float, seed: int | None,
+                         structured_output: bool) -> SamplingParams:
+        kwargs = {
+            "temperature": temperature,
+            "seed": seed,
+            "max_tokens": 64,
+            # Keep EOS ignored until after migration cutover so the source is
+            # guaranteed to reach a scheduler token boundary. Structured-output
+            # validation below parses only the leading JSON object and ignores
+            # any forced post-EOS continuation.
+            "ignore_eos": True,
+            "output_kind": RequestOutputKind.DELTA,
+        }
+        if structured_output:
+            kwargs["structured_outputs"] = StructuredOutputsParams(
+                json_object=True
+            )
+        return SamplingParams(**kwargs)
+
     async def seed_process_rng(self, seed: int) -> None:
         """Deterministically reset unseeded process sampling for witnesses."""
         await self.adapter.engine.engine_core.call_utility_async(
@@ -134,12 +155,11 @@ class MigrationInstance:
         return token_ids
 
     async def baseline(self, request_id: str, prompt: str, temperature: float,
-                       seed: int | None) -> list[int]:
+                       seed: int | None,
+                       structured_output: bool = False) -> list[int]:
         stream = self.adapter.engine.generate(
             prompt,
-            SamplingParams(temperature=temperature, seed=seed,
-                           max_tokens=64, ignore_eos=True,
-                           output_kind=RequestOutputKind.DELTA),
+            self._sampling_params(temperature, seed, structured_output),
             request_id,
         )
         token_ids = []
@@ -148,14 +168,13 @@ class MigrationInstance:
         return token_ids
 
     async def generate(self, request_id: str, prompt: str, temperature: float,
-                       seed: int | None) -> dict:
+                       seed: int | None,
+                       structured_output: bool = False) -> dict:
         self.active_request_id = request_id
         self.generated_token_ids = []
         stream = self.adapter.engine.generate(
             prompt,
-            SamplingParams(temperature=temperature, seed=seed,
-                           max_tokens=64, ignore_eos=True,
-                           output_kind=RequestOutputKind.DELTA),
+            self._sampling_params(temperature, seed, structured_output),
             request_id,
         )
         for _ in range(2):
@@ -324,6 +343,11 @@ class MigrationInstance:
             self.adapter.release_request(self.migration_snapshot.request_id)
         return token_ids
 
+    def decode_tokens(self, token_ids: list[int]) -> str:
+        return self.adapter.engine.tokenizer.decode(
+            token_ids, skip_special_tokens=True
+        )
+
     def shutdown(self):
         self.adapter.shutdown()
 
@@ -363,19 +387,20 @@ async def run(args: argparse.Namespace) -> None:
         ])
         witness_baseline = ray.get(witness.baseline.remote(
             f"{args.request_id}-witness-baseline", args.prompt,
-            args.temperature, None,
+            args.temperature, None, args.structured_output,
         ))
     else:
         source_baseline = ray.get(source.baseline.remote(
             f"{args.request_id}-source-baseline", args.prompt,
-            args.temperature, args.seed,
+            args.temperature, args.seed, args.structured_output,
         ))
         target_baseline = ray.get(target.baseline.remote(
             f"{args.request_id}-target-baseline", args.prompt,
-            args.temperature, args.seed,
+            args.temperature, args.seed, args.structured_output,
         ))
     generated = ray.get(source.generate.remote(
         args.request_id, args.prompt, args.temperature, args.seed,
+        args.structured_output,
     ))
 
     manager = object.__new__(Manager)
@@ -420,6 +445,19 @@ async def run(args: argparse.Namespace) -> None:
                 f"target_baseline={target_baseline}, observed={observed}"
             )
         print(f"INFO continuation_alignment_offset={candidates[0][0]}", flush=True)
+    if args.structured_output:
+        full_token_ids = list(generated["token_ids"]) + observed
+        structured_text = ray.get(
+            target.decode_tokens.remote(full_token_ids)
+        ).strip()
+        try:
+            json.JSONDecoder().raw_decode(structured_text)
+        except (TypeError, ValueError) as exc:
+            raise AssertionError(
+                f"migrated structured output is not valid JSON: "
+                f"{structured_text!r}"
+            ) from exc
+        print(f"INFO structured_output_json={structured_text}", flush=True)
     print("PASS manager_v1_true_kv_migration", flush=True)
 
     ray.get(source.shutdown.remote())
@@ -442,6 +480,8 @@ def main() -> None:
     parser.add_argument("--prompt", default="The capital of France is")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--structured-output", action="store_true",
+                        help="run greedy migration with JSON-object structured output")
     parser.add_argument("--verify-tokens", type=int, default=4)
     parser.add_argument("--incremental-precopy", action="store_true",
                         help="run one explicit immutable-prefix pre-copy round")

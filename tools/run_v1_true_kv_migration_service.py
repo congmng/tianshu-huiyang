@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -25,6 +26,10 @@ from pathlib import Path
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
+MIGRATION_EVENT_RE = re.compile(
+    r"Instance\s+([0-9a-fA-F-]+)\s*->\s*([0-9a-fA-F-]+)\s+migrated request\s+(\S+)"
+)
+PERMANENT_FAILURE_RE = re.compile(r"V1 migration .* permanently failed")
 
 
 def free_port() -> int:
@@ -62,12 +67,30 @@ def wait_ready(base: str, timeout: float) -> None:
         time.sleep(1)
 
 
-def log_contains(path: Path, needle: str) -> bool:
+def log_text(path: Path) -> str:
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        return path.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return False
-    return needle in text
+        return ""
+
+
+def migration_events(path: Path) -> list[tuple[str, str, str]]:
+    """Return successful Manager migration events from the service log."""
+    return [
+        (match.group(1), match.group(2), match.group(3))
+        for match in MIGRATION_EVENT_RE.finditer(log_text(path))
+    ]
+
+
+def decode_stream_records(chunks: list[bytes]) -> list[dict]:
+    """Decode the NUL-delimited JSON stream returned by Llumnix."""
+    payload = b"".join(chunks).decode("utf-8", errors="replace")
+    records: list[dict] = []
+    for part in payload.split("\0"):
+        part = part.strip()
+        if part:
+            records.append(json.loads(part))
+    return records
 
 
 def main() -> None:
@@ -81,6 +104,10 @@ def main() -> None:
     parser.add_argument("--max-tokens", type=int, default=64)
     parser.add_argument("--prompt", default="The capital of France is")
     parser.add_argument("--log-file", default="v1_true_kv_migration_service.log")
+    parser.add_argument(
+        "--gpu-ids", default=os.environ.get("CUDA_VISIBLE_DEVICES", "0,1"),
+        help="comma-separated visible GPUs for the two Llumlets",
+    )
     args = parser.parse_args()
 
     model = Path(args.model).resolve()
@@ -92,7 +119,7 @@ def main() -> None:
     log_path = ROOT / args.log_file
     environment = os.environ.copy()
     environment.update({
-        "CUDA_VISIBLE_DEVICES": "0,1",
+        "CUDA_VISIBLE_DEVICES": args.gpu_ids,
         "RAY_DEDUP_LOGS": "0",
         "HEAD_NODE_IP": "127.0.0.1",
         "HEAD_NODE": "1",
@@ -159,11 +186,13 @@ def main() -> None:
 
         stream_error: list[BaseException] = []
         stream_done = threading.Event()
+        stream_chunks: list[bytes] = []
 
         def consume_stream() -> None:
             try:
-                for _ in response.iter_content(chunk_size=None, decode_unicode=True):
-                    pass
+                for chunk in response.iter_content(chunk_size=None):
+                    if chunk:
+                        stream_chunks.append(chunk)
             except BaseException as exc:  # noqa: BLE001 - captured for the test
                 stream_error.append(exc)
             finally:
@@ -173,16 +202,25 @@ def main() -> None:
         consumer.start()
 
         deadline = time.monotonic() + args.timeout
-        migration_seen = False
+        migration_events_seen: list[tuple[str, str, str]] = []
         while time.monotonic() < deadline:
-            if log_contains(log_path, "migrated request"):
-                migration_seen = True
+            migration_events_seen = migration_events(log_path)
+            if migration_events_seen:
                 break
             time.sleep(0.2)
-        if not migration_seen:
+        if not migration_events_seen:
             raise AssertionError(
                 "Manager did not complete a V1 migration; log excerpt:\n"
-                + log_path.read_text(encoding="utf-8", errors="replace")[-4000:]
+                + log_text(log_path)[-4000:]
+            )
+        matched_migrations = [
+            event for event in migration_events_seen
+            if event[2] == "service-v1-migration" and event[0] != event[1]
+        ]
+        if not matched_migrations:
+            raise AssertionError(
+                "no valid source->target migration event for "
+                f"service-v1-migration: {migration_events_seen}"
             )
         # The service-level contract is not satisfied by a Manager log line
         # alone: the migrated request must finish normally on the target.
@@ -194,6 +232,25 @@ def main() -> None:
             raise AssertionError(
                 f"migrated request stream failed: {stream_error[0]}"
             )
+        records = decode_stream_records(stream_chunks)
+        if not records:
+            raise AssertionError("migrated request produced no stream records")
+        completion = records[-1]["text"][0]
+        # The migrated target's first post-import output can omit the original
+        # prompt echo, so the service-level contract here is non-empty
+        # continuation rather than a full prompt+completion reconstruction.
+        if not completion.strip() or completion == args.prompt:
+            raise AssertionError(
+                f"migrated request produced no continuation: {completion!r}"
+            )
+        if PERMANENT_FAILURE_RE.search(log_text(log_path)):
+            raise AssertionError(
+                "service E2E log contains a permanent V1 migration failure"
+            )
+        source_id, target_id, request_id = matched_migrations[0]
+        print(f"migration={source_id}->{target_id}", flush=True)
+        print(f"request_id={request_id}", flush=True)
+        print(f"completion={completion}", flush=True)
         print("PASS service_v1_true_kv_migration", flush=True)
     finally:
         if response is not None:

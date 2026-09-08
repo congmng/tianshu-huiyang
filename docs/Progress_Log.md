@@ -1,5 +1,34 @@
 # Llumnix CoreX 4.4/4.5 双栈与 Phase-4 进展
 
+## 2026-09-08：structured output 真 GPU Manager 迁移通过
+
+- `tools/run_v1_true_kv_migration_manager.py` 新增 `--structured-output`：
+  使用 `StructuredOutputsParams(json_object=True)` 跑双卡真实 Manager 迁移，
+  迁移后续写与源 baseline 逐 token 对齐，`continuation_alignment_offset=0`，
+  并解码“迁移前 token + 续写 token”后解析出合法 JSON 对象。
+- 修复 fork `vllm/v1/core/sched/scheduler.py` 的 `prepare_migration_in`：
+  原实现通过 `StructuredOutputRequest.grammar` 非阻塞 property 读异步 grammar
+  future，编译未完成会误判为 `None`；现直接等待 `_grammar` future。
+- fork `tests/unit/v1/test_migration_kv_blocks.py` 复验 **45 passed**；
+  llumnix CoreX unit gate 复验 **123 passed**。
+- 服务级 E2E 已覆盖 greedy 基础迁移；Phase-4 仍待 LoRA、multimodal、
+  prompt-embed、unseeded RNG、TP>1 与 speculative decoding 的真实 GPU 验收。
+
+## 2026-09-08：完整服务级 V1 真 KV 迁移 E2E 纳入统一门禁
+
+- 强化 `tools/run_v1_true_kv_migration_service.py`：不再只检查日志含迁移字样，
+  而是解析真实 Manager `source->target migrated request` 事件、消费流式
+  `/generate` 的 NUL-JSON 输出、校验迁移后产生非空续写，并拒绝日志中出现
+  permanent migration failure。
+- 增加 `--gpu-ids`，默认沿用 `CUDA_VISIBLE_DEVICES`，避免服务级 E2E 被写死在
+  GPU `0,1`；两实例仍通过真实 Ray Manager/Llumlet 拓扑和 native NCCL 数据面迁移。
+- `tools/run_corex44_validation.py e2e` 在单卡 HTTP E2E 后继续运行该完整服务级
+  E2E，使 `e2e` 层覆盖“直接推理、单实例 HTTP、两实例 Manager 真 KV 迁移”。
+- `tools/corex44_support_check.py` 的 source fingerprint 增加
+  `tools/run_v1_true_kv_migration_service.py`，保证双机执行的是同一服务级协议。
+- 实测输出 `PASS service_v1_true_kv_migration`，迁移事件为两个不同 Llumlet 实例，
+  目标续写非空；统一 CoreX unit gate 复验为 **123 passed**。
+
 ## 2026-09-08：4.5 Docker 运行时 gate 与远端 source 对齐
 
 - 修复 `corex44_support_check.py`/`run_corex44_validation.py` 的远端 stack

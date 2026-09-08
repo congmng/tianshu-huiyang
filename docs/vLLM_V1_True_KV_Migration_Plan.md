@@ -445,6 +445,8 @@ Llumnix 已把上述控制面接入 Manager：`InstanceInfo`/`Llumlet` 发布显
 现有配对策略；`Manager` 对 V1 使用独立 `enable_v1_migration` 路径，按轮选择源请求、
 驱动目标先 commit / 源后 commit，失败时目标 abort + 源解冻并做一次退避重试。目标端
 通过 `V1EngineAdapter.add_migrated_request()` 重建 `EngineCoreRequest` 并注册
-`AsyncLLM` 输出。生产路径仍需以真实 Ray Llumlet/Manager 拓扑做服务级 E2E 验收，
-并在数据面/恢复策略稳定后补上无 seed 随机、structured output、LoRA、多模态、TP>1
-和 speculative decoding 的 Phase-4 验收，因此当前仍不宣称 Phase 4 完成。
+`AsyncLLM` 输出。`tools/run_v1_true_kv_migration_service.py` 已以真实 Ray
+Llumlet/Manager 拓扑完成服务级 E2E，并纳入 `run_corex44_validation.py e2e`；
+实测解析出有效 `source->target` 迁移事件且目标端流式输出非空续写。仍需在数据面/
+恢复策略稳定后补上 LoRA、多模态、prompt-embed、无 seed 随机、TP>1 和
+speculative decoding 的 Phase-4 服务级验收，因此当前仍不宣称 Phase 4 完成。

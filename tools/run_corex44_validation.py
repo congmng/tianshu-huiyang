@@ -6,7 +6,8 @@ Levels are cumulative only in intent, not automatically chained:
 * ``unit``: CPU/isolated-Ray V1, KV-affinity and HTTP contract tests.
 * ``integration``: two-host version/hash gate, V1 KV-event affinity, then a
   real GPU BF16 KV staging transfer from this host to ``--remote-host``.
-* ``e2e``: Qwen3-14B real inference plus the Llumnix V1 HTTP frontend.
+* ``e2e``: Qwen3-14B real inference, the Llumnix V1 HTTP frontend, and the
+  two-instance Manager/Llumlet true-KV migration service E2E.
 
 The runner does not manage shared Ray clusters and never deletes model or Ray
 state. Source ``tools/corex44_env.sh`` first. Use ``--dry-run`` to print
@@ -304,6 +305,13 @@ def main() -> None:
         # processes. This validates the actual Llumnix V1 serving boundary.
         run(["env", "CUDA_VISIBLE_DEVICES=0", sys.executable,
              "tools/run_llumnix_v1_http_e2e.py"], args.dry_run)
+        # The full service-level migration E2E starts a real Ray cluster with
+        # Manager and two TP=1 Llumlets. It runs after the HTTP probe has
+        # released its one-GPU serving process.
+        service_gpus = os.environ.get("LLUMNIX_E2E_SERVICE_GPUS", "0,1")
+        run(["env", f"CUDA_VISIBLE_DEVICES={service_gpus}", sys.executable,
+             "tools/run_v1_true_kv_migration_service.py",
+             "--model", args.model], args.dry_run)
 
 
 if __name__ == "__main__":

@@ -27,8 +27,9 @@ publisher to the V1 subscriber on `10.31.10.210` (using an SSH reverse tunnel
 when arbitrary inter-node ZMQ ports are firewalled), which must rebuild the
 index and rank the remote cached candidate first. Finally it runs a real BF16 GPU staging
 transfer; the consumer is started on `10.31.10.210` and the producer on
-`10.31.10.62`. E2E loads the local Qwen3-14B weights and validates TP=1 or
-TP=2 generation.
+`10.31.10.62`. E2E loads the local Qwen3-14B weights, validates TP=1 or TP=2
+generation, exercises the single-instance V1 HTTP frontend, and then runs the
+two-instance Manager/Llumlet true-KV migration service E2E.
 
 The support gate also checks the local vendor runtime without allocating a
 model: `/usr/local/corex/release-corex.txt` must identify CoreX SDK 4.4.0,
@@ -44,7 +45,8 @@ claims an ephemeral port. Use `--dry-run` to inspect commands without allocating
 The legacy vLLM 0.6 block-manager migration tests are intentionally excluded
 from this V1 gate because those private APIs do not exist in vLLM 0.11.2. V1
 request movement is covered by connector-driven P/D KV handoff and the KV
-affinity unit/integration tests.
+affinity unit/integration tests; true decode-to-decode movement is exercised by
+`tools/run_v1_true_kv_migration_service.py` in the `e2e` level.
 
 The original P/D design document contains the historical 0.6 implementation
 details. Its CoreX/V1 status section at the top is normative for this release;
