@@ -341,6 +341,7 @@ class Llumlet:
             instance_info.kv_endpoint = self.backend_engine.get_kv_endpoint(
                 instance_info.node_ip or None
             )
+            instance_info.migration_capabilities = self.backend_engine.migration_capabilities()
         else:
             instance_info: InstanceInfo = self.backend_engine.engine.instance_info
         instance_info.instance_type = self.instance_args.instance_type
@@ -349,6 +350,12 @@ class Llumlet:
 
     def is_v1_adapter(self) -> bool:
         return self.is_vllm_v1
+
+    def migration_capabilities(self):
+        """Return the backend's explicit migration capability contract."""
+        if not self.is_vllm_v1:
+            return frozenset()
+        return self.backend_engine.migration_capabilities()
 
     def is_ready(self) -> bool:
         return True

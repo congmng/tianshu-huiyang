@@ -77,6 +77,8 @@ class InstanceInfo:
     kv_cache_block_hashes: frozenset = field(default_factory=frozenset, repr=False)
     # Routable V1 P2P endpoint (host:port), when a connector is enabled.
     kv_endpoint: str = None
+    # Explicit backend capability names; legacy instances leave this empty.
+    migration_capabilities: frozenset = field(default_factory=frozenset)
 
     # on-demand init infos
     dispatch_load_metric: float = -np.inf
