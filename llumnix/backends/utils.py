@@ -16,6 +16,7 @@ import asyncio
 import time
 import os
 import copy
+import importlib.util
 
 import ray
 from ray.util.placement_group import PlacementGroup
@@ -85,8 +86,7 @@ def init_backend_engine(instance_id: str,
         # request-serving adapter on such installations.  Its KV migration
         # methods are intentionally unavailable until separately ported.
         import vllm
-        version = getattr(vllm, "__version__", "")
-        if version.startswith("0.11"):
+        if importlib.util.find_spec("vllm.v1.engine") is not None:
             # AsyncEngineArgs is mutable and may be shared by several Ray
             # Llumlets during global launch. Clone it before injecting the
             # instance-specific connector rank/ports so one instance cannot

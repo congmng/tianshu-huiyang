@@ -698,3 +698,25 @@ def test_v1_kv_runtime_env_keeps_only_connector_settings():
         "LLUMNIX_KV_IP": "10.31.10.62",
         "PYTHONHASHSEED": "0",
     }
+
+
+def test_is_vllm_v1_probe_is_version_independent(monkeypatch):
+    """vLLM 0.11 and 0.25 both expose vllm.v1.engine; only probe that."""
+    import importlib.util
+
+    from llumnix.backends.vllm import utils as vllm_utils
+
+    original = importlib.util.find_spec
+    monkeypatch.setattr(
+        importlib.util,
+        "find_spec",
+        lambda name: object() if name == "vllm.v1.engine" else original(name),
+    )
+    assert vllm_utils.is_vllm_v1() is True
+
+    monkeypatch.setattr(
+        importlib.util,
+        "find_spec",
+        lambda name: None if name == "vllm.v1.engine" else original(name),
+    )
+    assert vllm_utils.is_vllm_v1() is False

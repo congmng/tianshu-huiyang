@@ -13,6 +13,7 @@
 
 from functools import wraps
 from typing import Dict, List, Optional, TYPE_CHECKING, Any
+import importlib.util
 import torch
 
 from vllm.config import ModelConfig, ParallelConfig
@@ -48,6 +49,11 @@ from llumnix.arg_utils import InstanceArgs
 from llumnix.internal_config import MigrationConfig
 
 logger = init_logger(__name__)
+
+
+def is_vllm_v1() -> bool:
+    """Return whether the installed vLLM exposes the V1 engine package."""
+    return importlib.util.find_spec("vllm.v1.engine") is not None
 
 
 def detect_unsupported_feature(engine_args: EngineArgs) -> None:

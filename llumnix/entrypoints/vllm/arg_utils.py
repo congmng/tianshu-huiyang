@@ -4,7 +4,7 @@ from vllm.engine.arg_utils import AsyncEngineArgs
 
 from llumnix.logging.logger import init_logger
 from llumnix.backends.backend_interface import BackendType
-from llumnix.backends.vllm.utils import check_engine_args
+from llumnix.backends.vllm.utils import check_engine_args, is_vllm_v1
 from llumnix.arg_utils import EntrypointsArgs, ManagerArgs, InstanceArgs, LlumnixArgumentParser
 from llumnix.entrypoints.utils import LaunchMode
 
@@ -67,7 +67,7 @@ def get_args(cfg, launch_mode: LaunchMode, parser: LlumnixArgumentParser, cli_ar
     # path.  The V1 adapter owns its worker lifecycle, so only apply legacy
     # validation to old vLLM installations.
     import vllm
-    if not getattr(vllm, "__version__", "").startswith("0.11"):
+    if not is_vllm_v1():
         check_engine_args(engine_args, instance_args)
     else:
         # V1 migration is connector-based. P/D requires a connector; the
