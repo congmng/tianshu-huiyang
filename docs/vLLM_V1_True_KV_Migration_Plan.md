@@ -436,3 +436,15 @@ source baseline 逐 token 一致，输出同样为 `PASS iteration 1/1` 及完�
 `PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`。
 至此已有本机三轮和跨机单轮随机迁移证据；仍未宣称无 seed 随机、多轮跨机服务级自动
 重试等能力。
+
+
+### 2026-09-08 Manager 集成状态
+
+Llumnix 已把上述控制面接入 Manager：`InstanceInfo`/`Llumlet` 发布显式
+`migration_capabilities`；`GlobalScheduler.pair_migration_v1()` 先按能力过滤，再复用
+现有配对策略；`Manager` 对 V1 使用独立 `enable_v1_migration` 路径，按轮选择源请求、
+驱动目标先 commit / 源后 commit，失败时目标 abort + 源解冻并做一次退避重试。目标端
+通过 `V1EngineAdapter.add_migrated_request()` 重建 `EngineCoreRequest` 并注册
+`AsyncLLM` 输出。生产路径仍需以真实 Ray Llumlet/Manager 拓扑做服务级 E2E 验收，
+并在数据面/恢复策略稳定后补上无 seed 随机、structured output、LoRA、多模态、TP>1
+和 speculative decoding 的 Phase-4 验收，因此当前仍不宣称 Phase 4 完成。

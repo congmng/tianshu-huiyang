@@ -19,6 +19,7 @@ from llumnix.internal_config import GlobalSchedulerConfig
 from llumnix.instance_info import InstanceInfo
 from llumnix.global_scheduler.dispatch_scheduler import DispatchScheduler
 from llumnix.global_scheduler.migration_scheduler import MigrationScheduler
+from llumnix.global_scheduler.v1_migration_scheduler import V1MigrationScheduler
 from llumnix.global_scheduler.migration_policy import PairMigrationConstraints
 from llumnix.global_scheduler.scaling_scheduler import ScalingScheduler
 from llumnix.arg_utils import InstanceArgs
@@ -40,6 +41,13 @@ class GlobalScheduler:
         self.migration_scheduler = MigrationScheduler(global_scheduler_config.pair_migration_policy,
                                                       global_scheduler_config.migrate_out_load_threshold,
                                                       global_scheduler_config.is_group_kind_migration_backend)
+        # The V1 true-KV migration path uses the same pairing policy but a
+        # capability gate: only instances that advertise the explicit V1
+        # freeze/snapshot/data-plane contract may participate.
+        self.v1_migration_scheduler = V1MigrationScheduler(
+            global_scheduler_config.pair_migration_policy,
+            global_scheduler_config.migrate_out_load_threshold,
+        )
         # auto-scaling args
         self.scaling_scheduler = ScalingScheduler(global_scheduler_config.scale_up_threshold,
                                                   global_scheduler_config.scale_down_threshold,
@@ -62,6 +70,11 @@ class GlobalScheduler:
         self.migration_scheduler.update_instance_infos(self.instance_info)
         migrate_instance_pairs = self.migration_scheduler.pair_migration(pair_migration_type)
         return migrate_instance_pairs
+
+    def pair_migration_v1(self, pair_migration_type: PairMigrationConstraints) -> List[Tuple[str, str]]:
+        """Pair only V1 instances whose advertised capabilities support true KV migration."""
+        self.v1_migration_scheduler.update_instance_infos(self.instance_info)
+        return self.v1_migration_scheduler.pair_migration(pair_migration_type)
 
     def check_scale(self) -> Tuple[str, str]:
         self.scaling_scheduler.update_instance_infos(self.instance_info)

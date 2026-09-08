@@ -44,6 +44,8 @@ def unit_commands() -> list[list[str]]:
              "tests/unit_test/test_corex44_support_check.py",
              "tests/unit_test/test_corex44_pd_config.py",
              "tests/unit_test/backend/test_v1_kv_transfer.py",
+             "tests/unit_test/llumlet/test_v1_migration_capabilities.py",
+             "tests/unit_test/global_scheduler/test_v1_migration.py",
              "tests/unit_test/global_scheduler/test_v1_kv_affinity.py",
              "tests/unit_test/global_scheduler/test_dispatch_scheduler.py",
              "tests/unit_test/global_scheduler/test_manager.py::test_manager_v1_pd_role_selection_uses_kv_affinity",

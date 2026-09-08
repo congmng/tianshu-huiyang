@@ -117,9 +117,12 @@ class Manager:
 
         # migration args
         self.enable_migration = manager_args.enable_migration and not self.is_vllm_v1
+        self.enable_v1_migration = manager_args.enable_migration and self.is_vllm_v1
         if self.is_vllm_v1 and manager_args.enable_migration:
             logger.warning(
-                "vLLM V1 detected in Manager; disabling legacy KV-cache migration"
+                "vLLM V1 detected in Manager; using the explicit true-KV "
+                "migration control plane instead of legacy block-manager "
+                "KV-cache migration."
             )
         self.pair_migration_frequency = manager_args.pair_migration_frequency
         self.enable_pd_disagg = manager_args.enable_pd_disagg
@@ -183,6 +186,9 @@ class Manager:
         # V1 P/D owns two backend requests for one public request.  Keep the
         # complete set so cancellation reaches both the producer and consumer.
         self.request_instances: Dict[str, set[str]] = {}
+        # ServerInfo is required to register a migrated request on the target
+        # Llumlet.  Retain it for exactly as long as the request is active.
+        self.request_server_info: Dict[str, ServerInfo] = {}
         # P/D requests may wait before either EngineCore accepts them while a
         # failed role is being replaced. Keep this separate from routed
         # requests so HTTP disconnect/abort can cancel that pre-dispatch wait.
@@ -192,6 +198,13 @@ class Manager:
         # migration states
         self.num_instance_info_updates = 0
         self.migrating = False
+        # V1 true-KV migration bookkeeping. Epochs must be monotonic per
+        # request; retries allow a transient data-plane failure to be re-run
+        # once without immediately releasing a source request back to queue
+        # pressure when it can still be migrated safely.
+        self.v1_migrating_requests: set[str] = set()
+        self.v1_migration_epochs: Dict[str, int] = {}
+        self.v1_migration_retries: Dict[str, int] = {}
 
         # auto-scaling states
         self.scale_up_time = -1
@@ -426,6 +439,7 @@ class Manager:
             # fan-out even when request logging is disabled.
             self.request_instance[request_id] = instance_id
             self.request_instances.setdefault(request_id, {instance_id})
+            self.request_server_info[request_id] = server_info
             if self.log_requests:
                 logger.info("manager receive request {}".format(request_id))
                 logger.info(
@@ -477,6 +491,7 @@ class Manager:
                             "request {} is not in request_instance".format(req_id)
                         )
                     self.request_instances.pop(req_id, None)
+                    self.request_server_info.pop(req_id, None)
             else:
                 logger.info("Instance {} is dead.".format(instance_id))
                 self.scale_down(instance_id)
@@ -661,12 +676,14 @@ class Manager:
                 self.num_instance_info_updates += 1
                 # Push migrate when the instance_info have updated a certain number of times.
                 if (
-                    self.enable_migration
-                    and self.num_instance_info_updates != 0
+                    self.num_instance_info_updates != 0
                     and self.num_instance_info_updates % self.pair_migration_frequency
                     == 0
                 ):
-                    asyncio.create_task(self._push_migrations())
+                    if self.enable_migration:
+                        asyncio.create_task(self._push_migrations())
+                    if self.enable_v1_migration:
+                        asyncio.create_task(self._push_migrations_v1())
                 if self.log_instance_info:
                     self._log_instance_infos_to_csv(instance_infos)
             # pylint: disable=W0703
@@ -774,6 +791,197 @@ class Manager:
         except Exception as e:
             logger.error("Unexpected exception: {}".format(e))
             logger.error("Exception traceback: {}".format(traceback.format_exc()))
+
+    async def _push_migrations_v1(self) -> None:
+        """Trigger capability-gated V1 true-KV migration rounds."""
+        if self.enable_pd_disagg:
+            asyncio.create_task(
+                self._migrate_v1(PairMigrationConstraints.PREFILL_2_DECODING)
+            )
+            asyncio.create_task(
+                self._migrate_v1(PairMigrationConstraints.DECODING_2_DECODING)
+            )
+        else:
+            asyncio.create_task(
+                self._migrate_v1(PairMigrationConstraints.NO_CONSTRAINTS)
+            )
+
+    async def _migrate_v1(self, pair_migration_type: PairMigrationConstraints) -> None:
+        try:
+            migrate_instance_pairs = self.global_scheduler.pair_migration_v1(
+                pair_migration_type
+            )
+            migration_tasks = []
+            for source_id, target_id in migrate_instance_pairs:
+                if (
+                    self.instance_migrating.get(source_id)
+                    or self.instance_migrating.get(target_id)
+                ):
+                    continue
+                migration_tasks.append(
+                    self._migrate_v1_pair(source_id, target_id)
+                )
+            if migration_tasks:
+                logger.info(
+                    "%d V1 migration tasks starts.", len(migration_tasks)
+                )
+            await asyncio.gather(*migration_tasks, return_exceptions=True)
+            if migration_tasks:
+                logger.info(
+                    "%d V1 migration tasks ends.", len(migration_tasks)
+                )
+        except Exception as e:
+            logger.error("Unexpected exception: {}".format(e))
+            logger.error("Exception traceback: {}".format(traceback.format_exc()))
+
+    async def _migrate_v1_pair(self, source_id: str, target_id: str) -> None:
+        self.instance_migrating[source_id] = True
+        self.instance_migrating[target_id] = True
+        try:
+            source_info = self.global_scheduler.instance_info.get(source_id)
+            target_info = self.global_scheduler.instance_info.get(target_id)
+            if source_info is None or target_info is None:
+                return
+            source_endpoint = getattr(source_info, "kv_endpoint", None)
+            target_endpoint = getattr(target_info, "kv_endpoint", None)
+            from llumnix.backends.vllm.v1_kv_transfer import valid_p2p_endpoint
+            if not valid_p2p_endpoint(source_endpoint) or not valid_p2p_endpoint(target_endpoint):
+                logger.warning(
+                    "V1 migration skipped: endpoints unavailable for %s->%s",
+                    source_id, target_id,
+                )
+                return
+
+            request_id = await self._select_v1_migration_request(source_id)
+            if request_id is None:
+                return
+            server_info = self.request_server_info.get(request_id)
+            if server_info is None:
+                return
+
+            self.v1_migrating_requests.add(request_id)
+            try:
+                epoch = self.v1_migration_epochs.get(request_id, 0) + 1
+                self.v1_migration_epochs[request_id] = epoch
+                await self._migrate_v1_request_with_retry(
+                    source_id, target_id, request_id, epoch,
+                    source_endpoint, target_endpoint, server_info,
+                )
+            finally:
+                self.v1_migrating_requests.discard(request_id)
+        finally:
+            self.instance_migrating[source_id] = False
+            self.instance_migrating[target_id] = False
+
+    async def _select_v1_migration_request(self, source_id: str):
+        try:
+            request_ids = await self.instances[source_id].get_all_request_ids.remote()
+        except (ray.exceptions.RayActorError, KeyError):
+            return None
+        if not request_ids:
+            return None
+        # Prefer requests whose public routing still points at this source.
+        for request_id in request_ids:
+            if request_id in self.v1_migrating_requests:
+                continue
+            if self.request_instance.get(request_id) == source_id:
+                return request_id
+        for request_id in request_ids:
+            if request_id not in self.v1_migrating_requests:
+                return request_id
+        return None
+
+    async def _migrate_v1_request_with_retry(self, source_id, target_id,
+                                              request_id, epoch,
+                                              source_endpoint, target_endpoint,
+                                              server_info) -> None:
+        max_attempts = 2
+        for attempt in range(max_attempts):
+            try:
+                await self._migrate_v1_request(
+                    source_id, target_id, request_id, epoch,
+                    source_endpoint, target_endpoint, server_info,
+                )
+                self.request_instance[request_id] = target_id
+                self.request_instances[request_id] = {target_id}
+                self.v1_migration_retries.pop(request_id, None)
+                logger.info(
+                    "Instance %s->%s migrated request %s", source_id,
+                    target_id, request_id,
+                )
+                return
+            except ray.exceptions.RayActorError as exc:
+                logger.info(
+                    "V1 migration actor failure %s->%s: %s", source_id,
+                    target_id, exc,
+                )
+                await self._check_instance_error((source_id, target_id))
+                return
+            except Exception as exc:
+                logger.warning(
+                    "V1 migration %s->%s request %s attempt %d failed: %s",
+                    source_id, target_id, request_id, attempt + 1, exc,
+                )
+                await self._cleanup_v1_migration(
+                    source_id, target_id, request_id, epoch
+                )
+                if attempt < max_attempts - 1:
+                    self.v1_migration_retries[request_id] = (
+                        self.v1_migration_retries.get(request_id, 0) + 1
+                    )
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                else:
+                    self.v1_migration_retries.pop(request_id, None)
+                    logger.error(
+                        "V1 migration %s->%s request %s permanently failed",
+                        source_id, target_id, request_id,
+                    )
+
+    async def _migrate_v1_request(self, source_id, target_id, request_id,
+                                  epoch, source_endpoint, target_endpoint,
+                                  server_info) -> None:
+        src = self.instances[source_id]
+        dst = self.instances[target_id]
+        snapshot_wire = await src.migration_prepare_out_wire.remote(
+            request_id, epoch
+        )
+        target_blocks = await dst.migration_prepare_in_wire.remote(snapshot_wire)
+        source_blocks = await src.migration_source_blocks.remote(
+            request_id, epoch
+        )
+        layers = await src.migration_layer_names.remote()
+        for group_src, group_dst in zip(source_blocks, target_blocks):
+            for layer_name in layers:
+                manifest = await src.migration_send_layer.remote(
+                    request_id, epoch, layer_name, group_src, group_dst,
+                    target_endpoint,
+                )
+                await dst.migration_receive_layer.remote(
+                    request_id, epoch, manifest, source_endpoint
+                )
+        # Commit the target before the source. The source must keep its KV
+        # copy until the target confirms a successful import.
+        await dst.migration_commit.remote(request_id, epoch, incoming=True)
+        # Register frontend output state immediately after EngineCore commit,
+        # then release the source. If either of these steps fails, the target
+        # is aborted and the source is unfrozen for a later retry.
+        await dst.register_migrated_request.remote(
+            request_id, snapshot_wire, server_info
+        )
+        await src.migration_commit.remote(request_id, epoch, incoming=False)
+        await src.finish_migrated_out.remote(request_id)
+
+    async def _cleanup_v1_migration(self, source_id, target_id, request_id,
+                                    epoch) -> None:
+        """Best-effort abort: target first, then unfreeze the source."""
+        src = self.instances[source_id]
+        dst = self.instances[target_id]
+        await asyncio.gather(
+            dst.migration_abort.remote(request_id, epoch, incoming=True),
+            dst.abort_migrated_request.remote(request_id),
+            src.migration_abort.remote(request_id, epoch, incoming=False),
+            return_exceptions=True,
+        )
 
     async def _auto_scale_up_loop(self, interval: float) -> None:
         while True:
@@ -1460,6 +1668,12 @@ class Manager:
             request_id: set(active_instances)
             for request_id, active_instances in active_by_request.items()
         }
+        server_info = getattr(self, "request_server_info", None)
+        if server_info is not None:
+            active_request_ids = set(active_by_request)
+            for request_id in list(server_info):
+                if request_id not in active_request_ids:
+                    server_info.pop(request_id, None)
 
     async def _clear_request_instance_loop(self, interval: float):
         # Query actors each interval rather than clearing a local map.  In V1

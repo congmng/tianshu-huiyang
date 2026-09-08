@@ -1,5 +1,32 @@
 # Llumnix CoreX 4.4.0 适配进度
 
+## 2026-09-08：V1 真 KV 迁移接入 Manager 编排
+
+- 完成 `migration_capabilities` 从 `InstanceInfo`/`Llumlet` 发布，新增
+  `tests/unit_test/llumlet/test_v1_migration_capabilities.py`，legacy 实例保持空集，
+  V1 实例通过 `V1EngineAdapter` 暴露 `token_boundary_freeze`、`kv_snapshot`、
+  `native_nccl`、`incremental_precopy`、`seeded_rng`，且明确不含
+  `legacy_block_manager`。
+- 新增 `GlobalScheduler.pair_migration_v1()` 与
+  `llumnix/global_scheduler/v1_migration_scheduler.py`：先用能力集合过滤实例，
+  再复用既有 `MigrationScheduler` 做负载/角色配对，避免 V1 与 legacy 实例混配。
+- `Manager` 在 V1 下新增独立真迁移控制面：`enable_v1_migration`、
+  `_push_migrations_v1/_migrate_v1/_migrate_v1_pair`，按轮从源实例选择请求，
+  通过源/目标 Llumlet 的 `migration_prepare_out_wire`、`migration_prepare_in_wire`、
+  `migration_send_layer/migration_receive_layer`、目标先 commit、源后 commit、
+  `register_migrated_request` 与 `finish_migrated_out` 完成两阶段提交；失败时
+  best-effort 目标 abort + 源解冻，并对瞬态数据面错误做一次退避重试。
+- 目标端通过 `V1EngineAdapter.add_migrated_request()` 从 versioned snapshot 重建
+  `EngineCoreRequest` 并注册 `AsyncLLM` 输出，避免依赖 legacy `generate()` 路径。
+- 单测新增 `tests/unit_test/global_scheduler/test_v1_migration.py`，覆盖能力门禁、
+  配对过滤、源请求选择、两阶段调用顺序与重试。统一 CoreX V1 unit gate 现为
+  **109 passed**；既有 `v1_true_kv_migration_phase2` 单机双卡 native NCCL 一轮
+  `PASS phase2 migration control+KV transfer+two-phase-commit+decode-equivalence`
+  复验通过。
+- 当前 Phase 4 边界仍为：增量 pre-copy 与 seeded-RNG 已有真实验证，但 Manager
+  生产跨轮调度、无 seed 随机、structured output、LoRA、多模态、TP>1 与
+  speculative decoding 尚未全部开通/验证；不宣称 Phase 4 完成。
+
 ## 2026-09-06：vLLM V1 真正 KV 迁移实施规划
 
 - 新增 `vLLM_V1_True_KV_Migration_Plan.md`，将 Decode-to-Decode 的目标限定为

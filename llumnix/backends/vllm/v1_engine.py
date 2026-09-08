@@ -12,12 +12,18 @@ import math
 import time
 import os
 import socket
-from vllm.v1.migration import RequestMigrationSnapshot
+from vllm.v1.migration import (
+    RequestMigrationSnapshot,
+    deserialize_greedy_sampling_params,
+)
 from vllm.v1.engine import (
+    EngineCoreRequest,
     MigrationInPrepareRequest,
     MigrationOutPrepareRequest,
     MigrationRequestCommand,
 )
+from vllm.v1.engine.output_processor import RequestOutputCollector
+from vllm.sampling_params import RequestOutputKind
 
 from vllm import SamplingParams
 from vllm.v1.engine.async_llm import AsyncLLM
@@ -189,6 +195,66 @@ class V1EngineAdapter:
             "token_boundary_freeze", "kv_snapshot", "native_nccl",
             "incremental_precopy", "seeded_rng",
         })
+
+    @staticmethod
+    def encode_migration_snapshot(snapshot: RequestMigrationSnapshot) -> str:
+        """Serialize a validated snapshot to the authenticated wire format."""
+        return snapshot.to_wire().decode()
+
+    @staticmethod
+    def decode_migration_snapshot(wire: str) -> RequestMigrationSnapshot:
+        """Reconstruct the immutable snapshot object from its wire payload."""
+        if isinstance(wire, str):
+            wire = wire.encode()
+        snapshot = RequestMigrationSnapshot.from_wire(wire)
+        snapshot.validate()
+        return snapshot
+
+    async def _migrated_outputs(self, queue: RequestOutputCollector,
+                                request_id: str):
+        """Yield post-migration outputs and release frontend bookkeeping."""
+        try:
+            while True:
+                output = await queue.get()
+                yield output
+                if output.finished:
+                    break
+        finally:
+            self.release_request(request_id)
+
+    def add_migrated_request(self, snapshot: RequestMigrationSnapshot,
+                             server_info):
+        """Register an already-committed target request with AsyncLLM.
+
+        EngineCore's ``commit_migration_in`` made the request schedulable but
+        did not create frontend output state.  This mirrors ``AsyncLLM.add_request``
+        while deliberately skipping ``engine_core.add_request_async``, because
+        the scheduler already owns the migrated request.
+        """
+        snapshot.validate()
+        params = deserialize_greedy_sampling_params(snapshot.sampling_params)
+        request = EngineCoreRequest(
+            request_id=snapshot.request_id,
+            prompt_token_ids=list(snapshot.prompt_token_ids),
+            mm_features=None,
+            sampling_params=params,
+            pooling_params=None,
+            eos_token_id=snapshot.eos_token_id,
+            arrival_time=0.0,
+            lora_request=None,
+            cache_salt=None,
+            data_parallel_rank=None,
+        )
+        request.sampling_params.output_kind = RequestOutputKind.DELTA
+        queue = RequestOutputCollector(RequestOutputKind.DELTA)
+        self.engine._run_output_handler()
+        self.engine.output_processor.add_request(
+            request, "", None, 0, queue
+        )
+        self._request_id_aliases[snapshot.request_id] = snapshot.request_id
+        self.requests[snapshot.request_id] = (server_info, time.time())
+        self.running.append(snapshot.request_id)
+        return self._migrated_outputs(queue, snapshot.request_id)
 
     def abort_request(self, request_id):
         ids = (request_id,) if isinstance(request_id, str) else tuple(request_id)

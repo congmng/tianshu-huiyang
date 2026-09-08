@@ -13,7 +13,7 @@
 
 import asyncio
 import traceback
-from typing import List, Union, Iterable
+from typing import Dict, List, Union, Iterable
 import time
 
 import ray
@@ -114,6 +114,10 @@ class Llumlet:
                     migration_config.request_migration_policy, self.backend_engine
                 )
             self.log_requests = True
+            # V1 frontend streams are coroutine tasks.  A Decode-to-Decode
+            # migration must cancel the source stream after EngineCore commit
+            # and must register a new stream on the target; both need this map.
+            self.v1_output_tasks: Dict[str, asyncio.Task] = {}
 
             asyncio.create_task(self._check_engine_state_loop())
         # pylint: disable=broad-except
@@ -357,6 +361,108 @@ class Llumlet:
             return frozenset()
         return self.backend_engine.migration_capabilities()
 
+    async def migration_prepare_out_wire(self, request_id: str,
+                                          migration_epoch: int) -> str:
+        """Freeze a source request and return its authenticated wire snapshot."""
+        snapshot = await self.backend_engine.migration_prepare_out(
+            request_id, migration_epoch
+        )
+        return self.backend_engine.encode_migration_snapshot(snapshot)
+
+    async def migration_source_blocks(self, request_id: str,
+                                       migration_epoch: int):
+        return await self.backend_engine.migration_source_blocks(
+            request_id, migration_epoch
+        )
+
+    async def migration_prepare_in_wire(self, snapshot_wire: str):
+        """Reserve target-local blocks from a source snapshot wire payload."""
+        snapshot = self.backend_engine.decode_migration_snapshot(snapshot_wire)
+        return await self.backend_engine.migration_prepare_in(snapshot)
+
+    async def migration_layer_names(self):
+        return await self.backend_engine.migration_layer_names()
+
+    async def migration_send_layer(self, request_id: str, migration_epoch: int,
+                                    layer_name: str, source_block_ids,
+                                    target_block_ids, target_endpoint: str,
+                                    synced_prefix_block_count: int = 0) -> str:
+        manifest = await self.backend_engine.migration_send_layer(
+            request_id, migration_epoch, layer_name, source_block_ids,
+            target_block_ids, target_endpoint, synced_prefix_block_count,
+        )
+        return manifest.decode()
+
+    async def migration_receive_layer(self, request_id: str,
+                                       migration_epoch: int,
+                                       manifest_wire: str,
+                                       source_endpoint: str,
+                                       synced_prefix_block_pairs=(),
+                                       ) -> None:
+        await self.backend_engine.migration_receive_layer(
+            request_id, migration_epoch, manifest_wire.encode(),
+            source_endpoint, synced_prefix_block_pairs,
+        )
+
+    async def migration_commit(self, request_id: str, migration_epoch: int,
+                               incoming: bool = False) -> None:
+        await self.backend_engine.migration_commit(
+            request_id, migration_epoch, incoming=incoming
+        )
+
+    async def migration_abort(self, request_id: str, migration_epoch: int,
+                              incoming: bool = False) -> None:
+        await self.backend_engine.migration_abort(
+            request_id, migration_epoch, incoming=incoming
+        )
+
+    async def register_migrated_request(self, request_id: str,
+                                         snapshot_wire: str,
+                                         server_info) -> None:
+        """Start the target frontend stream for a committed migrated request."""
+        snapshot = self.backend_engine.decode_migration_snapshot(snapshot_wire)
+        request = self.backend_engine.add_migrated_request(snapshot, server_info)
+        task = asyncio.create_task(
+            self._forward_v1_outputs(
+                request_id, server_info, request,
+                suppress_output=False,
+                public_request_id=request_id,
+            )
+        )
+        self.v1_output_tasks[request_id] = task
+        task.add_done_callback(
+            lambda _task, rid=request_id: self.v1_output_tasks.pop(rid, None)
+        )
+
+    async def finish_migrated_out(self, request_id: str) -> None:
+        """Drop the frozen source stream after EngineCore commit-out."""
+        self.backend_engine.release_request(request_id)
+        task = self.v1_output_tasks.pop(request_id, None)
+        if task is not None and not task.done():
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+    async def abort_migrated_request(self, request_id: str) -> None:
+        """Remove target frontend and EngineCore state after a failed import."""
+        task = self.v1_output_tasks.pop(request_id, None)
+        if task is not None and not task.done():
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+        self.backend_engine.release_request(request_id)
+        try:
+            await self.backend_engine.abort(request_id)
+        except Exception:
+            logger.warning(
+                "Failed to abort target migrated request %s", request_id,
+                exc_info=True,
+            )
+
     def is_ready(self) -> bool:
         return True
 
@@ -387,12 +493,16 @@ class Llumlet:
             request_id, server_info, expected_steps, *args, **kwargs
         )
         if self.is_vllm_v1:
-            asyncio.create_task(
+            task = asyncio.create_task(
                 self._forward_v1_outputs(
                     request_id, server_info, request,
                     suppress_output=suppress_output,
                     public_request_id=public_request_id,
                 )
+            )
+            self.v1_output_tasks[request_id] = task
+            task.add_done_callback(
+                lambda _task, rid=request_id: self.v1_output_tasks.pop(rid, None)
             )
 
     async def _forward_v1_outputs(
