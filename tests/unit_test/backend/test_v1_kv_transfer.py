@@ -587,7 +587,23 @@ def test_v1_adapter_reports_explicit_migration_capabilities():
     assert "token_boundary_freeze" in capabilities
     assert "native_nccl" in capabilities
     assert "seeded_rng" in capabilities
+    assert "lora" in capabilities
+    assert "structured_output" in capabilities
+    assert "prompt_embeds" in capabilities
+    assert "multimodal" in capabilities
+    assert "spec_decode" not in capabilities
     assert "legacy_block_manager" not in capabilities
+
+
+def test_v1_adapter_advertises_spec_decode_only_when_configured():
+    from llumnix.backends.vllm.v1_engine import V1EngineAdapter
+
+    adapter = object.__new__(V1EngineAdapter)
+    adapter.engine_args = SimpleNamespace(speculative_config=None)
+    assert "spec_decode" not in adapter.migration_capabilities()
+
+    adapter.engine_args = SimpleNamespace(speculative_config=object())
+    assert "spec_decode" in adapter.migration_capabilities()
 
 
 def test_v1_adapter_uses_explicit_vllm_kv_ip(monkeypatch):
