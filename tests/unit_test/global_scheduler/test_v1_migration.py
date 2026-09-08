@@ -146,3 +146,21 @@ async def test_manager_migrate_v1_request_with_retry_retries_transient_failure()
     assert manager.request_instance["request-1"] == "dst"
     assert manager.request_instances["request-1"] == {"dst"}
     assert "request-1" not in manager.v1_migration_retries
+
+
+@pytest.mark.asyncio
+async def test_manager_migrate_v1_schedules_all_capable_pairs():
+    """Cross-round scheduling must fan out to every capability-filtered pair."""
+    manager = object.__new__(Manager)
+    manager.global_scheduler = SimpleNamespace(
+        pair_migration_v1=lambda _type: [("a", "b"), ("c", "d")]
+    )
+    manager.instance_migrating = {}
+    manager._migrate_v1_pair = AsyncMock()
+
+    await manager._migrate_v1(PairMigrationConstraints.NO_CONSTRAINTS)
+
+    assert manager._migrate_v1_pair.await_count == 2
+    calls = [call.args for call in manager._migrate_v1_pair.await_args_list]
+    assert ("a", "b") in calls
+    assert ("c", "d") in calls
