@@ -4,6 +4,7 @@ vLLM 0.11 moved its serving engine to ``vllm.v1.engine.AsyncLLM``.  This
 adapter deliberately exposes the subset needed by Llumnix's request router,
 without importing removed 0.6.x private classes.
 """
+from __future__ import annotations
 
 from typing import Deque, Iterable, Union
 from collections import deque
@@ -12,20 +13,6 @@ import math
 import time
 import os
 import socket
-from vllm.v1.migration import (
-    MIGRATION_PROTOCOL_VERSION,
-    RequestMigrationSnapshot,
-    deserialize_greedy_sampling_params,
-    deserialize_lora_request,
-    deserialize_mm_features,
-    deserialize_structured_output_request,
-)
-from vllm.v1.engine import (
-    EngineCoreRequest,
-    MigrationInPrepareRequest,
-    MigrationOutPrepareRequest,
-    MigrationRequestCommand,
-)
 from vllm.v1.engine.output_processor import RequestOutputCollector
 from vllm.sampling_params import RequestOutputKind
 
@@ -201,6 +188,9 @@ class V1EngineAdapter:
         Keep this explicit so Manager can select the V1 control/data plane
         without probing legacy block-manager methods.
         """
+        import importlib.util
+        if importlib.util.find_spec("vllm.v1.migration") is None:
+            return frozenset()
         capabilities = {
             "token_boundary_freeze", "kv_snapshot", "native_nccl",
             "incremental_precopy", "seeded_rng", "lora", "structured_output",
@@ -212,6 +202,10 @@ class V1EngineAdapter:
 
     def migration_protocol_version(self) -> int:
         """Return the wire protocol version implemented by this adapter."""
+        import importlib.util
+        if importlib.util.find_spec("vllm.v1.migration") is None:
+            return 0
+        from vllm.v1.migration import MIGRATION_PROTOCOL_VERSION
         return MIGRATION_PROTOCOL_VERSION
 
     def migration_kv_layout_version(self) -> str:
@@ -239,6 +233,7 @@ class V1EngineAdapter:
     @staticmethod
     def decode_migration_snapshot(wire: str) -> RequestMigrationSnapshot:
         """Reconstruct the immutable snapshot object from its wire payload."""
+        from vllm.v1.migration import RequestMigrationSnapshot
         if isinstance(wire, str):
             wire = wire.encode()
         snapshot = RequestMigrationSnapshot.from_wire(wire)
@@ -266,6 +261,13 @@ class V1EngineAdapter:
         while deliberately skipping ``engine_core.add_request_async``, because
         the scheduler already owns the migrated request.
         """
+        from vllm.v1.engine import EngineCoreRequest
+        from vllm.v1.migration import (
+            deserialize_greedy_sampling_params,
+            deserialize_lora_request,
+            deserialize_mm_features,
+            deserialize_structured_output_request,
+        )
         snapshot.validate()
         params = deserialize_greedy_sampling_params(snapshot.sampling_params)
         structured_outputs = deserialize_structured_output_request(snapshot.structured_output)
@@ -402,6 +404,8 @@ class V1EngineAdapter:
 
     async def migration_prepare_out(self, request_id: str, migration_epoch: int):
         """Freeze source at an EngineCore token boundary and return snapshot."""
+        from vllm.v1.engine import MigrationOutPrepareRequest
+        from vllm.v1.migration import RequestMigrationSnapshot
         snapshot = await self.engine.engine_core.call_utility_async(
             "prepare_migration_out",
             MigrationOutPrepareRequest(request_id, migration_epoch),
@@ -525,6 +529,7 @@ class V1EngineAdapter:
         )
 
     async def migration_prepare_in(self, snapshot: RequestMigrationSnapshot):
+        from vllm.v1.engine import MigrationInPrepareRequest
         return await self.engine.engine_core.call_utility_async(
             "prepare_migration_in_command", MigrationInPrepareRequest(snapshot.to_wire())
         )
@@ -576,6 +581,7 @@ class V1EngineAdapter:
 
     async def migration_commit(self, request_id: str, migration_epoch: int,
                                incoming: bool = False):
+        from vllm.v1.engine import MigrationRequestCommand
         method = "commit_migration_in" if incoming else "commit_migration_out"
         return await self.engine.engine_core.call_utility_async(
             method, MigrationRequestCommand(request_id, migration_epoch)
@@ -583,6 +589,7 @@ class V1EngineAdapter:
 
     async def migration_abort(self, request_id: str, migration_epoch: int,
                               incoming: bool = False):
+        from vllm.v1.engine import MigrationRequestCommand
         method = "abort_migration_in" if incoming else "abort_migration_out"
         return await self.engine.engine_core.call_utility_async(
             method, MigrationRequestCommand(request_id, migration_epoch)
