@@ -16,9 +16,7 @@ from pathlib import Path
 
 from vllm import AsyncEngineArgs, SamplingParams
 from vllm.config import KVTransferConfig
-from vllm.v1.migration import RequestMigrationSnapshot, deserialize_greedy_sampling_params
-from vllm.v1.engine import EngineCoreRequest
-from vllm.v1.engine.output_processor import RequestOutputCollector
+from vllm.v1.migration import RequestMigrationSnapshot
 from vllm.sampling_params import RequestOutputKind
 
 from llumnix.backends.vllm.v1_engine import V1EngineAdapter
@@ -191,30 +189,21 @@ class Phase2Worker:
             if self.migration_snapshot is None:
                 raise RuntimeError("no prepared migration snapshot")
             snap = self.migration_snapshot
-            params = deserialize_greedy_sampling_params(snap.sampling_params)
-            req = EngineCoreRequest(
-                request_id=snap.request_id,
-                prompt_token_ids=list(snap.prompt_token_ids), mm_features=None,
-                sampling_params=params, pooling_params=None,
-                eos_token_id=snap.eos_token_id, arrival_time=0.0,
-                lora_request=None, cache_salt=None, data_parallel_rank=None,
-            )
-            req.sampling_params.output_kind = RequestOutputKind.DELTA
-            self.migration_queue = RequestOutputCollector(RequestOutputKind.DELTA)
-            self.adapter.engine._run_output_handler()
-            self.adapter.engine.output_processor.add_request(
-                req, value.get("prompt", ""), None, 0, self.migration_queue)
+            stream = self.adapter.add_migrated_request(snap, None)
             token_ids = []
-            for _ in range(int(value.get("tokens", 1))):
-                out = await self.migration_queue.get()
-                token_ids.extend(out.outputs[0].token_ids)
-                if out.finished:
-                    break
-            # The probe intentionally stops after a short continuation. Clean
-            # up both frontend and EngineCore state so repeated iterations do
-            # not accumulate live requests or KV blocks.
-            await self.adapter.engine.abort(snap.request_id)
-            self.migration_queue = None
+            try:
+                for _ in range(int(value.get("tokens", 1))):
+                    out = await anext(stream)
+                    token_ids.extend(out.outputs[0].token_ids)
+                    if out.finished:
+                        break
+            finally:
+                await stream.aclose()
+                # The probe intentionally stops after a short continuation.
+                # Clean up both frontend and EngineCore state so repeated
+                # iterations do not accumulate live requests or KV blocks.
+                await self.adapter.engine.abort(snap.request_id)
+                self.adapter.release_request(snap.request_id)
             return {"token_ids": token_ids}
         if op == "abort":
             await self.adapter.migration_abort(value["request_id"], value["epoch"], value["incoming"])
