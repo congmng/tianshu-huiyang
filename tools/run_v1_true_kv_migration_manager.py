@@ -78,7 +78,10 @@ class MigrationInstance:
                  prompt_embed_len: int = 4,
                  prompt_embed_seed: int = 20260908,
                  enable_lora: bool = False,
-                 lora_path: str = ""):
+                 lora_path: str = "",
+                 multimodal_image: str = "",
+                 multimodal_prompt: str = "请描述这张图片。",
+                 max_model_len: int = 128):
         # EngineCore is spawned by vLLM inside this actor.  The driver-side
         # ``run()`` variables are not inherited across the Ray actor boundary
         # in this CoreX build, so pin the explicit-migration flags here before
@@ -110,7 +113,7 @@ class MigrationInstance:
             model=model,
             dtype="float16",
             gpu_memory_utilization=0.96,
-            max_model_len=128,
+            max_model_len=max_model_len,
             max_num_seqs=1,
             enforce_eager=True,
             enable_prefix_caching=True,
@@ -118,6 +121,8 @@ class MigrationInstance:
             enable_lora=enable_lora,
             max_loras=1 if enable_lora else 0,
             max_lora_rank=16,
+            trust_remote_code=True,
+            limit_mm_per_prompt={"image": 1},
             prefix_caching_hash_algo="sha256_cbor",
             kv_transfer_config=config,
         )
@@ -133,6 +138,7 @@ class MigrationInstance:
                 lora_path=lora_path,
             )
         self.prompt_embeds_input = None
+        self.multimodal_input = None
         if enable_prompt_embeds:
             hidden_size = int(self.adapter.engine.model_config.get_hidden_size())
             if hidden_size <= 0:
@@ -142,6 +148,19 @@ class MigrationInstance:
                 "prompt_embeds": torch.randn(
                     prompt_embed_len, hidden_size, generator=generator
                 ).float(),
+            }
+        elif multimodal_image:
+            from PIL import Image
+            image = Image.open(multimodal_image).convert("RGB")
+            if "<|image_pad|>" not in multimodal_prompt:
+                multimodal_prompt = (
+                    "<|im_start|>user\n<|vision_start|><|image_pad|>"
+                    f"<|vision_end|>{multimodal_prompt}<|im_end|>\n"
+                    "<|im_start|>assistant\n"
+                )
+            self.multimodal_input = {
+                "prompt": multimodal_prompt,
+                "multi_modal_data": {"image": image},
             }
         self.generator = None
         self.active_request_id = None
@@ -155,6 +174,8 @@ class MigrationInstance:
         return True
 
     def _prompt(self, prompt):
+        if self.multimodal_input is not None:
+            return self.multimodal_input
         return self.prompt_embeds_input if self.prompt_embeds_input is not None else prompt
 
     @staticmethod
@@ -452,6 +473,9 @@ async def run(args: argparse.Namespace) -> None:
         prompt_embed_seed=args.prompt_embed_seed,
         enable_lora=args.lora,
         lora_path=args.lora_path,
+        multimodal_image=args.multimodal_image,
+        multimodal_prompt=args.multimodal_prompt,
+        max_model_len=args.max_model_len,
     )
     target = MigrationInstance.remote(
         args.model, args.target_p2p_host, args.target_p2p, "target",
@@ -461,6 +485,9 @@ async def run(args: argparse.Namespace) -> None:
         prompt_embed_seed=args.prompt_embed_seed,
         enable_lora=args.lora,
         lora_path=args.lora_path,
+        multimodal_image=args.multimodal_image,
+        multimodal_prompt=args.multimodal_prompt,
+        max_model_len=args.max_model_len,
     )
     ray.get([source.is_ready.remote(), target.is_ready.remote()])
     source_endpoint = ray.get(source.get_kv_endpoint.remote())
@@ -481,6 +508,9 @@ async def run(args: argparse.Namespace) -> None:
             prompt_embed_seed=args.prompt_embed_seed,
             enable_lora=args.lora,
             lora_path=args.lora_path,
+            multimodal_image=args.multimodal_image,
+            multimodal_prompt=args.multimodal_prompt,
+            max_model_len=args.max_model_len,
         )
         ray.get(witness.is_ready.remote())
         seed_value = int(os.environ.get("LLUMNIX_TEST_RNG_SEED", "20260908"))
@@ -530,6 +560,12 @@ async def run(args: argparse.Namespace) -> None:
         if "lora_v1" not in snapshot_flags:
             raise AssertionError(
                 f"migration snapshot lacks lora_v1: {snapshot_flags}"
+            )
+    if args.multimodal_image:
+        snapshot_flags = ray.get(source.migration_snapshot_feature_flags.remote())
+        if "multimodal_v1" not in snapshot_flags:
+            raise AssertionError(
+                f"migration snapshot lacks multimodal_v1: {snapshot_flags}"
             )
     continuation = ray.get(source.migration_snapshot_output_len.remote())
     observed = ray.get(target.drain_migrated.remote(args.verify_tokens))
@@ -608,6 +644,12 @@ def main() -> None:
     parser.add_argument("--lora-adapter-dir",
                         default=str(ROOT / ".models/qwen3-14b-lora-attn-v1"),
                         help="local path for the generated/loaded LoRA adapter")
+    parser.add_argument("--multimodal-image", default="",
+                        help="path to an image for multimodal migration")
+    parser.add_argument("--multimodal-prompt", default="请描述这张图片。",
+                        help="text prompt paired with --multimodal-image")
+    parser.add_argument("--max-model-len", type=int, default=128,
+                        help="max model length for the migration instances")
     parser.add_argument("--verify-tokens", type=int, default=4)
     parser.add_argument("--incremental-precopy", action="store_true",
                         help="run one explicit immutable-prefix pre-copy round")
