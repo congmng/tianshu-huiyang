@@ -27,29 +27,34 @@ ROOT = Path(__file__).resolve().parents[1]
 @ray.remote(num_gpus=1)
 class MigrationInstance:
     def __init__(self, model: str, p2p_host: str, p2p_port: int,
-                 role: str, transport: str):
+                 role: str, transport: str, use_p2p: bool = True):
         # EngineCore is spawned by vLLM inside this actor.  The driver-side
         # ``run()`` variables are not inherited across the Ray actor boundary
         # in this CoreX build, so pin the explicit-migration flags here before
         # the adapter constructs its EngineCore subprocess.
         os.environ["VLLM_FORCE_NCCL_COMM"] = "1"
-        os.environ["LLUMNIX_TRUE_KV_MIGRATION_ONLY"] = "1"
+        if use_p2p:
+            os.environ["LLUMNIX_TRUE_KV_MIGRATION_ONLY"] = "1"
+        else:
+            os.environ.pop("LLUMNIX_TRUE_KV_MIGRATION_ONLY", None)
         os.environ.setdefault("PYTHONHASHSEED", "0")
         self.role = role
-        config = KVTransferConfig(
-            kv_connector="CoreXP2pNcclConnector",
-            kv_connector_module_path="llumnix.backends.vllm.corex_p2p_connector",
-            kv_role="kv_producer" if role == "source" else "kv_consumer",
-            kv_rank=0,
-            kv_parallel_size=2,
-            kv_ip=p2p_host,
-            kv_port=p2p_port,
-            kv_connector_extra_config={
-                "corex_transport": transport,
-                "send_type": "PUT",
-                "true_kv_migration_only": True,
-            },
-        )
+        config = None
+        if use_p2p:
+            config = KVTransferConfig(
+                kv_connector="CoreXP2pNcclConnector",
+                kv_connector_module_path="llumnix.backends.vllm.corex_p2p_connector",
+                kv_role="kv_producer" if role == "source" else "kv_consumer",
+                kv_rank=0,
+                kv_parallel_size=2,
+                kv_ip=p2p_host,
+                kv_port=p2p_port,
+                kv_connector_extra_config={
+                    "corex_transport": transport,
+                    "send_type": "PUT",
+                    "true_kv_migration_only": True,
+                },
+            )
         engine_args = AsyncEngineArgs(
             model=model,
             dtype="float16",
@@ -70,6 +75,12 @@ class MigrationInstance:
 
     def is_ready(self):
         return True
+
+    async def seed_process_rng(self, seed: int) -> None:
+        """Deterministically reset unseeded process sampling for witnesses."""
+        await self.adapter.engine.engine_core.call_utility_async(
+            "set_migration_process_rng_seed", int(seed)
+        )
 
     def get_kv_endpoint(self):
         return self.adapter.get_kv_endpoint()
@@ -335,14 +346,34 @@ async def run(args: argparse.Namespace) -> None:
     print(f"ENDPOINTS source={source_endpoint} target={target_endpoint}",
           flush=True)
 
-    source_baseline = ray.get(source.baseline.remote(
-        f"{args.request_id}-source-baseline", args.prompt,
-        args.temperature, args.seed,
-    ))
-    target_baseline = ray.get(target.baseline.remote(
-        f"{args.request_id}-target-baseline", args.prompt,
-        args.temperature, args.seed,
-    ))
+    source_baseline = None
+    target_baseline = None
+    witness = None
+    witness_baseline = None
+    if args.seed is None and args.temperature > 0:
+        witness = MigrationInstance.remote(
+            args.model, args.source_p2p_host, 0, "witness",
+            args.transport, use_p2p=False,
+        )
+        ray.get(witness.is_ready.remote())
+        seed_value = int(os.environ.get("LLUMNIX_TEST_RNG_SEED", "20260908"))
+        ray.get([
+            source.seed_process_rng.remote(seed_value),
+            witness.seed_process_rng.remote(seed_value),
+        ])
+        witness_baseline = ray.get(witness.baseline.remote(
+            f"{args.request_id}-witness-baseline", args.prompt,
+            args.temperature, None,
+        ))
+    else:
+        source_baseline = ray.get(source.baseline.remote(
+            f"{args.request_id}-source-baseline", args.prompt,
+            args.temperature, args.seed,
+        ))
+        target_baseline = ray.get(target.baseline.remote(
+            f"{args.request_id}-target-baseline", args.prompt,
+            args.temperature, args.seed,
+        ))
     generated = ray.get(source.generate.remote(
         args.request_id, args.prompt, args.temperature, args.seed,
     ))
@@ -364,14 +395,12 @@ async def run(args: argparse.Namespace) -> None:
     observed = ray.get(target.drain_migrated.remote(args.verify_tokens))
 
     if args.seed is None and args.temperature > 0:
-        replay = ray.get(source.migration_replay_context.remote())
-        expected = ray.get(target.replay_rng.remote(
-            f"{args.request_id}-rng-replay", replay["prompt_token_ids"],
-            replay["rng_state"], args.temperature, len(observed),
-        ))
+        expected = witness_baseline[
+            continuation: continuation + len(observed)
+        ]
         if observed != expected:
             raise AssertionError(
-                f"post-migration RNG replay mismatch: generated={generated}, "
+                f"post-migration RNG witness mismatch: generated={generated}, "
                 f"continuation={continuation}, expected={expected}, "
                 f"observed={observed}"
             )
@@ -395,6 +424,8 @@ async def run(args: argparse.Namespace) -> None:
 
     ray.get(source.shutdown.remote())
     ray.get(target.shutdown.remote())
+    if witness is not None:
+        ray.get(witness.shutdown.remote())
 
 
 def main() -> None:
@@ -415,7 +446,8 @@ def main() -> None:
     parser.add_argument("--incremental-precopy", action="store_true",
                         help="run one explicit immutable-prefix pre-copy round")
     args = parser.parse_args()
-    ray.init(num_cpus=2, num_gpus=2, include_dashboard=False,
+    worker_gpus = 3 if (args.seed is None and args.temperature > 0) else 2
+    ray.init(num_cpus=worker_gpus, num_gpus=worker_gpus, include_dashboard=False,
              ignore_reinit_error=True)
     try:
         asyncio.run(run(args))
