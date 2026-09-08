@@ -15,6 +15,15 @@
   `--ssh-password`，远端命令改用 `tools/corex_env.sh` 并保持原有 4.4 兼容参数。
 - 相关单测 `tools/run_corex44_validation.py unit` 为 **118 passed**。
 
+## 2026-09-08：speculative draft token 迁移
+
+- fork `RequestMigrationSnapshot` 新增 `spec_token_ids` 与 `spec_decode_v1`：
+  冻结时携带当前 draft token 序列，目标 `Request.from_migration_snapshot` 恢复
+  `request.spec_token_ids`，供下一轮 speculative 调度继续使用。
+- 缺 `spec_decode_v1` flag 的非空 draft snapshot 被拒绝；Llumnix 能力集合在
+  `engine_args.speculative_config` 存在时声明 `spec_decode`。
+- fork 定向 V1 单测增至 **45 passed**；llumnix 相关迁移回归通过。
+
 ## 2026-09-08：decode-boundary multimodal/prompt-embed 迁移
 
 - fork 新增 `multimodal_v1`/`prompt_embeds_v1` 能力：仅在请求已产生至少一个

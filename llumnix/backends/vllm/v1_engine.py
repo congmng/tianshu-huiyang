@@ -200,11 +200,14 @@ class V1EngineAdapter:
         Keep this explicit so Manager can select the V1 control/data plane
         without probing legacy block-manager methods.
         """
-        return frozenset({
+        capabilities = {
             "token_boundary_freeze", "kv_snapshot", "native_nccl",
             "incremental_precopy", "seeded_rng", "lora", "structured_output",
             "prompt_embeds", "multimodal",
-        })
+        }
+        if getattr(getattr(self, "engine_args", None), "speculative_config", None) is not None:
+            capabilities.add("spec_decode")
+        return frozenset(capabilities)
 
     @staticmethod
     def encode_migration_snapshot(snapshot: RequestMigrationSnapshot) -> str:
