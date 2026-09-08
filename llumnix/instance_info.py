@@ -80,6 +80,12 @@ class InstanceInfo:
     kv_endpoint: str = None
     # Explicit backend capability names; legacy instances leave this empty.
     migration_capabilities: frozenset = field(default_factory=frozenset)
+    # Compatibility identity for heterogeneous V1 deployment scheduling.
+    # The migration scheduler must never pair instances across these values.
+    migration_protocol_version: int = 0
+    migration_kv_layout_version: str = ""
+    device_class: str = ""
+    corex_stack: str = ""
 
     # on-demand init infos
     dispatch_load_metric: float = -np.inf

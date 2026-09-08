@@ -13,6 +13,7 @@ import time
 import os
 import socket
 from vllm.v1.migration import (
+    MIGRATION_PROTOCOL_VERSION,
     RequestMigrationSnapshot,
     deserialize_greedy_sampling_params,
     deserialize_lora_request,
@@ -209,6 +210,27 @@ class V1EngineAdapter:
             capabilities.add("spec_decode")
         return frozenset(capabilities)
 
+    def migration_protocol_version(self) -> int:
+        """Return the wire protocol version implemented by this adapter."""
+        return MIGRATION_PROTOCOL_VERSION
+
+    def migration_kv_layout_version(self) -> str:
+        """Return the KV layout contract shared by compatible V1 engines."""
+        return "vllm-v1"
+
+    def device_class(self) -> str:
+        """Return a stable accelerator family/class for compatibility grouping."""
+        try:
+            import torch
+            properties = torch.cuda.get_device_properties(0)
+            return str(getattr(properties, "name", "") or "")
+        except Exception:
+            return ""
+
+    def corex_stack(self) -> str:
+        """Return the CoreX SDK stack tag used by the deployment node."""
+        return os.getenv("LLUMNIX_COREX_STACK", "44")
+
     @staticmethod
     def encode_migration_snapshot(snapshot: RequestMigrationSnapshot) -> str:
         """Serialize a validated snapshot to the authenticated wire format."""
@@ -338,6 +360,10 @@ class V1EngineAdapter:
             info.gpu_memory_total_bytes = 0
             info.compute_capacity = 1.0
         info.kv_cache_block_hashes = self.kv_affinity.block_hashes(self.instance_id)
+        info.migration_protocol_version = self.migration_protocol_version()
+        info.migration_kv_layout_version = self.migration_kv_layout_version()
+        info.device_class = self.device_class()
+        info.corex_stack = self.corex_stack()
 
     # The V1 engine owns scheduling and does not expose Llumnix's legacy
     # request/block-manager mutation hooks.  Keep these methods explicit so

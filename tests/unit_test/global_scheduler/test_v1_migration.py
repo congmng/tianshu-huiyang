@@ -24,6 +24,7 @@ from llumnix.global_scheduler.migration_policy import PairMigrationConstraints
 from llumnix.global_scheduler.v1_migration_scheduler import (
     V1MigrationScheduler,
     v1_migration_capable,
+    v1_migration_compatibility_key,
 )
 
 
@@ -68,6 +69,52 @@ def test_v1_migration_scheduler_filters_non_capable_instances():
     scheduler.update_instance_infos(infos)
     pairs = scheduler.pair_migration(PairMigrationConstraints.NO_CONSTRAINTS)
     assert pairs == [("src", "dst")]
+
+
+def test_v1_migration_scheduler_never_pairs_incompatible_stacks():
+    scheduler = V1MigrationScheduler("defrag", 0.2)
+    infos = {}
+    for stack, device in (("44", "BI-V150"), ("45", "TG-V300")):
+        source_id = f"{stack}-src"
+        target_id = f"{stack}-dst"
+        infos[source_id] = InstanceInfo(
+            instance_id=source_id,
+            migration_load_metric=0.9,
+            migration_capabilities=frozenset({
+                "token_boundary_freeze", "kv_snapshot", "native_nccl",
+            }),
+            migration_protocol_version=1,
+            migration_kv_layout_version="vllm-v1",
+            device_class=device,
+            corex_stack=stack,
+        )
+        infos[target_id] = InstanceInfo(
+            instance_id=target_id,
+            migration_load_metric=0.1,
+            migration_capabilities=frozenset({
+                "token_boundary_freeze", "kv_snapshot", "native_nccl",
+            }),
+            migration_protocol_version=1,
+            migration_kv_layout_version="vllm-v1",
+            device_class=device,
+            corex_stack=stack,
+        )
+    scheduler.update_instance_infos(infos)
+    pairs = scheduler.pair_migration(PairMigrationConstraints.NO_CONSTRAINTS)
+    assert sorted(pairs) == [("44-src", "44-dst"), ("45-src", "45-dst")]
+
+
+def test_v1_migration_compatibility_key_is_stable():
+    info = InstanceInfo(
+        instance_id="v1",
+        migration_protocol_version=1,
+        migration_kv_layout_version="vllm-v1",
+        device_class="BI-V150",
+        corex_stack="44",
+    )
+    assert v1_migration_compatibility_key(info) == (
+        1, "vllm-v1", "BI-V150", "44",
+    )
 
 
 def _remote(value=None, side_effect=None):

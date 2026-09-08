@@ -13,6 +13,7 @@
 
 """Capability-aware instance pairing for vLLM V1 true KV migration."""
 
+from collections import defaultdict
 from typing import Dict, Iterable, List, Tuple
 
 from llumnix.logging.logger import init_logger
@@ -40,6 +41,16 @@ def v1_migration_capable(info: InstanceInfo,
     return required.issubset(capabilities)
 
 
+def v1_migration_compatibility_key(info: InstanceInfo) -> tuple:
+    """Return the compatibility identity for safe V1 migration pairing."""
+    return (
+        int(getattr(info, "migration_protocol_version", 0) or 0),
+        str(getattr(info, "migration_kv_layout_version", "") or ""),
+        str(getattr(info, "device_class", "") or ""),
+        str(getattr(info, "corex_stack", "") or ""),
+    )
+
+
 class V1MigrationScheduler:
     """Thin capability gate around the existing pair-migration scheduler.
 
@@ -52,12 +63,12 @@ class V1MigrationScheduler:
     def __init__(self, pair_migration_policy: str,
                  migrate_out_load_threshold: float,
                  required_capabilities: Iterable[str] = ()) -> None:
-        self.migration_scheduler = MigrationScheduler(
-            pair_migration_policy, migrate_out_load_threshold, False
-        )
+        self.pair_migration_policy = pair_migration_policy
+        self.migrate_out_load_threshold = migrate_out_load_threshold
         self.required_capabilities = frozenset(
             required_capabilities or V1_REQUIRED_MIGRATION_CAPABILITIES
         )
+        self._group_schedulers: Dict[tuple, MigrationScheduler] = {}
 
     def update_instance_infos(self, instance_infos: Dict[str, InstanceInfo]) -> None:
         capable = {
@@ -65,9 +76,21 @@ class V1MigrationScheduler:
             for instance_id, info in instance_infos.items()
             if v1_migration_capable(info, self.required_capabilities)
         }
-        self.migration_scheduler.update_instance_infos(capable)
+        grouped: Dict[tuple, Dict[str, InstanceInfo]] = defaultdict(dict)
+        for instance_id, info in capable.items():
+            grouped[v1_migration_compatibility_key(info)][instance_id] = info
+        self._group_schedulers = {}
+        for key, group_infos in grouped.items():
+            scheduler = MigrationScheduler(
+                self.pair_migration_policy, self.migrate_out_load_threshold, False
+            )
+            scheduler.update_instance_infos(group_infos)
+            self._group_schedulers[key] = scheduler
 
     def pair_migration(
         self, pair_migration_type: PairMigrationConstraints
     ) -> List[Tuple[str, str]]:
-        return self.migration_scheduler.pair_migration(pair_migration_type)
+        pairs: List[Tuple[str, str]] = []
+        for scheduler in self._group_schedulers.values():
+            pairs.extend(scheduler.pair_migration(pair_migration_type))
+        return pairs

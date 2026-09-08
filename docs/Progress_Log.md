@@ -1,5 +1,17 @@
 # Llumnix CoreX 4.4/4.5 双栈与 Phase-4 进展
 
+## 2026-09-08：异构 V1 调度兼容性分组准备
+
+- `InstanceInfo` 新增 `migration_protocol_version`、`migration_kv_layout_version`、
+  `device_class`、`corex_stack`；`V1EngineAdapter.update_instance_info()` 从 fork
+  协议版本、KV layout 和运行时设备/SDK 信息填充这些字段。
+- `V1MigrationScheduler` 现在按“协议版本 + KV layout + 设备类别 + CoreX 栈”分组后
+  再调用现有 pair policy，避免未来 4.4 BI-V150 与 4.5 TG-V300 或不同迁移协议被错误
+  配对；默认空身份仍保持原有行为。
+- 新增分组与兼容性 key 单测，CoreX unit gate 复验 **125 passed**。
+- 这仍是 4.5 vLLM 0.23 迁移 adapter 未移植前的调度准备；4.5 节点尚未发布
+  `migration_capabilities`，因此不会进入 V1 迁移对。
+
 ## 2026-09-08：prompt-embed 与 LoRA 真 GPU Manager 迁移通过
 
 - `tools/run_v1_true_kv_migration_manager.py` 新增 `--prompt-embeds`：
