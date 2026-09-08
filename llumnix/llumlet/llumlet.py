@@ -375,6 +375,76 @@ class Llumlet:
             request_id, migration_epoch
         )
 
+    async def incremental_begin_wire(self, request_id: str,
+                                      migration_epoch: int) -> str:
+        """Open source-side pre-copy bookkeeping for a live request."""
+        session = await self.backend_engine.begin_incremental_migration(
+            request_id, migration_epoch
+        )
+        return session.decode()
+
+    async def incremental_immutable_blocks(self, request_id: str):
+        """Return the block-aligned immutable prefix and group block counts."""
+        return await self.backend_engine.incremental_migration_immutable_blocks(
+            request_id
+        )
+
+    async def incremental_prepare_in_wire(self, session_wire: str,
+                                           block_counts) -> tuple:
+        """Reserve target-local blocks for one pre-copy round."""
+        return await self.backend_engine.prepare_incremental_migration_in(
+            session_wire.encode(), tuple(block_counts)
+        )
+
+    async def incremental_preview_wire(self, request_id: str,
+                                        migration_epoch: int,
+                                        source_target_pairs) -> str:
+        """Build a peer-verifiable suffix session without committing it."""
+        pairs = tuple(tuple(pair) for pair in source_target_pairs)
+        session = await self.backend_engine.preview_incremental_migration(
+            request_id, migration_epoch, pairs
+        )
+        return session.decode()
+
+    async def incremental_send_layer_wire(self, session_wire: str,
+                                           layer_name: str,
+                                           source_block_ids,
+                                           target_block_ids,
+                                           target_endpoint: str) -> str:
+        """Send one immutable pre-copy layer and return its manifest."""
+        manifest = await self.backend_engine.send_incremental_migration_kv_layer(
+            session_wire.encode(), layer_name, source_block_ids,
+            target_block_ids, target_endpoint,
+        )
+        return manifest.decode()
+
+    async def incremental_receive_layer(self, session_wire: str,
+                                         manifest_wire: str,
+                                         source_endpoint: str) -> None:
+        await self.backend_engine.receive_incremental_migration_kv_layer(
+            session_wire.encode(), manifest_wire.encode(), source_endpoint,
+        )
+
+    async def incremental_commit_in_wire(self, session_wire: str) -> str:
+        """Commit one fully-written pre-copy suffix on the target."""
+        session = await self.backend_engine.commit_incremental_migration_in(
+            session_wire.encode()
+        )
+        return session.decode()
+
+    async def incremental_append_wire(self, request_id: str,
+                                       migration_epoch: int,
+                                       source_target_pairs) -> str:
+        """Advance source pre-copy bookkeeping after target commit."""
+        pairs = tuple(tuple(pair) for pair in source_target_pairs)
+        session = await self.backend_engine.append_incremental_migration(
+            request_id, migration_epoch, pairs
+        )
+        return session.decode()
+
+    async def incremental_abort(self, request_id: str) -> None:
+        await self.backend_engine.abort_incremental_migration(request_id)
+
     async def migration_prepare_in_wire(self, snapshot_wire: str):
         """Reserve target-local blocks from a source snapshot wire payload."""
         snapshot = self.backend_engine.decode_migration_snapshot(snapshot_wire)

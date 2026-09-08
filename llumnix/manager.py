@@ -851,6 +851,14 @@ class Manager:
                     source_id, target_id,
                 )
                 return
+            incremental_precopy = (
+                "incremental_precopy" in (
+                    getattr(source_info, "migration_capabilities", frozenset())
+                )
+                and "incremental_precopy" in (
+                    getattr(target_info, "migration_capabilities", frozenset())
+                )
+            )
 
             request_id = await self._select_v1_migration_request(source_id)
             if request_id is None:
@@ -866,6 +874,7 @@ class Manager:
                 await self._migrate_v1_request_with_retry(
                     source_id, target_id, request_id, epoch,
                     source_endpoint, target_endpoint, server_info,
+                    incremental_precopy,
                 )
             finally:
                 self.v1_migrating_requests.discard(request_id)
@@ -894,13 +903,16 @@ class Manager:
     async def _migrate_v1_request_with_retry(self, source_id, target_id,
                                               request_id, epoch,
                                               source_endpoint, target_endpoint,
-                                              server_info) -> None:
+                                              server_info,
+                                              incremental_precopy: bool = False
+                                              ) -> None:
         max_attempts = 2
         for attempt in range(max_attempts):
             try:
                 await self._migrate_v1_request(
                     source_id, target_id, request_id, epoch,
                     source_endpoint, target_endpoint, server_info,
+                    incremental_precopy,
                 )
                 self.request_instance[request_id] = target_id
                 self.request_instances[request_id] = {target_id}
@@ -939,9 +951,15 @@ class Manager:
 
     async def _migrate_v1_request(self, source_id, target_id, request_id,
                                   epoch, source_endpoint, target_endpoint,
-                                  server_info) -> None:
+                                  server_info,
+                                  incremental_precopy: bool = False) -> None:
         src = self.instances[source_id]
         dst = self.instances[target_id]
+        synced_prefix_pairs = ()
+        if incremental_precopy:
+            synced_prefix_pairs = await self._run_v1_incremental_precopy(
+                src, dst, request_id, epoch, source_endpoint, target_endpoint,
+            )
         snapshot_wire = await src.migration_prepare_out_wire.remote(
             request_id, epoch
         )
@@ -950,14 +968,16 @@ class Manager:
             request_id, epoch
         )
         layers = await src.migration_layer_names.remote()
+        skip = len(synced_prefix_pairs)
         for group_src, group_dst in zip(source_blocks, target_blocks):
             for layer_name in layers:
                 manifest = await src.migration_send_layer.remote(
                     request_id, epoch, layer_name, group_src, group_dst,
-                    target_endpoint,
+                    target_endpoint, skip,
                 )
                 await dst.migration_receive_layer.remote(
-                    request_id, epoch, manifest, source_endpoint
+                    request_id, epoch, manifest, source_endpoint,
+                    synced_prefix_pairs,
                 )
         # Commit the target before the source. The source must keep its KV
         # copy until the target confirms a successful import.
@@ -970,6 +990,69 @@ class Manager:
         )
         await src.migration_commit.remote(request_id, epoch, incoming=False)
         await src.finish_migrated_out.remote(request_id)
+        if incremental_precopy:
+            await self._cleanup_v1_incremental_precopy(src, dst, request_id)
+
+    async def _run_v1_incremental_precopy(self, src, dst, request_id, epoch,
+                                           source_endpoint, target_endpoint):
+        """Pre-copy the immutable block prefix while the source stays runnable.
+
+        The scheduler exposes only fully block-aligned immutable prefixes as
+        safe pre-copy candidates.  If that prefix is empty, or any step fails,
+        return an empty mapping so the normal cutover transfers every block.
+        """
+        try:
+            source_session = await src.incremental_begin_wire.remote(
+                request_id, epoch
+            )
+            source_groups, block_counts = await src.incremental_immutable_blocks.remote(
+                request_id
+            )
+            if len(source_groups) != 1 or not source_groups[0]:
+                await src.incremental_abort.remote(request_id)
+                return ()
+            target_groups = await dst.incremental_prepare_in_wire.remote(
+                source_session, block_counts
+            )
+            if len(target_groups) != 1 or not target_groups[0]:
+                await src.incremental_abort.remote(request_id)
+                await dst.incremental_abort.remote(request_id)
+                return ()
+            source_ids = source_groups[0]
+            target_ids = target_groups[0]
+            pairs = list(zip(source_ids, target_ids))
+            preview_session = await src.incremental_preview_wire.remote(
+                request_id, epoch + 1, pairs
+            )
+            layers = await src.migration_layer_names.remote()
+            for layer_name in layers:
+                manifest = await src.incremental_send_layer_wire.remote(
+                    preview_session, layer_name, source_ids, target_ids,
+                    target_endpoint,
+                )
+                await dst.incremental_receive_layer.remote(
+                    preview_session, manifest, source_endpoint
+                )
+            await dst.incremental_commit_in_wire.remote(preview_session)
+            await src.incremental_append_wire.remote(
+                request_id, epoch + 1, pairs
+            )
+            return tuple(pairs)
+        except Exception as exc:
+            logger.warning(
+                "V1 incremental pre-copy %s fell back to full transfer: %s",
+                request_id, exc,
+            )
+            await self._cleanup_v1_incremental_precopy(src, dst, request_id)
+            return ()
+
+    async def _cleanup_v1_incremental_precopy(self, src, dst, request_id) -> None:
+        """Release best-effort pre-copy bookkeeping on both EngineCores."""
+        await asyncio.gather(
+            src.incremental_abort.remote(request_id),
+            dst.incremental_abort.remote(request_id),
+            return_exceptions=True,
+        )
 
     async def _cleanup_v1_migration(self, source_id, target_id, request_id,
                                     epoch) -> None:
@@ -980,6 +1063,8 @@ class Manager:
             dst.migration_abort.remote(request_id, epoch, incoming=True),
             dst.abort_migrated_request.remote(request_id),
             src.migration_abort.remote(request_id, epoch, incoming=False),
+            src.incremental_abort.remote(request_id),
+            dst.incremental_abort.remote(request_id),
             return_exceptions=True,
         )
 

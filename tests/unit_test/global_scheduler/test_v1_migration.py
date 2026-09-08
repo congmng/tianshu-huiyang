@@ -112,10 +112,10 @@ async def test_manager_migrate_v1_request_preserves_two_phase_order():
     src.migration_prepare_out_wire.remote.assert_awaited_once_with("request-1", 1)
     dst.migration_prepare_in_wire.remote.assert_awaited_once_with("snapshot-wire")
     src.migration_send_layer.remote.assert_awaited_once_with(
-        "request-1", 1, "layer-0", [1, 2], [10, 20], "10.0.0.2:19000",
+        "request-1", 1, "layer-0", [1, 2], [10, 20], "10.0.0.2:19000", 0,
     )
     dst.migration_receive_layer.remote.assert_awaited_once_with(
-        "request-1", 1, "manifest-wire", "10.0.0.1:19000",
+        "request-1", 1, "manifest-wire", "10.0.0.1:19000", (),
     )
     dst_commit = dst.migration_commit.remote.await_args
     src_commit = src.migration_commit.remote.await_args
@@ -123,6 +123,61 @@ async def test_manager_migrate_v1_request_preserves_two_phase_order():
     assert dst_commit.kwargs["incoming"] is True
     assert src_commit.args == ("request-1", 1)
     assert src_commit.kwargs["incoming"] is False
+
+
+@pytest.mark.asyncio
+async def test_manager_migrate_v1_request_runs_incremental_precopy():
+    manager = object.__new__(Manager)
+    src = SimpleNamespace(
+        incremental_begin_wire=_remote("begin"),
+        incremental_immutable_blocks=_remote(([[1, 2]], (2,))),
+        incremental_preview_wire=_remote("preview"),
+        incremental_send_layer_wire=_remote("manifest"),
+        incremental_append_wire=_remote("append"),
+        incremental_abort=_remote(),
+        migration_prepare_out_wire=_remote("snapshot-wire"),
+        migration_source_blocks=_remote([[1, 2, 3]]),
+        migration_layer_names=_remote(["layer-0"]),
+        migration_send_layer=_remote("manifest-wire"),
+        migration_commit=_remote(),
+        finish_migrated_out=_remote(),
+    )
+    dst = SimpleNamespace(
+        incremental_prepare_in_wire=_remote([[10, 20]]),
+        incremental_receive_layer=_remote(),
+        incremental_commit_in_wire=_remote("committed"),
+        incremental_abort=_remote(),
+        migration_prepare_in_wire=_remote([[10, 20, 30]]),
+        migration_receive_layer=_remote(),
+        migration_commit=_remote(),
+        register_migrated_request=_remote(),
+    )
+    manager.instances = {"src": src, "dst": dst}
+
+    await manager._migrate_v1_request(
+        "src", "dst", "request-1", 1,
+        "10.0.0.1:19000", "10.0.0.2:19000", None,
+        incremental_precopy=True,
+    )
+
+    src.incremental_immutable_blocks.remote.assert_awaited_once_with("request-1")
+    dst.incremental_prepare_in_wire.remote.assert_awaited_once_with("begin", (2,))
+    src.incremental_send_layer_wire.remote.assert_awaited_once_with(
+        "preview", "layer-0", [1, 2], [10, 20], "10.0.0.2:19000",
+    )
+    dst.incremental_receive_layer.remote.assert_awaited_once_with(
+        "preview", "manifest", "10.0.0.1:19000",
+    )
+    src.migration_send_layer.remote.assert_awaited_once_with(
+        "request-1", 1, "layer-0", [1, 2, 3], [10, 20, 30],
+        "10.0.0.2:19000", 2,
+    )
+    dst.migration_receive_layer.remote.assert_awaited_once_with(
+        "request-1", 1, "manifest-wire", "10.0.0.1:19000",
+        ((1, 10), (2, 20)),
+    )
+    src.incremental_abort.remote.assert_awaited_once_with("request-1")
+    dst.incremental_abort.remote.assert_awaited_once_with("request-1")
 
 
 @pytest.mark.asyncio

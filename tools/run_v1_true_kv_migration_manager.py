@@ -132,6 +132,69 @@ class MigrationInstance:
             request_id, migration_epoch
         )
 
+    async def incremental_begin_wire(self, request_id: str,
+                                      migration_epoch: int) -> str:
+        session = await self.adapter.begin_incremental_migration(
+            request_id, migration_epoch
+        )
+        return session.decode()
+
+    async def incremental_immutable_blocks(self, request_id: str):
+        return await self.adapter.incremental_migration_immutable_blocks(
+            request_id
+        )
+
+    async def incremental_prepare_in_wire(self, session_wire: str,
+                                           block_counts) -> tuple:
+        return await self.adapter.prepare_incremental_migration_in(
+            session_wire.encode(), tuple(block_counts)
+        )
+
+    async def incremental_preview_wire(self, request_id: str,
+                                        migration_epoch: int,
+                                        source_target_pairs) -> str:
+        pairs = tuple(tuple(pair) for pair in source_target_pairs)
+        session = await self.adapter.preview_incremental_migration(
+            request_id, migration_epoch, pairs
+        )
+        return session.decode()
+
+    async def incremental_send_layer_wire(self, session_wire: str,
+                                           layer_name: str,
+                                           source_block_ids,
+                                           target_block_ids,
+                                           target_endpoint: str) -> str:
+        manifest = await self.adapter.send_incremental_migration_kv_layer(
+            session_wire.encode(), layer_name, source_block_ids,
+            target_block_ids, target_endpoint,
+        )
+        return manifest.decode()
+
+    async def incremental_receive_layer(self, session_wire: str,
+                                         manifest_wire: str,
+                                         source_endpoint: str) -> None:
+        await self.adapter.receive_incremental_migration_kv_layer(
+            session_wire.encode(), manifest_wire.encode(), source_endpoint,
+        )
+
+    async def incremental_commit_in_wire(self, session_wire: str) -> str:
+        session = await self.adapter.commit_incremental_migration_in(
+            session_wire.encode()
+        )
+        return session.decode()
+
+    async def incremental_append_wire(self, request_id: str,
+                                       migration_epoch: int,
+                                       source_target_pairs) -> str:
+        pairs = tuple(tuple(pair) for pair in source_target_pairs)
+        session = await self.adapter.append_incremental_migration(
+            request_id, migration_epoch, pairs
+        )
+        return session.decode()
+
+    async def incremental_abort(self, request_id: str) -> None:
+        await self.adapter.abort_incremental_migration(request_id)
+
     async def migration_prepare_in_wire(self, snapshot_wire: str):
         snapshot = self.adapter.decode_migration_snapshot(snapshot_wire)
         self.migration_snapshot = snapshot
@@ -255,6 +318,7 @@ async def run(args: argparse.Namespace) -> None:
     await manager._migrate_v1_request(
         "src", "dst", args.request_id, args.epoch,
         source_endpoint, target_endpoint, None,
+        incremental_precopy=args.incremental_precopy,
     )
     continuation = ray.get(source.migration_snapshot_output_len.remote())
     observed = ray.get(target.drain_migrated.remote(args.verify_tokens))
@@ -294,6 +358,8 @@ def main() -> None:
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--verify-tokens", type=int, default=4)
+    parser.add_argument("--incremental-precopy", action="store_true",
+                        help="run one explicit immutable-prefix pre-copy round")
     args = parser.parse_args()
     ray.init(num_cpus=2, num_gpus=2, include_dashboard=False,
              ignore_reinit_error=True)
