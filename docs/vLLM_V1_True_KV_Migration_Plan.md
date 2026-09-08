@@ -447,6 +447,9 @@ Llumnix 已把上述控制面接入 Manager：`InstanceInfo`/`Llumlet` 发布显
 通过 `V1EngineAdapter.add_migrated_request()` 重建 `EngineCoreRequest` 并注册
 `AsyncLLM` 输出。`tools/run_v1_true_kv_migration_service.py` 已以真实 Ray
 Llumlet/Manager 拓扑完成服务级 E2E，并纳入 `run_corex44_validation.py e2e`；
-实测解析出有效 `source->target` 迁移事件且目标端流式输出非空续写。仍需在数据面/
-恢复策略稳定后补上 LoRA、多模态、prompt-embed、无 seed 随机、TP>1 和
-speculative decoding 的 Phase-4 服务级验收，因此当前仍不宣称 Phase 4 完成。
+实测解析出有效 `source->target` 迁移事件且目标端流式输出非空续写。
+`tools/run_v1_true_kv_migration_manager.py` 已增加并实测 `--structured-output`、
+`--prompt-embeds` 和 `--lora`：structured-output 已通过 JSON 续写校验；
+prompt-embed/LoRA 均校验对应 feature flag，且 continuation `alignment_offset=0`。
+prompt-embed 目标占位 token 校验已在 fork 修复并加单测。仍需补上多模态、TP>1
+和 speculative decoding 的真实 GPU/服务级验收，因此当前仍不宣称 Phase 4 完成。

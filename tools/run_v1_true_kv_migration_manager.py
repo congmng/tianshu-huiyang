@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 
 import ray
+import torch
 from vllm import AsyncEngineArgs, SamplingParams
 from vllm.config import KVTransferConfig
 from vllm.sampling_params import RequestOutputKind, StructuredOutputsParams
@@ -25,10 +26,59 @@ from llumnix.manager import Manager
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def build_attention_lora_adapter(model: str, output_dir: Path, *,
+                                 rank: int = 8, alpha: int = 16,
+                                 seed: int = 20260908) -> str:
+    """Create a deterministic Qwen-style attention-only LoRA adapter."""
+    model_config = json.loads((Path(model) / "config.json").read_text())
+    hidden_size = int(model_config["hidden_size"])
+    num_heads = int(model_config["num_attention_heads"])
+    num_kv_heads = int(model_config["num_key_value_heads"])
+    num_layers = int(model_config["num_hidden_layers"])
+    head_dim = hidden_size // num_heads
+    kv_dim = num_kv_heads * head_dim
+    generator = torch.Generator().manual_seed(seed)
+    modules = (
+        ("q_proj", hidden_size, hidden_size),
+        ("k_proj", hidden_size, kv_dim),
+        ("v_proj", hidden_size, kv_dim),
+        ("o_proj", hidden_size, hidden_size),
+    )
+    tensors = {}
+    for layer_idx in range(num_layers):
+        for name, input_dim, output_dim in modules:
+            prefix = (
+                "base_model.model.model.layers."
+                f"{layer_idx}.self_attn.{name}"
+            )
+            tensors[prefix + ".lora_A.weight"] = (
+                torch.randn(rank, input_dim, generator=generator) * 0.02
+            )
+            tensors[prefix + ".lora_B.weight"] = (
+                torch.randn(output_dim, rank, generator=generator) * 0.02
+            )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    import safetensors.torch
+    safetensors.torch.save_file(tensors, output_dir / "adapter_model.safetensors")
+    (output_dir / "adapter_config.json").write_text(json.dumps({
+        "r": rank,
+        "lora_alpha": alpha,
+        "target_modules": [name for name, _, _ in modules],
+        "bias": "none",
+        "peft_type": "LORA",
+    }))
+    return str(output_dir)
+
+
 @ray.remote(num_gpus=1)
 class MigrationInstance:
     def __init__(self, model: str, p2p_host: str, p2p_port: int,
-                 role: str, transport: str, use_p2p: bool = True):
+                 role: str, transport: str, use_p2p: bool = True,
+                 enable_prompt_embeds: bool = False,
+                 prompt_embed_len: int = 4,
+                 prompt_embed_seed: int = 20260908,
+                 enable_lora: bool = False,
+                 lora_path: str = ""):
         # EngineCore is spawned by vLLM inside this actor.  The driver-side
         # ``run()`` variables are not inherited across the Ray actor boundary
         # in this CoreX build, so pin the explicit-migration flags here before
@@ -64,18 +114,48 @@ class MigrationInstance:
             max_num_seqs=1,
             enforce_eager=True,
             enable_prefix_caching=True,
+            enable_prompt_embeds=enable_prompt_embeds,
+            enable_lora=enable_lora,
+            max_loras=1 if enable_lora else 0,
+            max_lora_rank=16,
             prefix_caching_hash_algo="sha256_cbor",
             kv_transfer_config=config,
         )
         self.adapter = V1EngineAdapter(engine_args, f"manager-{role}")
+        self.lora_request = None
+        if enable_lora:
+            if not lora_path:
+                raise RuntimeError("LoRA validation requires an adapter path")
+            from vllm.lora.request import LoRARequest
+            self.lora_request = LoRARequest(
+                lora_name="migration-lora",
+                lora_int_id=1,
+                lora_path=lora_path,
+            )
+        self.prompt_embeds_input = None
+        if enable_prompt_embeds:
+            hidden_size = int(self.adapter.engine.model_config.get_hidden_size())
+            if hidden_size <= 0:
+                raise RuntimeError("prompt-embed validation needs a concrete hidden_size")
+            generator = torch.Generator().manual_seed(prompt_embed_seed)
+            self.prompt_embeds_input = {
+                "prompt_embeds": torch.randn(
+                    prompt_embed_len, hidden_size, generator=generator
+                ).float(),
+            }
         self.generator = None
         self.active_request_id = None
         self.generated_token_ids: list[int] = []
         self.migration_snapshot = None
         self.migrated_stream = None
 
-    def is_ready(self):
+    async def is_ready(self):
+        if self.lora_request is not None:
+            await self.adapter.engine.add_lora(self.lora_request)
         return True
+
+    def _prompt(self, prompt):
+        return self.prompt_embeds_input if self.prompt_embeds_input is not None else prompt
 
     @staticmethod
     def _sampling_params(temperature: float, seed: int | None,
@@ -114,6 +194,11 @@ class MigrationInstance:
             raise RuntimeError("no prepared migration snapshot")
         return len(self.migration_snapshot.output_token_ids)
 
+    def migration_snapshot_feature_flags(self):
+        if self.migration_snapshot is None:
+            raise RuntimeError("no prepared migration snapshot")
+        return tuple(self.migration_snapshot.feature_flags)
+
     def migration_replay_context(self):
         if self.migration_snapshot is None:
             raise RuntimeError("no prepared migration snapshot")
@@ -143,6 +228,7 @@ class MigrationInstance:
                            ignore_eos=True,
                            output_kind=RequestOutputKind.DELTA),
             request_id,
+            lora_request=self.lora_request,
         )
         token_ids = []
         try:
@@ -158,9 +244,10 @@ class MigrationInstance:
                        seed: int | None,
                        structured_output: bool = False) -> list[int]:
         stream = self.adapter.engine.generate(
-            prompt,
+            self._prompt(prompt),
             self._sampling_params(temperature, seed, structured_output),
             request_id,
+            lora_request=self.lora_request,
         )
         token_ids = []
         async for output in stream:
@@ -173,9 +260,10 @@ class MigrationInstance:
         self.active_request_id = request_id
         self.generated_token_ids = []
         stream = self.adapter.engine.generate(
-            prompt,
+            self._prompt(prompt),
             self._sampling_params(temperature, seed, structured_output),
             request_id,
+            lora_request=self.lora_request,
         )
         for _ in range(2):
             output = await anext(stream)
@@ -359,10 +447,20 @@ async def run(args: argparse.Namespace) -> None:
     source = MigrationInstance.remote(
         args.model, args.source_p2p_host, args.source_p2p, "source",
         args.transport,
+        enable_prompt_embeds=args.prompt_embeds,
+        prompt_embed_len=args.prompt_embed_len,
+        prompt_embed_seed=args.prompt_embed_seed,
+        enable_lora=args.lora,
+        lora_path=args.lora_path,
     )
     target = MigrationInstance.remote(
         args.model, args.target_p2p_host, args.target_p2p, "target",
         args.transport,
+        enable_prompt_embeds=args.prompt_embeds,
+        prompt_embed_len=args.prompt_embed_len,
+        prompt_embed_seed=args.prompt_embed_seed,
+        enable_lora=args.lora,
+        lora_path=args.lora_path,
     )
     ray.get([source.is_ready.remote(), target.is_ready.remote()])
     source_endpoint = ray.get(source.get_kv_endpoint.remote())
@@ -378,6 +476,11 @@ async def run(args: argparse.Namespace) -> None:
         witness = MigrationInstance.remote(
             args.model, args.source_p2p_host, 0, "witness",
             args.transport, use_p2p=False,
+            enable_prompt_embeds=args.prompt_embeds,
+            prompt_embed_len=args.prompt_embed_len,
+            prompt_embed_seed=args.prompt_embed_seed,
+            enable_lora=args.lora,
+            lora_path=args.lora_path,
         )
         ray.get(witness.is_ready.remote())
         seed_value = int(os.environ.get("LLUMNIX_TEST_RNG_SEED", "20260908"))
@@ -416,6 +519,18 @@ async def run(args: argparse.Namespace) -> None:
         source_endpoint, target_endpoint, None,
         incremental_precopy=args.incremental_precopy,
     )
+    if args.prompt_embeds:
+        snapshot_flags = ray.get(source.migration_snapshot_feature_flags.remote())
+        if "prompt_embeds_v1" not in snapshot_flags:
+            raise AssertionError(
+                f"migration snapshot lacks prompt_embeds_v1: {snapshot_flags}"
+            )
+    if args.lora:
+        snapshot_flags = ray.get(source.migration_snapshot_feature_flags.remote())
+        if "lora_v1" not in snapshot_flags:
+            raise AssertionError(
+                f"migration snapshot lacks lora_v1: {snapshot_flags}"
+            )
     continuation = ray.get(source.migration_snapshot_output_len.remote())
     observed = ray.get(target.drain_migrated.remote(args.verify_tokens))
 
@@ -482,10 +597,27 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--structured-output", action="store_true",
                         help="run greedy migration with JSON-object structured output")
+    parser.add_argument("--prompt-embeds", action="store_true",
+                        help="run migration with deterministic raw prompt embeddings")
+    parser.add_argument("--prompt-embed-len", type=int, default=4,
+                        help="number of synthetic prompt embedding tokens")
+    parser.add_argument("--prompt-embed-seed", type=int, default=20260908,
+                        help="deterministic seed shared by all embedding witnesses")
+    parser.add_argument("--lora", action="store_true",
+                        help="run migration with a deterministic attention LoRA adapter")
+    parser.add_argument("--lora-adapter-dir",
+                        default=str(ROOT / ".models/qwen3-14b-lora-attn-v1"),
+                        help="local path for the generated/loaded LoRA adapter")
     parser.add_argument("--verify-tokens", type=int, default=4)
     parser.add_argument("--incremental-precopy", action="store_true",
                         help="run one explicit immutable-prefix pre-copy round")
     args = parser.parse_args()
+    if args.lora:
+        args.lora_path = build_attention_lora_adapter(
+            args.model, Path(args.lora_adapter_dir)
+        )
+    else:
+        args.lora_path = ""
     worker_gpus = 3 if (args.seed is None and args.temperature > 0) else 2
     ray.init(num_cpus=worker_gpus, num_gpus=worker_gpus, include_dashboard=False,
              ignore_reinit_error=True)

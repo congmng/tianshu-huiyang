@@ -1,5 +1,25 @@
 # Llumnix CoreX 4.4/4.5 双栈与 Phase-4 进展
 
+## 2026-09-08：prompt-embed 与 LoRA 真 GPU Manager 迁移通过
+
+- `tools/run_v1_true_kv_migration_manager.py` 新增 `--prompt-embeds`：
+  源/目标/见证实例开启 `enable_prompt_embeds`，用模型 `hidden_size` 构造确定性
+  输入 embedding，迁移后校验快照含 `prompt_embeds_v1`，续写与源 baseline
+  `continuation_alignment_offset=0`。
+- 修复 fork `vllm/v1/core/sched/scheduler.py` 的 target prompt 校验：prompt-embed
+  快照没有整数 prompt token，目标会用占位 token 保留原始 prompt 长度，现按
+  `all_token_ids - output_token_ids` 计算 prompt 长度，避免误报
+  `target request prompt differs from snapshot`。
+- fork `tests/unit/v1/test_migration_kv_blocks.py` 增加 prompt-embed 占位 token
+  重建与 target reservation 校验用例，定向复验 **46 passed**。
+- 新增 `--lora`：脚本自动生成 Qwen3 40 层 attention LoRA adapter
+  （`q/k/v/o_proj`，rank=8），源/目标加载同一 adapter，迁移后校验快照含
+  `lora_v1`，续写 `continuation_alignment_offset=0`。
+- 完整服务级 E2E 在 GPU 2、3 复验 `PASS service_v1_true_kv_migration`；
+  prompt-embed 与 LoRA 均在 GPU 上复验 `PASS manager_v1_true_kv_migration`。
+- llumnix CoreX unit gate 复验 **123 passed**。Phase-4 仍待 multimodal、TP>1 与
+  speculative decoding 的真实 GPU/服务级证据，不能宣告 Phase 4 完成。
+
 ## 2026-09-08：structured output 真 GPU Manager 迁移通过
 
 - `tools/run_v1_true_kv_migration_manager.py` 新增 `--structured-output`：
