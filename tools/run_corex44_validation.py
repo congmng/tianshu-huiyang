@@ -25,6 +25,27 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+COREX45_DOCKER_IMAGE = (
+    "dev-community-acr-registry.cn-shanghai.cr.aliyuncs.com/"
+    "dev-community/dev-community:vllm-py3.12-corex.4.5.0-ubuntu24.04"
+)
+
+
+def corex45_docker_gate_command(remote_project: str) -> str:
+    """Return the remote shell command for the 4.5 Docker runtime gate."""
+    script = f"{remote_project}/tools/corex45_docker_support_check.py"
+    return (
+        "LIBS=$(find /data/tianshu/20260720/corex/corex/corex-toolkit "
+        "-mindepth 2 -maxdepth 2 -type d -name lib64 | paste -sd: -)"
+        ":/usr/local/corex-4.5.0/lib64:/usr/local/openmpi/lib; "
+        "docker run --rm --privileged "
+        "-v /dev:/dev:ro "
+        f"-v {remote_project}:{remote_project}:ro "
+        "-v /data/tianshu/20260720/corex:/data/tianshu/20260720/corex:ro "
+        "-v /usr/local/corex-4.5.0:/usr/local/corex-4.5.0:ro "
+        '-e LD_LIBRARY_PATH="$LIBS" '
+        f"{COREX45_DOCKER_IMAGE} python {script} --json"
+    )
 
 
 def free_port() -> int:
@@ -57,6 +78,50 @@ def unit_commands() -> list[list[str]]:
              "tests/unit_test/entrypoints/vllm/test_v1_api_server.py"]]
 
 
+def _run_corex45_docker_gate(remote_host: str, remote_project: str,
+                             dry_run: bool,
+                             ssh_password: str | None) -> None:
+    """Run the vLLM 0.23 CoreX 4.5 Docker gate and compare source hashes."""
+    remote_cmd = corex45_docker_gate_command(remote_project)
+    ssh_prefix = (["sshpass", "-p", ssh_password] if ssh_password else [])
+    ssh_cmd = ssh_prefix + [
+        "ssh", "-o", "StrictHostKeyChecking=no",
+        "-o", "UserKnownHostsFile=/dev/null", remote_host, remote_cmd,
+    ]
+    print("+", " ".join(ssh_cmd), flush=True)
+    if dry_run:
+        return
+    completed = subprocess.run(
+        ssh_cmd, check=False, capture_output=True, text=True,
+    )
+    if completed.returncode:
+        raise RuntimeError(
+            "remote CoreX 4.5 Docker gate failed: "
+            + (completed.stderr or completed.stdout).strip()[-2000:]
+        )
+    import importlib.util
+    import json
+
+    gate_path = ROOT / "tools" / "corex44_support_check.py"
+    spec = importlib.util.spec_from_file_location("corex44_support_check", gate_path)
+    gate44 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gate44)
+    local_fingerprint = gate44.source_fingerprint()
+    remote_result = json.loads(completed.stdout.strip().splitlines()[-1])
+    if not remote_result.get("supported", False):
+        raise RuntimeError(
+            "remote CoreX 4.5 Docker gate is unsupported: "
+            + repr(remote_result.get("errors"))
+        )
+    remote_fingerprint = remote_result.get("source_fingerprint")
+    if remote_fingerprint != local_fingerprint:
+        raise RuntimeError(
+            "CoreX 4.5 remote source fingerprint differs: "
+            f"local={local_fingerprint} remote={remote_fingerprint}"
+        )
+    print(json.dumps(remote_result, sort_keys=True), flush=True)
+
+
 def run_integration(local_ip: str, remote_ip: str, remote_host: str,
                     remote_project: str, dry_run: bool, model_pd: bool = False,
                     model: str = "/data1/congmng/llumnix/.models/Qwen3-14B",
@@ -64,6 +129,17 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
                     remote_stack: str | None = None,
                     ssh_password: str | None = None) -> None:
     remote_stack = remote_stack or corex_stack
+    if remote_stack == "45":
+        _run_corex45_docker_gate(
+            remote_host, remote_project, dry_run, ssh_password
+        )
+        print(
+            "INFO remote CoreX 4.5 runtime gate passed; skipping 0.11-fork "
+            "KV event/model probes until the vLLM 0.23 migration adapter "
+            "is ported",
+            flush=True,
+        )
+        return
     support_cmd = [sys.executable, "tools/corex44_support_check.py",
                    "--remote-host", remote_host, "--remote-project", remote_project,
                    "--corex-stack", corex_stack, "--remote-stack", remote_stack,

@@ -167,3 +167,24 @@ def test_remote_validation_commands_select_stack_before_sourcing():
     assert source.count("source tools/corex_env.sh") == 3
     for needle in ("LLUMNIX_COREX_STACK={remote_stack} ", "source tools/corex_env.sh"):
         assert needle in source
+
+
+def test_corex45_docker_gate_does_not_claim_ported_migration_protocol():
+    """The 4.5 Docker image runs vLLM 0.23 and has no 0.11-fork migration
+    module. The runtime gate must be explicit about that boundary instead of
+    silently accepting a false migration-protocol match.
+    """
+    script = Path(__file__).parents[2] / "tools" / "corex45_docker_support_check.py"
+    source = script.read_text(encoding="utf-8")
+    assert '"unported-vllm-0.23"' in source
+    assert "0.23." in source
+    assert "Iluvatar TG-V300" in source
+    assert "Docker runtime support gate" in source
+
+
+def test_corex45_docker_gate_is_used_by_mixed_stack_integration():
+    script = Path(__file__).parents[2] / "tools" / "run_corex44_validation.py"
+    source = script.read_text(encoding="utf-8")
+    assert "corex45_docker_support_check.py" in source
+    assert 'remote_stack == "45"' in source
+    assert "vLLM 0.23 migration adapter" in source

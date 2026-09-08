@@ -1,5 +1,19 @@
 # Llumnix CoreX 4.4/4.5 双栈与 Phase-4 进展
 
+## 2026-09-08：4.5 Docker 运行时 gate 与远端 source 对齐
+
+- 修复 `corex44_support_check.py`/`run_corex44_validation.py` 的远端 stack
+  选择顺序：先导出 `LLUMNIX_COREX_STACK=45` 再 `source tools/corex_env.sh`，
+  避免远端误按 44 环境启动。
+- 新增 `tools/corex45_docker_support_check.py`：在 CoreX 4.5 / vLLM 0.23.0 /
+  torch 2.10.0 的 TG-V300 Docker 镜像内验证 4 GPU、SDK、vLLM V1 和源码
+  fingerprint，不伪造 0.11-fork KV 迁移协议。
+- `run_corex44_validation.py integration --remote-stack 45` 现在运行该 Docker
+  gate 并比较本/远端 source fingerprint；在 vLLM 0.23 迁移 adapter 未移植前
+  明确跳过 0.11-fork KV event/model probe。
+- 已在 `10.66.0.11` 实测通过：`Iluvatar TG-V300X-72-A2`、4 GPU、
+  vLLM 0.23.0、torch 2.10.0，本/远端 fingerprint 一致。
+
 ## 2026-09-08：双栈环境与门禁泛化
 
 - 新增 `tools/corex_env.sh`，按 `LLUMNIX_COREX_STACK` 选择 CoreX 4.4.0 或
