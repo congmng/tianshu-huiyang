@@ -15,6 +15,18 @@
   `--ssh-password`，远端命令改用 `tools/corex_env.sh` 并保持原有 4.4 兼容参数。
 - 相关单测 `tools/run_corex44_validation.py unit` 为 **118 passed**。
 
+## 2026-09-08：decode-boundary multimodal/prompt-embed 迁移
+
+- fork 新增 `multimodal_v1`/`prompt_embeds_v1` 能力：仅在请求已产生至少一个
+  output token 后允许迁移，因为此时 encoder inputs/prompt embeddings 已消费，
+  目标端只需重建占位 token 与 encoder 元数据，无需传输原始图像/嵌入 tensor。
+- `serialize_mm_features`/`deserialize_mm_features` 只传输 modality、identifier
+  和 placeholder range；`Request.from_migration_snapshot` 为 prompt-embeds 请求
+  生成零占位 prompt token 并恢复 lightweight `MultiModalFeatureSpec`。
+- `Scheduler.prepare_migration_out` 在 freeze 前检查 decode boundary，避免请求已
+  从队列摘除后才拒绝；Llumnix 目标 frontend 同步重建 mm metadata。
+- fork 定向 V1 单测增至 **44 passed**；llumnix 相关迁移回归通过。
+
 ## 2026-09-08：structured output 请求约束纳入迁移快照
 
 - fork `vllm/v1/migration.py` 新增 `structured_output_v1` 字段与

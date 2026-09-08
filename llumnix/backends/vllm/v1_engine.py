@@ -16,6 +16,7 @@ from vllm.v1.migration import (
     RequestMigrationSnapshot,
     deserialize_greedy_sampling_params,
     deserialize_lora_request,
+    deserialize_mm_features,
     deserialize_structured_output_request,
 )
 from vllm.v1.engine import (
@@ -202,6 +203,7 @@ class V1EngineAdapter:
         return frozenset({
             "token_boundary_freeze", "kv_snapshot", "native_nccl",
             "incremental_precopy", "seeded_rng", "lora", "structured_output",
+            "prompt_embeds", "multimodal",
         })
 
     @staticmethod
@@ -246,10 +248,13 @@ class V1EngineAdapter:
             params.structured_outputs = structured_outputs
             params.guided_decoding = None
         lora_request = deserialize_lora_request(snapshot.lora_request)
+        mm_features = deserialize_mm_features(snapshot.mm_features)
+        prompt_len = len(snapshot.all_token_ids) - len(snapshot.output_token_ids)
+        prompt_token_ids = list(snapshot.prompt_token_ids) or [0] * prompt_len
         request = EngineCoreRequest(
             request_id=snapshot.request_id,
-            prompt_token_ids=list(snapshot.prompt_token_ids),
-            mm_features=None,
+            prompt_token_ids=prompt_token_ids,
+            mm_features=mm_features,
             sampling_params=params,
             pooling_params=None,
             eos_token_id=snapshot.eos_token_id,
