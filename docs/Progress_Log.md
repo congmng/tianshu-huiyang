@@ -1,5 +1,22 @@
 # Llumnix CoreX 4.4/4.5 双栈与 Phase-4 进展
 
+## 2026-09-08：CoreX 4.5 Manager 单实例 E2E 与 unseeded RNG 迁移复验
+
+- 将 V1 backend 探测从 `vLLM.__version__` 替换为 `vllm.v1.engine`，补齐
+  `is_vllm_v1()` 版本无关单测；提交 `8770e00`。本地 CoreX 4.4 unit gate 复验
+  **127 passed**。
+- 4.4 双卡完整服务级真 KV 迁移 E2E
+  `tools/run_v1_true_kv_migration_service.py` 复验
+  `PASS service_v1_true_kv_migration`，日志与流式续写校验通过。
+- 4.5 TG-V300 GPU2 单实例 Manager/Llumlet HTTP E2E
+  `tools/run_llumnix_v1_manager_http_e2e.py` 复验
+  `llumnix_v1_manager_http_corex: PASS`，确认 `backends/utils.py` 的 V1 backend
+  选择修复在 4.5 生效，Llumlet 不再误走 legacy backend。
+- 4.4 三卡 unseeded RNG Manager 真 KV 迁移（`--temperature 0.7` 无显式 seed）
+  复验 `PASS manager_v1_true_kv_migration`，
+  `continuation_alignment_offset=0`；Phase 4 的 unseeded RNG 真实 GPU 证据补齐。
+- Phase 4 剩余真实 GPU/服务级证据：multimodal、TP>1、speculative decoding。
+
 ## 2026-09-08：CoreX 4.5 V300 单卡服务级 HTTP E2E 与 Manager V1 识别
 
 - `Manager` 不再用 `vLLM.__version__.startswith("0.11")` 判断 V1，改为探测
