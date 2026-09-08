@@ -15,6 +15,19 @@
   `--ssh-password`，远端命令改用 `tools/corex_env.sh` 并保持原有 4.4 兼容参数。
 - 相关单测 `tools/run_corex44_validation.py unit` 为 **118 passed**。
 
+## 2026-09-08：structured output 请求约束纳入迁移快照
+
+- fork `vllm/v1/migration.py` 新增 `structured_output_v1` 字段与
+  `serialize_structured_output_request`/`deserialize_structured_output_request`：
+  只传输版本化约束参数，不序列化后端编译 grammar；目标端重新编译后回放
+  `output_token_ids` 重建 FSM 状态。
+- `Request.from_migration_snapshot` 恢复 `SamplingParams.structured_outputs`；
+  `Scheduler.prepare_migration_out` 不再拒绝 structured output，`prepare_migration_in`
+  在 block reservation 前初始化 grammar 并回放已生成 token，失败即拒绝。
+- Llumnix `V1EngineAdapter.add_migrated_request` 恢复目标 frontend 的
+  `structured_outputs`，`migration_capabilities` 增加 `structured_output`。
+- fork 定向 V1 单测增至 **42 passed**；llumnix 相关迁移回归通过。
+
 ## 2026-09-08：LoRA 请求身份纳入迁移快照
 
 - fork `vllm/v1/migration.py` 新增 `lora_v1` 特征字段和
