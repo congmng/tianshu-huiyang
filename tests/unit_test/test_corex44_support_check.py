@@ -146,3 +146,24 @@ def test_layered_corex_validation_runner_has_all_required_levels():
     assert "--local-ip" in source
     assert "--remote-ip" in source
     assert "exited during startup" in source
+
+
+def test_remote_stack_is_selected_before_sourcing_corex_env():
+    """Remote 45 gate must not source corex_env.sh while LLUMNIX_COREX_STACK
+    is still unset; that would make the script search for a 4.4 Python env.
+    """
+    script = Path(__file__).parents[2] / "tools" / "corex44_support_check.py"
+    source = script.read_text(encoding="utf-8")
+    assert "LLUMNIX_COREX_STACK={remote_stack} " in source
+    assert "source tools/corex_env.sh" in source
+    assert source.index("LLUMNIX_COREX_STACK={remote_stack} ") < source.index(
+        "source tools/corex_env.sh"
+    )
+
+
+def test_remote_validation_commands_select_stack_before_sourcing():
+    script = Path(__file__).parents[2] / "tools" / "run_corex44_validation.py"
+    source = script.read_text(encoding="utf-8")
+    assert source.count("source tools/corex_env.sh") == 3
+    for needle in ("LLUMNIX_COREX_STACK={remote_stack} ", "source tools/corex_env.sh"):
+        assert needle in source

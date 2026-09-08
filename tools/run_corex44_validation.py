@@ -77,8 +77,9 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
     # plane; the publisher/subscriber and msgspec payload remain real vLLM
     # ZMQ traffic, while the validation is not coupled to firewall policy.
     event_remote_cmd = (
-        f"cd {remote_project} && source tools/corex_env.sh && LLUMNIX_COREX_STACK={remote_stack} && "
-        f"PYTHONPATH=. python tools/corex44_kv_event_probe.py --role consumer "
+        f"cd {remote_project} && LLUMNIX_COREX_STACK={remote_stack} "
+        "source tools/corex_env.sh && PYTHONPATH=. "
+        "python tools/corex44_kv_event_probe.py --role consumer "
         f"--host 127.0.0.1 --port {event_port} --timeout 15"
     )
     event_local_cmd = [sys.executable, "tools/corex44_kv_event_probe.py", "--role", "publisher",
@@ -115,8 +116,9 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
     consumer_port = free_port()
     producer_port = free_port()
     remote_cmd = (
-        f"cd {remote_project} && source tools/corex_env.sh && LLUMNIX_COREX_STACK={remote_stack} && "
-        f"CUDA_VISIBLE_DEVICES=0 python tools/corex44_zmq_kv_probe.py "
+        f"cd {remote_project} && LLUMNIX_COREX_STACK={remote_stack} "
+        "source tools/corex_env.sh && CUDA_VISIBLE_DEVICES=0 "
+        "python tools/corex44_zmq_kv_probe.py "
         f"--role consumer --host {remote_ip} --port {consumer_port} --timeout 30"
     )
     local_cmd = [sys.executable, "tools/corex44_zmq_kv_probe.py", "--role", "producer",
@@ -151,8 +153,9 @@ def run_integration(local_ip: str, remote_ip: str, remote_host: str,
     request_id = "corex-pd-model-validation"
     transport_arg = f" --corex-transport {corex_transport}"
     remote_pd_cmd = (
-        f"cd {remote_project} && source tools/corex_env.sh && LLUMNIX_COREX_STACK={remote_stack} && "
-        f"CUDA_VISIBLE_DEVICES=0 PYTHONHASHSEED=0 python tools/v1_p2p_model_probe.py "
+        f"cd {remote_project} && LLUMNIX_COREX_STACK={remote_stack} "
+        "source tools/corex_env.sh && CUDA_VISIBLE_DEVICES=0 "
+        "PYTHONHASHSEED=0 python tools/v1_p2p_model_probe.py "
         f"--role consumer --model {model} --host {remote_ip} "
         f"--peer {local_ip}:{pd_port} --port {pd_port} --request-id {request_id} "
         f"--max-model-len 256 --max-tokens 4{transport_arg}"

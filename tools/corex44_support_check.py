@@ -242,9 +242,9 @@ def main() -> None:
     errors = list(result["errors"])
     if args.remote_host:
         remote_cli = (
-            f"cd {args.remote_project} && source tools/corex_env.sh && "
-            f"LLUMNIX_COREX_STACK={remote_stack} "
-            "PYTHONPATH=. python tools/corex44_support_check.py "
+            f"cd {args.remote_project} && LLUMNIX_COREX_STACK={remote_stack} "
+            "source tools/corex_env.sh && PYTHONPATH=. "
+            "python tools/corex44_support_check.py "
             f"--corex-stack {remote_stack}"
         )
         ssh_command = ["ssh", "-o", "StrictHostKeyChecking=no",
