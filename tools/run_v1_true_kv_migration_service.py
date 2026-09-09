@@ -105,6 +105,14 @@ def main() -> None:
     parser.add_argument("--prompt", default="The capital of France is")
     parser.add_argument("--log-file", default="v1_true_kv_migration_service.log")
     parser.add_argument(
+        "--vllm-migration-fork",
+        default=os.environ.get(
+            "LLUMNIX_VLLM_MIGRATION_FORK",
+            "/data1/congmng/vllm-corex44-v1-migration",
+        ),
+        help="CoreX vLLM fork worktree implementing the V1 true-KV API",
+    )
+    parser.add_argument(
         "--gpu-ids", default=os.environ.get("CUDA_VISIBLE_DEVICES", "0,1"),
         help="comma-separated visible GPUs for the two Llumlets",
     )
@@ -113,11 +121,25 @@ def main() -> None:
     model = Path(args.model).resolve()
     if not (model / "config.json").is_file():
         raise SystemExit(f"model is not a complete Hugging Face directory: {model}")
+    migration_fork = Path(args.vllm_migration_fork).resolve()
+    if not (migration_fork / "vllm" / "v1" / "migration.py").is_file():
+        raise SystemExit(
+            "V1 true-KV migration fork not found at "
+            f"{migration_fork}; pass --vllm-migration-fork or set "
+            "LLUMNIX_VLLM_MIGRATION_FORK"
+        )
 
     api_port = args.api_port or free_port()
     queue_port = args.request_output_queue_port or free_port()
     log_path = ROOT / args.log_file
     environment = os.environ.copy()
+    environment["PYTHONPATH"] = os.pathsep.join(
+        path for path in (
+            str(migration_fork),
+            str(ROOT),
+            environment.get("PYTHONPATH", ""),
+        ) if path
+    )
     environment.update({
         "CUDA_VISIBLE_DEVICES": args.gpu_ids,
         "RAY_DEDUP_LOGS": "0",
