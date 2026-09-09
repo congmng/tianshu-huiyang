@@ -74,6 +74,7 @@ def build_attention_lora_adapter(model: str, output_dir: Path, *,
 class MigrationInstance:
     def __init__(self, model: str, p2p_host: str, p2p_port: int,
                  role: str, transport: str, use_p2p: bool = True,
+                 tensor_parallel_size: int = 1,
                  enable_prompt_embeds: bool = False,
                  prompt_embed_len: int = 4,
                  prompt_embed_seed: int = 20260908,
@@ -94,6 +95,7 @@ class MigrationInstance:
             os.environ.pop("LLUMNIX_TRUE_KV_MIGRATION_ONLY", None)
         os.environ.setdefault("PYTHONHASHSEED", "0")
         self.role = role
+        self.tensor_parallel_size = tensor_parallel_size
         self.speculative_config = speculative_config
         config = None
         if use_p2p:
@@ -114,6 +116,7 @@ class MigrationInstance:
         engine_args = AsyncEngineArgs(
             model=model,
             dtype="float16",
+            tensor_parallel_size=tensor_parallel_size,
             gpu_memory_utilization=0.96,
             max_model_len=max_model_len,
             max_num_seqs=1,
@@ -389,21 +392,25 @@ class MigrationInstance:
     async def migration_send_layer(self, request_id: str, migration_epoch: int,
                                     layer_name: str, source_block_ids,
                                     target_block_ids, target_endpoint: str,
-                                    synced_prefix_block_count: int = 0) -> str:
+                                    synced_prefix_block_count: int = 0):
         manifest = await self.adapter.migration_send_layer(
             request_id, migration_epoch, layer_name, source_block_ids,
             target_block_ids, target_endpoint, synced_prefix_block_count,
         )
+        if isinstance(manifest, list):
+            return manifest
         return manifest.decode()
 
     async def migration_receive_layer(self, request_id: str,
                                        migration_epoch: int,
-                                       manifest_wire: str,
+                                       manifest_wire,
                                        source_endpoint: str,
                                        synced_prefix_block_pairs=(),
                                        ) -> None:
+        if isinstance(manifest_wire, str):
+            manifest_wire = manifest_wire.encode()
         await self.adapter.migration_receive_layer(
-            request_id, migration_epoch, manifest_wire.encode(),
+            request_id, migration_epoch, manifest_wire,
             source_endpoint, synced_prefix_block_pairs,
         )
 
@@ -469,9 +476,11 @@ async def run(args: argparse.Namespace) -> None:
     os.environ.setdefault("VLLM_FORCE_NCCL_COMM", "1")
     os.environ["LLUMNIX_TRUE_KV_MIGRATION_ONLY"] = "1"
     os.environ.setdefault("PYTHONHASHSEED", "0")
-    source = MigrationInstance.remote(
+    source = MigrationInstance.options(
+        num_gpus=args.tensor_parallel_size,
+    ).remote(
         args.model, args.source_p2p_host, args.source_p2p, "source",
-        args.transport,
+        args.transport, tensor_parallel_size=args.tensor_parallel_size,
         enable_prompt_embeds=args.prompt_embeds,
         prompt_embed_len=args.prompt_embed_len,
         prompt_embed_seed=args.prompt_embed_seed,
@@ -482,9 +491,11 @@ async def run(args: argparse.Namespace) -> None:
         max_model_len=args.max_model_len,
         speculative_config=args.speculative_config,
     )
-    target = MigrationInstance.remote(
+    target = MigrationInstance.options(
+        num_gpus=args.tensor_parallel_size,
+    ).remote(
         args.model, args.target_p2p_host, args.target_p2p, "target",
-        args.transport,
+        args.transport, tensor_parallel_size=args.tensor_parallel_size,
         enable_prompt_embeds=args.prompt_embeds,
         prompt_embed_len=args.prompt_embed_len,
         prompt_embed_seed=args.prompt_embed_seed,
@@ -506,9 +517,12 @@ async def run(args: argparse.Namespace) -> None:
     witness = None
     witness_baseline = None
     if args.seed is None and args.temperature > 0:
-        witness = MigrationInstance.remote(
+        witness = MigrationInstance.options(
+            num_gpus=args.tensor_parallel_size,
+        ).remote(
             args.model, args.source_p2p_host, 0, "witness",
             args.transport, use_p2p=False,
+            tensor_parallel_size=args.tensor_parallel_size,
             enable_prompt_embeds=args.prompt_embeds,
             prompt_embed_len=args.prompt_embed_len,
             prompt_embed_seed=args.prompt_embed_seed,
@@ -636,7 +650,8 @@ def main() -> None:
     parser.add_argument("--transport", choices=("nccl", "zmq_cpu"),
                         default="nccl")
     parser.add_argument("--source-p2p", type=int, default=19001)
-    parser.add_argument("--target-p2p", type=int, default=19002)
+    parser.add_argument("--target-p2p", type=int, default=None,
+                        help="target data-plane base port; defaults to source port + TP size")
     parser.add_argument("--source-p2p-host", default="127.0.0.1")
     parser.add_argument("--target-p2p-host", default="127.0.0.1")
     parser.add_argument("--request-id", default="manager-v1-migration")
@@ -668,7 +683,13 @@ def main() -> None:
     parser.add_argument("--verify-tokens", type=int, default=4)
     parser.add_argument("--incremental-precopy", action="store_true",
                         help="run one explicit immutable-prefix pre-copy round")
+    parser.add_argument("--tensor-parallel-size", type=int, default=1,
+                        help="tensor-parallel size for each migration instance")
     args = parser.parse_args()
+    if args.tensor_parallel_size < 1:
+        raise SystemExit("--tensor-parallel-size must be >= 1")
+    if args.target_p2p is None:
+        args.target_p2p = args.source_p2p + args.tensor_parallel_size
     if args.lora:
         args.lora_path = build_attention_lora_adapter(
             args.model, Path(args.lora_adapter_dir)
@@ -684,7 +705,8 @@ def main() -> None:
         }
         if args.spec_decode else None
     )
-    worker_gpus = 3 if (args.seed is None and args.temperature > 0) else 2
+    worker_gpus = (3 if (args.seed is None and args.temperature > 0) else 2)
+    worker_gpus *= args.tensor_parallel_size
     ray.init(num_cpus=worker_gpus, num_gpus=worker_gpus, include_dashboard=False,
              ignore_reinit_error=True)
     try:

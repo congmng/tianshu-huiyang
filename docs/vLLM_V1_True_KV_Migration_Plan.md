@@ -468,3 +468,20 @@ feature flag：只要 EngineCore 启用推测解码就标记 `spec_decode_v1`，
 本机双卡 Qwen3-14B ngram 推测解码 Manager 真 KV 迁移实测
 `PASS manager_v1_true_kv_migration`、`continuation_alignment_offset=0`。
 当前 Phase-4 剩余真实 GPU/服务级缺口为 TP>1 迁移。
+
+### 2026-09-09 TP>1 Manager E2E
+
+fork 的全量迁移控制面已放开 TP>1（仍要求 PP=1）：`send_migration_kv_layer()` 在
+`world_size>1` 时返回按 rank 排列的 manifest 列表，`receive_migration_kv_layer()`
+校验列表长度后由各 worker 选取 `manifests[rank]`；worker 发送/接收端点按
+`self.rank` 偏移，使同一 TP group 内各 rank 与对端同 rank 交换分片。Llumnix 的
+`V1EngineAdapter`/`Llumlet`/Manager E2E wire 方法已兼容 `bytes | list[bytes]`。
+`tools/run_v1_true_kv_migration_manager.py` 新增 `--tensor-parallel-size`，Ray actor
+按 TP 数分配 GPU，默认目标数据面 base port 错开为 `source_port + TP`。
+
+验证结果：fork 定向测试 `48 passed`，CoreX 4.4 统一 unit gate `127 passed`；
+TP=1 Manager E2E 回归及完整服务级 E2E 复验均
+`PASS manager_v1_true_kv_migration` / `PASS service_v1_true_kv_migration`；本机 4 GPU、Qwen3-14B、
+TP=2 native NCCL Manager E2E 同样 `PASS manager_v1_true_kv_migration`、
+`continuation_alignment_offset=0`。增量 pre-copy、RNG/process-RNG 等路径仍显式限制
+TP=1；服务级 Llumlet/HTTP 的 TP>1 真实 E2E 尚待接入。

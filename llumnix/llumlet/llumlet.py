@@ -459,21 +459,25 @@ class Llumlet:
     async def migration_send_layer(self, request_id: str, migration_epoch: int,
                                     layer_name: str, source_block_ids,
                                     target_block_ids, target_endpoint: str,
-                                    synced_prefix_block_count: int = 0) -> str:
+                                    synced_prefix_block_count: int = 0):
         manifest = await self.backend_engine.migration_send_layer(
             request_id, migration_epoch, layer_name, source_block_ids,
             target_block_ids, target_endpoint, synced_prefix_block_count,
         )
+        if isinstance(manifest, list):
+            return manifest
         return manifest.decode()
 
     async def migration_receive_layer(self, request_id: str,
                                        migration_epoch: int,
-                                       manifest_wire: str,
+                                       manifest_wire,
                                        source_endpoint: str,
                                        synced_prefix_block_pairs=(),
                                        ) -> None:
+        if isinstance(manifest_wire, str):
+            manifest_wire = manifest_wire.encode()
         await self.backend_engine.migration_receive_layer(
-            request_id, migration_epoch, manifest_wire.encode(),
+            request_id, migration_epoch, manifest_wire,
             source_endpoint, synced_prefix_block_pairs,
         )
 

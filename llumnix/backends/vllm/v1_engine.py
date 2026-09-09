@@ -558,7 +558,7 @@ class V1EngineAdapter:
         self, request_id: str, migration_epoch: int, layer_name: str,
         source_block_ids: list[int], target_block_ids: list[int],
         target_endpoint: str, synced_prefix_block_count: int = 0,
-    ) -> bytes:
+    ) -> bytes | list[bytes]:
         """Send one layer directly between worker P2P engines.
 
         Only the small authenticated manifest returns through EngineCore.
@@ -570,7 +570,8 @@ class V1EngineAdapter:
         )
 
     async def migration_receive_layer(
-        self, request_id: str, migration_epoch: int, manifest_wire: bytes,
+        self, request_id: str, migration_epoch: int,
+        manifest_wire: bytes | list[bytes],
         source_endpoint: str,
         synced_prefix_block_pairs: tuple[tuple[int, int], ...] = (),
     ) -> None:
