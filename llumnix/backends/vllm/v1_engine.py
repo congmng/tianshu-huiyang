@@ -419,6 +419,8 @@ class V1EngineAdapter:
         # deserialize frozen dataclasses as dictionaries. Keep this transport
         # detail out of orchestrators: every adapter caller receives the
         # authenticated versioned snapshot object.
+        if isinstance(snapshot, (bytes, bytearray)):
+            snapshot = RequestMigrationSnapshot.from_wire(bytes(snapshot))
         if isinstance(snapshot, dict):
             def as_bytes(value):
                 if isinstance(value, str):

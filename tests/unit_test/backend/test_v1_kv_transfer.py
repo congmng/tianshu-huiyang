@@ -690,6 +690,27 @@ def test_v1_adapter_normalizes_wire_migration_snapshot():
     assert restored == expected
 
 
+def test_v1_adapter_normalizes_binary_migration_snapshot():
+    from llumnix.backends.vllm.v1_engine import V1EngineAdapter
+    from vllm.v1.migration import RequestMigrationSnapshot
+
+    expected = RequestMigrationSnapshot(
+        request_id="req", migration_epoch=1, prompt_token_ids=(1,),
+        all_token_ids=(1, 2), output_token_ids=(2,), num_computed_tokens=1,
+        max_tokens=4,
+    )
+    adapter = object.__new__(V1EngineAdapter)
+
+    class Core:
+        async def call_utility_async(self, *_args):
+            return expected.to_wire()
+
+    adapter.engine = SimpleNamespace(engine_core=Core())
+    import asyncio
+    restored = asyncio.run(adapter.migration_prepare_out("req", 1))
+    assert restored == expected
+
+
 def test_pd_producer_sampling_stops_after_handoff():
     from llumnix.backends.vllm.v1_kv_transfer import producer_sampling_params
 
