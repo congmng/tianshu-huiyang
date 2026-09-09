@@ -484,4 +484,19 @@ TP=1 Manager E2E 回归及完整服务级 E2E 复验均
 `PASS manager_v1_true_kv_migration` / `PASS service_v1_true_kv_migration`；本机 4 GPU、Qwen3-14B、
 TP=2 native NCCL Manager E2E 同样 `PASS manager_v1_true_kv_migration`、
 `continuation_alignment_offset=0`。增量 pre-copy、RNG/process-RNG 等路径仍显式限制
-TP=1；服务级 Llumlet/HTTP 的 TP>1 真实 E2E 尚待接入。
+TP=1。
+
+### 2026-09-09 TP>1 服务级 E2E
+
+`tools/run_v1_true_kv_migration_service.py` 已加入 `--tensor-parallel-size` 与
+按 TP 数自动推导 GPU 列表；Manager 初始化 Llumlet 时按 `TP` 作为 P2P base-port
+步长，避免两个同角色实例的 rank 端口重叠。首跑 TP=2 服务级 E2E 暴露了回迁时
+源 worker persistent batch 未清空的问题：`commit_migration_out` 释放了 scheduler
+请求，但没有把该请求 ID 写入 `finished_req_ids`，因此 `max_num_seqs=1` 的目标
+worker 在第二次回迁时仍有旧请求并触发 `_register_add_request` 上界断言。
+
+fork 已修复 `Scheduler.commit_migration_out`，在 cutover 后按普通 worker removal
+记录 `finished_req_ids`（含 DP client index 映射），并新增回归测试。当前验证：
+fork 定向测试 `49 passed`，CoreX 4.4 统一 unit gate `127 passed`；TP=1 与 TP=2
+服务级 E2E 均输出
+`PASS service_v1_true_kv_migration`，TP=2 continuation 非空且结束后 GPU 显存清零。

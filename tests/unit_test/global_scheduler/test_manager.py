@@ -60,6 +60,22 @@ def test_vllm_v1_backend_detection_is_version_independent(monkeypatch):
     assert _vllm_v1_backend_available() is False
 
 
+@pytest.mark.parametrize(
+    ("tp", "expected"),
+    [
+        (None, 1),
+        (1, 1),
+        (2, 2),
+        (3, 3),
+        (0, 1),
+        (-1, 1),
+    ],
+)
+def test_manager_v1_kv_port_stride_uses_tensor_parallel_size(tp, expected):
+    engine_args = SimpleNamespace(tensor_parallel_size=tp)
+    assert Manager._kv_port_stride(engine_args) == expected
+
+
 @ray.remote(num_cpus=1)
 class MockLlumlet:
     def __init__(self, instance_id):

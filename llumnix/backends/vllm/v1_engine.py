@@ -193,9 +193,14 @@ class V1EngineAdapter:
             return frozenset()
         capabilities = {
             "token_boundary_freeze", "kv_snapshot", "native_nccl",
-            "incremental_precopy", "seeded_rng", "lora", "structured_output",
-            "prompt_embeds", "multimodal",
+            "lora", "structured_output", "prompt_embeds", "multimodal",
         }
+        tensor_parallel_size = int(
+            getattr(getattr(self, "engine_args", None), "tensor_parallel_size", 1)
+            or 1
+        )
+        if tensor_parallel_size == 1:
+            capabilities.update({"incremental_precopy", "seeded_rng"})
         if getattr(getattr(self, "engine_args", None), "speculative_config", None) is not None:
             capabilities.add("spec_decode")
         return frozenset(capabilities)

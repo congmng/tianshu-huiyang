@@ -38,6 +38,15 @@ def free_port() -> int:
         return probe.getsockname()[1]
 
 
+def migration_gpu_ids(tensor_parallel_size: int, gpu_ids: str) -> str:
+    """Resolve the visible GPU list for two ``tensor_parallel_size`` Llumlets."""
+    if tensor_parallel_size < 1:
+        raise ValueError("tensor_parallel_size must be >= 1")
+    if gpu_ids:
+        return gpu_ids
+    return ",".join(str(index) for index in range(2 * tensor_parallel_size))
+
+
 def request_json(url: str, payload: dict | None = None) -> tuple[int, object]:
     data = None if payload is None else json.dumps(payload).encode()
     req = urllib.request.Request(
@@ -98,6 +107,7 @@ def main() -> None:
     parser.add_argument("--model", default=str(ROOT / ".models/Qwen3-14B"))
     parser.add_argument("--api-port", type=int, default=0)
     parser.add_argument("--base-p2p-port", type=int, default=29500)
+    parser.add_argument("--tensor-parallel-size", type=int, default=1)
     parser.add_argument("--request-output-queue-port", type=int, default=0)
     parser.add_argument("--timeout", type=float, default=240)
     parser.add_argument("--max-model-len", type=int, default=256)
@@ -113,10 +123,16 @@ def main() -> None:
         help="CoreX vLLM fork worktree implementing the V1 true-KV API",
     )
     parser.add_argument(
-        "--gpu-ids", default=os.environ.get("CUDA_VISIBLE_DEVICES", "0,1"),
+        "--gpu-ids", default=os.environ.get("CUDA_VISIBLE_DEVICES", ""),
         help="comma-separated visible GPUs for the two Llumlets",
     )
     args = parser.parse_args()
+    try:
+        args.gpu_ids = migration_gpu_ids(
+            args.tensor_parallel_size, args.gpu_ids
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
     model = Path(args.model).resolve()
     if not (model / "config.json").is_file():
@@ -169,7 +185,7 @@ def main() -> None:
         "--gpu-memory-utilization", "0.96",
         "--enforce-eager",
         "--trust-remote-code",
-        "--tensor-parallel-size", "1",
+        "--tensor-parallel-size", str(args.tensor_parallel_size),
         "--request-output-queue-port", str(queue_port),
         "--launch-ray-cluster",
         "--log-request-timestamps",

@@ -595,6 +595,24 @@ def test_v1_adapter_reports_explicit_migration_capabilities():
     assert "legacy_block_manager" not in capabilities
 
 
+def test_v1_adapter_limits_incremental_and_seeded_rng_to_tp1():
+    from llumnix.backends.vllm.v1_engine import V1EngineAdapter
+
+    tp1 = object.__new__(V1EngineAdapter)
+    tp1.engine_args = SimpleNamespace(tensor_parallel_size=1)
+    assert "incremental_precopy" in tp1.migration_capabilities()
+    assert "seeded_rng" in tp1.migration_capabilities()
+
+    tp2 = object.__new__(V1EngineAdapter)
+    tp2.engine_args = SimpleNamespace(tensor_parallel_size=2)
+    capabilities = tp2.migration_capabilities()
+    assert "token_boundary_freeze" in capabilities
+    assert "kv_snapshot" in capabilities
+    assert "native_nccl" in capabilities
+    assert "incremental_precopy" not in capabilities
+    assert "seeded_rng" not in capabilities
+
+
 def test_v1_adapter_advertises_spec_decode_only_when_configured():
     from llumnix.backends.vllm.v1_engine import V1EngineAdapter
 

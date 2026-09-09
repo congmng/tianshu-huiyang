@@ -584,13 +584,16 @@ class Manager:
         instances: List[Llumlet] = []
         original_kv_port = os.environ.get("LLUMNIX_KV_PORT")
         base_kv_port = int(original_kv_port or "14579")
+        kv_port_stride = self._kv_port_stride(engine_args)
         for index in range(self.manager_args.initial_instances):
             # Each homogeneous V1 instance owns a P2pNcclEngine socket.  Ray
             # actor options capture the process environment when the actor is
-            # submitted, so assigning a fresh base port per loop iteration is
-            # the only way two same-role instances on one host can bind
-            # without racing on the shared default.
-            os.environ["LLUMNIX_KV_PORT"] = str(base_kv_port + index)
+            # submitted. Each TP worker offsets the base port by its rank, so
+            # the per-instance base must advance by the full TP size to avoid
+            # rank N of instance I colliding with rank N-1 of instance I+1.
+            os.environ["LLUMNIX_KV_PORT"] = str(
+                base_kv_port + index * kv_port_stride
+            )
             instance_id = random_uuid()
             placement_group = self.launcher.init_placement_group(
                 get_placement_group_name(instance_id), engine_args, backend_type
@@ -632,8 +635,11 @@ class Manager:
         instance_ids: List[str] = []
         original_kv_port = os.environ.get("LLUMNIX_KV_PORT")
         base_kv_port = int(original_kv_port or "14579")
+        kv_port_stride = self._kv_port_stride(self.engine_args)
         for index in range(self.manager_args.initial_instances):
-            os.environ["LLUMNIX_KV_PORT"] = str(base_kv_port + index)
+            os.environ["LLUMNIX_KV_PORT"] = str(
+                base_kv_port + index * kv_port_stride
+            )
             instance_id = random_uuid()
             placement_group = self.launcher.init_placement_group(
                 get_placement_group_name(instance_id),
@@ -658,6 +664,13 @@ class Manager:
         else:
             os.environ["LLUMNIX_KV_PORT"] = original_kv_port
         return instance_ids
+
+    @staticmethod
+    def _kv_port_stride(engine_args) -> int:
+        """Return the per-instance P2P base-port stride for a V1 engine."""
+        return max(
+            int(getattr(engine_args, "tensor_parallel_size", 1) or 1), 1
+        )
 
     async def is_ready(self) -> bool:
         """Called by api server, return true when all the instances have been successfully created."""
