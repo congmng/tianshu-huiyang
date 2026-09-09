@@ -1531,3 +1531,20 @@ V1 KV events、prefix hash 和 cache-aware dispatch 已接入；vLLM 原生
   集群注册 1/2/4 张 GPU，另 1 项 engine-step exception 要求 PyTorch 与 Ray
   可见 GPU；本次隔离 unit Ray 明确为 0 GPU。它们不是失败，也不覆盖当前已通过的
   多卡 TP=2 E2E 与真实双机 staging。
+
+## 2026-09-09：4.4 服务级复验与 4.5 真实源码核验
+
+- 本机 CoreX 4.4.0 / vLLM 0.11.2 / Ray 2.52.1 使用两张 BI-V150 执行完整
+  `tools/run_v1_true_kv_migration_service.py`：真实 HTTP 服务启动两个 Llumlet，
+  Manager 完成一次 capability-gated 真 KV 迁移，流式请求在目标实例继续生成并输出
+  `PASS service_v1_true_kv_migration`。
+- 远端 `10.66.0.11` 只读核验为 CoreX 4.5.0 / vLLM 0.25.1 / Torch 2.10.0 /
+  Ray 2.56.1；实际运行时仍不存在 `vllm.v1.migration` 和
+  `vllm.distributed.kv_transfer.kv_connector.v1.p2p`，因此 4.5 真 KV 能力门禁继续拒绝
+  迁移参与，这是预期的安全结果。
+- 拉取远端 wheel 的 `vllm/v1` 源码并与上游 0.25.1 适配树做三方移植后确认：远端
+  `EngineCore`、`Scheduler`、`KVCacheManager` 和 `GPUModelRunner` 的 API 基线不同，
+  不能直接套用上游 patch；4.5 适配需按该 CoreX 定制 wheel 逐文件重写并重新验证。
+- 4.5 当前适配源码已提交到独立发布分支
+  `corex-v1-true-kv-migration-v2`（远端提交 `2ef23a5`）；4.4 适配仓库
+  `master` 远端提交为 `1f587f0`。两者均不包含模型、环境、日志或 Ray 运行产物。
