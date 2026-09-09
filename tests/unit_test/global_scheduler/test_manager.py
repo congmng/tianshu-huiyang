@@ -19,6 +19,7 @@ import ray
 import pytest
 import numpy as np
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import torch
 from vllm import EngineArgs
@@ -58,6 +59,21 @@ def test_vllm_v1_backend_detection_is_version_independent(monkeypatch):
         lambda name: None if name == "vllm.v1.engine" else original(name),
     )
     assert _vllm_v1_backend_available() is False
+
+
+def test_launcher_uses_v1_probe_for_025_runtime():
+    launcher = Launcher(None, False, False, False, False, [1, 1])
+    engine_args = SimpleNamespace(tensor_parallel_size=1)
+    fake_placement_group = object()
+    with patch("llumnix.launcher.is_vllm_v1", return_value=True), \
+            patch("llumnix.launcher.get_engine_world_size", return_value=1), \
+            patch("llumnix.launcher.initialize_placement_group",
+                  return_value=fake_placement_group) as initialize:
+        result = launcher.init_placement_group(
+            "v1-025", engine_args, BackendType.VLLM, block=False
+        )
+    assert result is fake_placement_group
+    assert initialize.call_args.kwargs["pack_gpus_in_first_bundle"] is True
 
 
 @pytest.mark.parametrize(

@@ -17,7 +17,6 @@ import traceback
 from typing import Callable, List, Tuple
 
 import ray
-import vllm
 from ray.util.placement_group import PlacementGroup
 
 from llumnix.logging.logger import init_logger
@@ -29,6 +28,7 @@ from llumnix.backends.backend_interface import BackendType
 from llumnix.arg_utils import EntrypointsArgs, InstanceArgs
 from llumnix.entrypoints.vllm.api_server_actor import APIServerActor
 from llumnix.backends.utils import get_engine_world_size
+from llumnix.backends.vllm.utils import is_vllm_v1
 from llumnix.utils import (initialize_placement_group, remove_placement_group,
                            get_manager_name, get_server_name,
                            kill_server, kill_instance,
@@ -72,8 +72,7 @@ class Launcher:
         if not BackendType.is_sim_backend(backend_type):
             # num_gpus=world_size, for world_size Workers
             world_size = get_engine_world_size(engine_args, backend_type)
-            is_v1 = (backend_type == BackendType.VLLM
-                     and getattr(vllm, "__version__", "").startswith("0.11"))
+            is_v1 = backend_type == BackendType.VLLM and is_vllm_v1()
             placement_group = initialize_placement_group(
                 placement_group_name, num_cpus=2+int(init_server),
                 num_gpus=world_size, detached=True, block=block,

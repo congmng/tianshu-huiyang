@@ -28,6 +28,7 @@ from llumnix.backends.backend_interface import (
     EngineState,
 )
 from llumnix.backends.utils import init_backend_engine, get_engine_world_size
+from llumnix.backends.vllm.utils import is_vllm_v1
 from llumnix.llumlet.migration_coordinator import MigrationCoordinator, MigrationStatus
 from llumnix.llumlet.local_migration_scheduler import LocalMigrationScheduler
 from llumnix.server_info import ServerInfo
@@ -153,8 +154,7 @@ class Llumlet:
                 # V1 AsyncLLM owns the worker process and consumes the full
                 # placement-group GPU allocation. Legacy 0.6 used a 0.5 GPU
                 # Llumlet plus a separate Ray executor.
-                import vllm
-                is_v1 = getattr(vllm, "__version__", "").startswith("0.11")
+                is_v1 = is_vllm_v1()
                 num_gpus = (get_engine_world_size(engine_args, backend_type)
                             if is_v1 else 0.5)
             elif backend_type == backend_type.BLADELLM:
