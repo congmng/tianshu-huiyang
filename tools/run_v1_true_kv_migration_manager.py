@@ -81,7 +81,8 @@ class MigrationInstance:
                  lora_path: str = "",
                  multimodal_image: str = "",
                  multimodal_prompt: str = "请描述这张图片。",
-                 max_model_len: int = 128):
+                 max_model_len: int = 128,
+                 speculative_config: dict | None = None):
         # EngineCore is spawned by vLLM inside this actor.  The driver-side
         # ``run()`` variables are not inherited across the Ray actor boundary
         # in this CoreX build, so pin the explicit-migration flags here before
@@ -93,6 +94,7 @@ class MigrationInstance:
             os.environ.pop("LLUMNIX_TRUE_KV_MIGRATION_ONLY", None)
         os.environ.setdefault("PYTHONHASHSEED", "0")
         self.role = role
+        self.speculative_config = speculative_config
         config = None
         if use_p2p:
             config = KVTransferConfig(
@@ -125,6 +127,7 @@ class MigrationInstance:
             limit_mm_per_prompt={"image": 1},
             prefix_caching_hash_algo="sha256_cbor",
             kv_transfer_config=config,
+            speculative_config=speculative_config,
         )
         self.adapter = V1EngineAdapter(engine_args, f"manager-{role}")
         self.lora_request = None
@@ -280,6 +283,7 @@ class MigrationInstance:
                        structured_output: bool = False) -> dict:
         self.active_request_id = request_id
         self.generated_token_ids = []
+        min_generated_tokens = 1 if self.speculative_config is not None else 2
         stream = self.adapter.engine.generate(
             self._prompt(prompt),
             self._sampling_params(temperature, seed, structured_output),
@@ -291,7 +295,7 @@ class MigrationInstance:
             self.generated_token_ids.extend(output.outputs[0].token_ids)
         self.generator = stream
         for _ in range(600):
-            if len(self.generated_token_ids) >= 2:
+            if len(self.generated_token_ids) >= min_generated_tokens:
                 return {"tokens": len(self.generated_token_ids),
                         "token_ids": self.generated_token_ids}
             await asyncio.sleep(0.05)
@@ -476,6 +480,7 @@ async def run(args: argparse.Namespace) -> None:
         multimodal_image=args.multimodal_image,
         multimodal_prompt=args.multimodal_prompt,
         max_model_len=args.max_model_len,
+        speculative_config=args.speculative_config,
     )
     target = MigrationInstance.remote(
         args.model, args.target_p2p_host, args.target_p2p, "target",
@@ -488,6 +493,7 @@ async def run(args: argparse.Namespace) -> None:
         multimodal_image=args.multimodal_image,
         multimodal_prompt=args.multimodal_prompt,
         max_model_len=args.max_model_len,
+        speculative_config=args.speculative_config,
     )
     ray.get([source.is_ready.remote(), target.is_ready.remote()])
     source_endpoint = ray.get(source.get_kv_endpoint.remote())
@@ -511,6 +517,7 @@ async def run(args: argparse.Namespace) -> None:
             multimodal_image=args.multimodal_image,
             multimodal_prompt=args.multimodal_prompt,
             max_model_len=args.max_model_len,
+            speculative_config=args.speculative_config,
         )
         ray.get(witness.is_ready.remote())
         seed_value = int(os.environ.get("LLUMNIX_TEST_RNG_SEED", "20260908"))
@@ -566,6 +573,12 @@ async def run(args: argparse.Namespace) -> None:
         if "multimodal_v1" not in snapshot_flags:
             raise AssertionError(
                 f"migration snapshot lacks multimodal_v1: {snapshot_flags}"
+            )
+    if args.spec_decode:
+        snapshot_flags = ray.get(source.migration_snapshot_feature_flags.remote())
+        if "spec_decode_v1" not in snapshot_flags:
+            raise AssertionError(
+                f"migration snapshot lacks spec_decode_v1: {snapshot_flags}"
             )
     continuation = ray.get(source.migration_snapshot_output_len.remote())
     observed = ray.get(target.drain_migrated.remote(args.verify_tokens))
@@ -650,6 +663,8 @@ def main() -> None:
                         help="text prompt paired with --multimodal-image")
     parser.add_argument("--max-model-len", type=int, default=128,
                         help="max model length for the migration instances")
+    parser.add_argument("--spec-decode", action="store_true",
+                        help="run migration with ngram speculative decoding")
     parser.add_argument("--verify-tokens", type=int, default=4)
     parser.add_argument("--incremental-precopy", action="store_true",
                         help="run one explicit immutable-prefix pre-copy round")
@@ -660,6 +675,15 @@ def main() -> None:
         )
     else:
         args.lora_path = ""
+    args.speculative_config = (
+        {
+            "method": "ngram",
+            "num_speculative_tokens": 2,
+            "prompt_lookup_max": 4,
+            "prompt_lookup_min": 1,
+        }
+        if args.spec_decode else None
+    )
     worker_gpus = 3 if (args.seed is None and args.temperature > 0) else 2
     ray.init(num_cpus=worker_gpus, num_gpus=worker_gpus, include_dashboard=False,
              ignore_reinit_error=True)
