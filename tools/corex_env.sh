@@ -105,6 +105,15 @@ fi
 # so importing ``vllm_iluvatar._C`` can resolve its shared-library deps on
 # V300 nodes without changing the 4.4 runtime path.
 if [[ "${_corex_stack}" == "45" ]]; then
+  _corex_ixsdk_root="${_corex_toolkit_root}/ixsdk"
+  _corex_libdevice_path="${_corex_ixsdk_root}/nvvm/libdevice/libdevice.compute_bi.10.bc"
+  if [[ -d "${_corex_ixsdk_root}" ]]; then
+    export CUDA_HOME="${CUDA_HOME:-${_corex_ixsdk_root}}"
+  fi
+  if [[ -f "${_corex_libdevice_path}" ]]; then
+    export TRITON_LIBDEVICE_PATH="${TRITON_LIBDEVICE_PATH:-${_corex_libdevice_path}}"
+  fi
+
   for _corex_python_libdir in \
       "${CONDA_PREFIX}/lib/python3.12/site-packages/torch/lib" \
       "${CONDA_PREFIX}/lib/python3.12/site-packages/ixformer"; do
@@ -133,6 +142,9 @@ _corex_ld_library_path="$(IFS=:; echo "${_corex_lib_paths[*]}"):${CONDA_PREFIX}/
 _corex_cpath="$(IFS=:; echo "${_corex_include_paths[*]}"):${CONDA_PREFIX}/include"
 
 export PATH="${_corex_sdk_root}/bin:${CONDA_PREFIX}/bin:${PATH}"
+if [[ -n "${LLUMNIX_RAY_OVERLAY:-}" && -d "${LLUMNIX_RAY_OVERLAY}" ]]; then
+  export PYTHONPATH="${LLUMNIX_RAY_OVERLAY}:${PYTHONPATH:+${PYTHONPATH}}"
+fi
 export LD_LIBRARY_PATH="${_corex_ld_library_path}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 export LIBRARY_PATH="${_corex_ld_library_path}${LIBRARY_PATH:+:${LIBRARY_PATH}}"
 export CPATH="${_corex_cpath}${CPATH:+:${CPATH}}"
@@ -150,4 +162,4 @@ export VLLM_ENFORCE_CUDA_GRAPH="${VLLM_ENFORCE_CUDA_GRAPH:-0}"
 # ownership keys; configure_v1_kv_transfer also preserves this invariant.
 export PYTHONHASHSEED="${PYTHONHASHSEED:-0}"
 
-unset _corex_project_root _corex_stack _corex_sdk_root _corex_candidates _corex_candidate _corex_default_env _corex_lib_paths _corex_include_paths _corex_toolkit_root _corex_libdir _corex_incdir _corex_ld_library_path _corex_cpath _corex_python_libdir
+unset _corex_project_root _corex_stack _corex_sdk_root _corex_candidates _corex_candidate _corex_default_env _corex_lib_paths _corex_include_paths _corex_toolkit_root _corex_ixsdk_root _corex_libdevice_path _corex_libdir _corex_incdir _corex_ld_library_path _corex_cpath _corex_python_libdir

@@ -1,4 +1,6 @@
 import importlib.util
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -61,6 +63,52 @@ def test_corex45_gate_rejects_v150_device_on_v300_stack():
     assert any("device" in error for error in errors)
 
 
+def test_unported_protocol_label_uses_runtime_vllm_version():
+    script = Path(__file__).parents[2] / "tools" / "corex44_support_check.py"
+    source = script.read_text(encoding="utf-8")
+    assert 'f"unported-vllm-{vllm.__version__}"' in source
+
+
+def test_corex45_env_exports_triton_toolchain_paths(tmp_path):
+    toolkit_root = tmp_path / "corex-toolkit"
+    libdevice = (
+        toolkit_root / "ixsdk/nvvm/libdevice/libdevice.compute_bi.10.bc"
+    )
+    libdevice.parent.mkdir(parents=True)
+    libdevice.touch()
+    script = Path(__file__).parents[2] / "tools" / "corex_env.sh"
+    command = f"""
+        export LLUMNIX_COREX_STACK=45
+        export LLUMNIX_COREX_PYTHON_ENV={sys.prefix!s}
+        export LLUMNIX_COREX_TOOLKIT_ROOT={toolkit_root!s}
+        unset CUDA_HOME TRITON_LIBDEVICE_PATH
+        source {script!s}
+        printf '%s\n%s\n' "$CUDA_HOME" "$TRITON_LIBDEVICE_PATH"
+    """
+    result = subprocess.run(
+        ["bash", "-c", command], check=True, capture_output=True, text=True
+    )
+    assert result.stdout.splitlines() == [str(toolkit_root / "ixsdk"), str(libdevice)]
+
+
+def test_corex_env_prepends_optional_ray_overlay(tmp_path):
+    overlay = tmp_path / "ray-overlay"
+    overlay.mkdir()
+    script = Path(__file__).parents[2] / "tools" / "corex_env.sh"
+    command = f"""
+        export LLUMNIX_COREX_STACK=45
+        export LLUMNIX_COREX_PYTHON_ENV={sys.prefix!s}
+        export LLUMNIX_RAY_OVERLAY={overlay!s}
+        export PYTHONPATH=existing-path
+        source {script!s}
+        printf '%s\\n' "$PYTHONPATH"
+    """
+    result = subprocess.run(
+        ["bash", "-c", command], check=True, capture_output=True, text=True
+    )
+    assert result.stdout.splitlines()[0].split(":")[0] == str(overlay)
+
+
 def test_mixed_stack_gate_compares_code_and_protocol_not_vendor_versions():
     gate = _load_gate()
     local = {"python": "3.12.13", "vllm": "0.11.2", "ray": "2.52.1",
@@ -77,7 +125,8 @@ def test_mixed_stack_gate_compares_code_and_protocol_not_vendor_versions():
         "ray": "2.56.1",
         "migration_protocol_version": 0,
     })
-    assert gate.compare_hosts(local, remote, mixed_stack=True) == []
+    assert any("ray differs" in error
+               for error in gate.compare_hosts(local, remote, mixed_stack=True))
     remote["source_fingerprint"] = "different"
     assert gate.compare_hosts(local, remote, mixed_stack=True)
 
@@ -94,6 +143,17 @@ def test_corex44_gate_compares_two_hosts():
     remote = dict(local)
     remote["source_fingerprint"] = "different"
     assert gate.compare_hosts(local, remote)
+
+
+def test_mixed_stack_gate_rejects_ray_version_drift():
+    gate = _load_gate()
+    local = {
+        "python": "3.12.13", "ray": "2.52.1", "affinity_hashes": ["a"],
+        "source_fingerprint": "same", "supported": True,
+    }
+    remote = dict(local, ray="2.56.1")
+    assert any("ray differs" in error
+               for error in gate.compare_hosts(local, remote, mixed_stack=True))
 
 
 def test_corex44_source_fingerprint_is_sha256():
