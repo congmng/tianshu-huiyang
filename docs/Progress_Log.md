@@ -1,5 +1,18 @@
 # Llumnix CoreX 4.4/4.5 双栈与 Phase-4 进展
 
+## 2026-09-09：spec-decode 真 KV 迁移与统一门禁 fork 注入
+
+- `tools/run_v1_true_kv_migration_service.py` 增加 `--vllm-migration-fork`
+  并默认注入 `/data1/congmng/vllm-corex44-v1-migration`；服务级 E2E 不再依赖
+  手工 `PYTHONPATH`，复验 `PASS service_v1_true_kv_migration`。
+- `run_corex44_validation.py unit` 对 CoreX 4.4 自动注入 migration fork，
+  统一 unit gate 实测 `127 passed`。
+- fork 修复 `spec_decode_v1` 标记：EngineCore 启用推测解码即标记，不要求冻结时
+  已有未消费 draft token；fork 定向测试 `48 passed`。fork 提交 `4b30bfc`。
+- 本机双卡 Qwen3-14B ngram 推测解码 Manager 真 KV 迁移通过：
+  `PASS manager_v1_true_kv_migration`、`continuation_alignment_offset=0`。
+- Phase 4 剩余真实 GPU/服务级证据：TP>1。
+
 ## 2026-09-08：真实多模态 V1 true-KV 迁移通过
 
 - fork `vllm/v1/migration.py` 原先只保存多模态占位符范围，导致目标端

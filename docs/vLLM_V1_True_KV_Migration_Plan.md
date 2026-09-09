@@ -453,3 +453,18 @@ Llumlet/Manager 拓扑完成服务级 E2E，并纳入 `run_corex44_validation.py
 prompt-embed/LoRA 均校验对应 feature flag，且 continuation `alignment_offset=0`。
 prompt-embed 目标占位 token 校验已在 fork 修复并加单测。仍需补上多模态、TP>1
 和 speculative decoding 的真实 GPU/服务级验收，因此当前仍不宣称 Phase 4 完成。
+
+### 2026-09-09 Phase-4 补测
+
+`tools/run_v1_true_kv_migration_service.py` 现已显式把 CoreX 4.4 fork 前置到
+`PYTHONPATH`，不再依赖手工环境；`run_corex44_validation.py unit` 同样为 4.4
+单测注入 fork。统一 unit gate 实测 `127 passed`，服务级迁移 E2E 复验
+`PASS service_v1_true_kv_migration`。
+
+多模态已在 2026-09-08 以 Qwen2.5-VL-7B-Instruct + `docs/pdd_design.png` 完成
+真实双卡 Manager 迁移（见 Progress_Log）。fork `4b30bfc` 修正 spec-decode
+feature flag：只要 EngineCore 启用推测解码就标记 `spec_decode_v1`，不再要求
+冻结时已有未消费 draft token；新增对应单测后 fork 定向测试 `48 passed`。
+本机双卡 Qwen3-14B ngram 推测解码 Manager 真 KV 迁移实测
+`PASS manager_v1_true_kv_migration`、`continuation_alignment_offset=0`。
+当前 Phase-4 剩余真实 GPU/服务级缺口为 TP>1 迁移。
