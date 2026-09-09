@@ -43,8 +43,8 @@ def test_corex44_runtime_gate_requires_vendor_device_and_sdk():
 def test_corex45_gate_accepts_v300_stack():
     gate = _load_gate()
     assert gate.validate_versions({
-        "python": "3.12.13", "vllm": "0.11.2",
-        "torch": "2.10.0", "ray": "2.52.1",
+        "python": "3.12.13", "vllm": "0.25.1",
+        "torch": "2.10.0", "ray": "2.56.1",
     }, "45") == []
     assert gate.validate_corex_runtime({
         "corex_sdk": "Iluvatar CoreX SDK 4.5.0", "cuda_available": True,
@@ -71,6 +71,12 @@ def test_mixed_stack_gate_compares_code_and_protocol_not_vendor_versions():
     remote = dict(local)
     remote.update({"torch": "2.10.0", "corex_sdk": "Iluvatar CoreX SDK 4.5.0",
                    "device_name": "Iluvatar TG-V300 OAM"})
+    assert gate.compare_hosts(local, remote, mixed_stack=True) == []
+    remote.update({
+        "vllm": "0.25.1",
+        "ray": "2.56.1",
+        "migration_protocol_version": 0,
+    })
     assert gate.compare_hosts(local, remote, mixed_stack=True) == []
     remote["source_fingerprint"] = "different"
     assert gate.compare_hosts(local, remote, mixed_stack=True)

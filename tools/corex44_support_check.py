@@ -15,6 +15,7 @@ import re
 import subprocess
 import hashlib
 import os
+import importlib.util
 from pathlib import Path
 from typing import Mapping
 
@@ -66,11 +67,18 @@ CORE_X_STACKS = {
         "sdk_marker": "4.4.0",
         "device_names": ("Iluvatar BI-V150",),
         "torch_prefixes": ("2.7.",),
+        "vllm_prefixes": ("0.11.",),
+        "ray_prefixes": ("2.52.",),
     },
     "45": {
         "sdk_marker": "4.5.0",
         "device_names": ("Iluvatar TG-V300", "Iluvatar BI-V300"),
         "torch_prefixes": ("2.10.",),
+        # CoreX 4.5 is published in both the 0.23 Docker image and the
+        # project-local 0.25 conda environment.  The serving boundary is V1
+        # in both releases; migration support remains explicitly unported.
+        "vllm_prefixes": ("0.23.", "0.25."),
+        "ray_prefixes": ("2.56.",),
     },
 }
 
@@ -104,16 +112,24 @@ def validate_versions(versions: Mapping[str, str], stack: str = "44") -> list[st
     errors = []
     if not versions["python"].startswith("3.12."):
         errors.append(f"Python 3.12 is required, found {versions['python']}")
-    if not versions["vllm"].startswith("0.11."):
-        errors.append(f"vLLM 0.11.x is required, found {versions['vllm']}")
+    if not any(versions["vllm"].startswith(prefix)
+               for prefix in stack_spec["vllm_prefixes"]):
+        errors.append(
+            f"CoreX {stack} vLLM {stack_spec['vllm_prefixes']} is required, "
+            f"found {versions['vllm']}"
+        )
     if not any(versions["torch"].startswith(prefix)
                for prefix in stack_spec["torch_prefixes"]):
         errors.append(
             f"CoreX {stack} PyTorch {stack_spec['torch_prefixes']} is required, "
             f"found {versions['torch']}"
         )
-    if not versions["ray"].startswith("2.52."):
-        errors.append(f"CoreX Ray 2.52.x is required, found {versions['ray']}")
+    if not any(versions["ray"].startswith(prefix)
+               for prefix in stack_spec["ray_prefixes"]):
+        errors.append(
+            f"CoreX {stack} Ray {stack_spec['ray_prefixes']} is required, "
+            f"found {versions['ray']}"
+        )
     return errors
 
 
@@ -145,14 +161,14 @@ def compare_hosts(local: Mapping[str, object], remote: Mapping[str, object],
     """Return mismatches that invalidate a multi-host scheduling gate.
 
     By default a mixed V150/4.4 and V300/4.5 deployment is allowed; the
-    per-node SDK/device/torch fields are intentionally allowed to differ.
-    Code fingerprint and the migration protocol must remain identical so a
-    request can move between stacks without silently changing semantics.
+    per-node SDK/device/torch/vLLM/Ray fields are intentionally allowed to
+    differ because the stacks serve the same API through different vendor
+    runtimes.  Source code and KV hash affinity must still match so the two
+    node classes can coexist in one dispatch pool.
     """
     mismatches = []
     if mixed_stack:
-        common = ("python", "vllm", "ray", "affinity_hashes",
-                  "source_fingerprint", "migration_protocol_version")
+        common = ("python", "affinity_hashes", "source_fingerprint")
     else:
         common = ("python", "vllm", "ray", "torch", "corex_sdk",
                   "cuda_available", "device_name", "affinity_hashes",
@@ -170,12 +186,28 @@ def collect_result(stack: str = "44") -> dict[str, object]:
     import vllm
     import ray
 
-    from vllm.v1.migration import MIGRATION_PROTOCOL_VERSION
-    from llumnix.backends.vllm.corex_p2p_connector import CoreXP2pNcclConnector
     from llumnix.backends.vllm.v1_engine import V1EngineAdapter
     from llumnix.backends.vllm.v1_kv import KVCacheAffinityIndex
 
     stack = normalize_stack(stack)
+    migration_available = (
+        importlib.util.find_spec("vllm.v1.migration") is not None
+    )
+    if migration_available:
+        from vllm.v1.migration import MIGRATION_PROTOCOL_VERSION
+        migration_protocol_version = MIGRATION_PROTOCOL_VERSION
+        migration_protocol = f"vllm-{vllm.__version__}-{MIGRATION_PROTOCOL_VERSION}"
+    else:
+        # CoreX 4.5 ships a later vLLM V1 without the 0.11 migration fork.
+        # It is servable, but must never be advertised as migration-ready.
+        migration_protocol_version = 0
+        migration_protocol = "unported-vllm-0.23"
+    try:
+        from llumnix.backends.vllm.corex_p2p_connector import CoreXP2pNcclConnector
+        connector_name = CoreXP2pNcclConnector.__name__
+    except Exception:
+        connector_name = ""
+
     tokens = (1, 2, 3, 4, 5, 6, 7, 8)
     hashes = KVCacheAffinityIndex().prefix_hashes(tokens, 4, "sha256_cbor")
     index = KVCacheAffinityIndex()
@@ -193,13 +225,25 @@ def collect_result(stack: str = "44") -> dict[str, object]:
     stack_root = os.getenv(
         "LLUMNIX_COREX_ROOT", f"/usr/local/corex-4.{'5' if stack == '45' else '4'}.0"
     )
-    release_file = os.getenv(
-        "LLUMNIX_COREX_RELEASE_FILE", f"{stack_root}/release-corex.txt"
-    )
-    try:
-        corex_sdk = Path(release_file).read_text(encoding="utf-8").strip()
-    except OSError:
-        corex_sdk = ""
+    release_candidates = []
+    release_env = os.getenv("LLUMNIX_COREX_RELEASE_FILE")
+    if release_env:
+        release_candidates.append(release_env)
+    if stack == "45":
+        # CoreX 4.5 V300 nodes publish the release marker under the shared
+        # vendor tree rather than the SDK prefix used by the 4.4 image.
+        release_candidates.append(
+            "/data/tianshu/20260720/corex/release-corex.txt"
+        )
+    release_candidates.append(f"{stack_root}/release-corex.txt")
+    corex_sdk = ""
+    for candidate in release_candidates:
+        try:
+            corex_sdk = Path(candidate).read_text(encoding="utf-8").strip()
+            if corex_sdk:
+                break
+        except OSError:
+            continue
     runtime = {
         "corex_sdk": corex_sdk,
         "cuda_available": bool(torch.cuda.is_available()),
@@ -211,11 +255,12 @@ def collect_result(stack: str = "44") -> dict[str, object]:
         **versions,
         **runtime,
         "corex_stack": stack,
-        "corex_v1_imports": True,
-        "migration_protocol_version": MIGRATION_PROTOCOL_VERSION,
+        "corex_v1_imports": migration_available,
+        "migration_protocol_version": migration_protocol_version,
+        "migration_protocol": migration_protocol,
         "affinity_hashes": [value.hex() for value in hashes],
         "affinity_rank": index.rank(hashes, ("candidate-a", "candidate-b")),
-        "connector": CoreXP2pNcclConnector.__name__,
+        "connector": connector_name,
         "adapter": V1EngineAdapter.__name__,
         "source_fingerprint": source_fingerprint(),
         "supported": not errors,
