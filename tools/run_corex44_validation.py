@@ -61,8 +61,32 @@ def run(command: list[str], dry_run: bool) -> None:
         subprocess.run(command, cwd=ROOT, check=True)
 
 
-def unit_commands() -> list[list[str]]:
-    return [[sys.executable, "-m", "pytest", "-q",
+def unit_python_prefix(corex_stack: str = "44") -> list[str]:
+    """Prefix unit pytest commands with the CoreX 4.4 migration fork.
+
+    Several V1 migration tests import ``vllm.v1.migration``, which lives in
+    the separate 0.11 fork worktree rather than the installed CoreX wheel.
+    The 4.5 stack runs a different vLLM release and must not pick up this
+    fork, so keep the injection stack-specific.
+    """
+    if corex_stack != "44":
+        return [sys.executable]
+    fork = Path(os.environ.get(
+        "LLUMNIX_VLLM_MIGRATION_FORK",
+        "/data1/congmng/vllm-corex44-v1-migration",
+    )).resolve()
+    if not (fork / "vllm" / "v1" / "migration.py").is_file():
+        return [sys.executable]
+    existing = os.environ.get("PYTHONPATH", "")
+    pythonpath = os.pathsep.join(
+        path for path in (str(fork), str(ROOT), existing) if path
+    )
+    return ["env", f"PYTHONPATH={pythonpath}", sys.executable]
+
+
+def unit_commands(corex_stack: str = "44") -> list[list[str]]:
+    prefix = unit_python_prefix(corex_stack)
+    return [[*prefix, "-m", "pytest", "-q",
              "tests/unit_test/test_corex44_support_check.py",
              "tests/unit_test/test_corex44_pd_config.py",
              "tests/unit_test/backend/test_v1_kv_transfer.py",
@@ -289,7 +313,7 @@ def main() -> None:
                         help="deprecated compatibility alias for --corex-transport nccl")
     args = parser.parse_args()
     if args.level == "unit":
-        for command in unit_commands():
+        for command in unit_commands(args.corex_stack):
             run(command, args.dry_run)
     elif args.level == "integration":
         run_integration(args.local_ip, args.remote_ip, args.remote_host,
