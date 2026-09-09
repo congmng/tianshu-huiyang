@@ -49,6 +49,11 @@ def test_launch_ray_cluster(monkeypatch):
             "--port=18079"] in calls
 
 
+def test_get_ip_address_honors_node_ip_override(monkeypatch):
+    monkeypatch.setenv("LLUMNIX_NODE_IP", "10.66.0.10")
+    assert get_ip_address() == "10.66.0.10"
+
+
 def test_launch_ray_cluster_accepts_corex_resource_overrides(monkeypatch):
     ip_address = get_ip_address()
     os.environ['HEAD_NODE'] = '1'

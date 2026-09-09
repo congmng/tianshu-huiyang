@@ -1,4 +1,5 @@
 import socket
+import os
 from enum import Enum
 from typing import Dict
 import subprocess
@@ -39,6 +40,9 @@ class EntrypointsContext:
 
 
 def get_ip_address():
+    override = os.getenv("LLUMNIX_NODE_IP")
+    if override:
+        return override
     interfaces = psutil.net_if_addrs()
     for interface, addrs in interfaces.items():
         for addr in addrs:

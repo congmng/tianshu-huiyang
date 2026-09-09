@@ -17,6 +17,7 @@ import time
 import os
 import copy
 import importlib.util
+import inspect
 
 import ray
 from ray.util.placement_group import PlacementGroup
@@ -32,6 +33,54 @@ from llumnix.internal_config import MigrationConfig
 from llumnix.metrics.timestamps import set_timestamp
 
 logger = init_logger(__name__)
+
+
+_CROSS_VLLM_ENGINE_ARG_NAMES = (
+    "model", "tokenizer", "served_model_name", "hf_config_path", "runner",
+    "convert", "skip_tokenizer_init", "enable_prompt_embeds", "tokenizer_mode",
+    "trust_remote_code", "allowed_local_media_path", "download_dir", "load_format",
+    "config_format", "dtype", "kv_cache_dtype", "seed", "max_model_len",
+    "cudagraph_capture_sizes", "max_cudagraph_capture_size",
+    "distributed_executor_backend", "pipeline_parallel_size", "master_addr",
+    "master_port", "nnodes", "node_rank", "tensor_parallel_size",
+    "max_num_batched_tokens", "max_num_scheduled_tokens", "block_size",
+    "enable_prefix_caching", "prefix_caching_hash_algo", "disable_sliding_window",
+    "disable_cascade_attn", "gpu_memory_utilization", "kv_cache_memory_bytes",
+    "max_num_partial_prefills", "max_long_partial_prefills",
+    "long_prefill_token_threshold", "max_num_seqs", "max_logprobs", "logprobs_mode",
+    "disable_log_stats", "revision", "code_revision", "tokenizer_revision",
+    "quantization", "enforce_eager", "disable_custom_all_reduce",
+    "limit_mm_per_prompt", "enable_mm_embeds", "enable_lora", "max_loras",
+    "max_lora_rank", "default_mm_loras", "num_gpu_blocks_override",
+    "model_loader_extra_config", "ignore_patterns", "enable_chunked_prefill",
+    "disable_chunked_mm_input", "max_parallel_loading_workers", "worker_cls",
+    "worker_extension_cls", "generation_config", "model_impl", "additional_config",
+    "async_scheduling", "stream_interval", "tokens_only", "enable_log_requests",
+)
+
+
+def rebuild_engine_args_for_runtime(engine_args):
+    """Rebuild serialized engine args with the node's installed vLLM class.
+
+    A mixed Ray cluster can deserialize a 0.11 ``AsyncEngineArgs`` instance
+    in a 0.25 worker.  The two classes share a module path but not a field
+    contract, so ``isinstance`` cannot detect this boundary.  Reconstructing
+    from stable CLI values avoids passing version-specific config objects.
+    """
+    from vllm.engine.arg_utils import AsyncEngineArgs
+
+    signature = inspect.signature(AsyncEngineArgs)
+    if not hasattr(engine_args, "model_class_overrides"):
+        values = {}
+        for name in _CROSS_VLLM_ENGINE_ARG_NAMES:
+            if name not in signature.parameters or not hasattr(engine_args, name):
+                continue
+            value = getattr(engine_args, name)
+            if value is not None:
+                values[name] = value
+        values["model"] = getattr(engine_args, "model")
+        return AsyncEngineArgs(**values)
+    return engine_args
 
 
 class AsyncPutQueueActor:
@@ -91,6 +140,7 @@ def init_backend_engine(instance_id: str,
             # Llumlets during global launch. Clone it before injecting the
             # instance-specific connector rank/ports so one instance cannot
             # inherit another instance's KV endpoint.
+            engine_args = rebuild_engine_args_for_runtime(engine_args)
             engine_args = copy.deepcopy(engine_args)
             # Llumnix already reserves the TP GPUs in the parent actor's Ray
             # placement group.  vLLM's Ray executor would try to create a

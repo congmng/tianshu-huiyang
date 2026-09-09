@@ -107,13 +107,22 @@ def main() -> None:
     parser.add_argument("--model", default=str(ROOT / ".models/Qwen3-14B"))
     parser.add_argument("--api-port", type=int, default=0)
     parser.add_argument("--base-p2p-port", type=int, default=29500)
+    parser.add_argument("--ray-cluster-port", type=int, default=6379)
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
     parser.add_argument("--request-output-queue-port", type=int, default=0)
     parser.add_argument("--timeout", type=float, default=240)
     parser.add_argument("--max-model-len", type=int, default=256)
     parser.add_argument("--max-tokens", type=int, default=64)
+    parser.add_argument(
+        "--gpu-memory-utilization", type=float, default=0.96,
+        help="vLLM GPU memory utilization for each service instance",
+    )
     parser.add_argument("--prompt", default="The capital of France is")
     parser.add_argument("--log-file", default="v1_true_kv_migration_service.log")
+    parser.add_argument(
+        "--no-launch-ray-cluster", action="store_true",
+        help="connect to an already running Ray cluster",
+    )
     parser.add_argument(
         "--vllm-migration-fork",
         default=os.environ.get(
@@ -159,15 +168,15 @@ def main() -> None:
     environment.update({
         "CUDA_VISIBLE_DEVICES": args.gpu_ids,
         "RAY_DEDUP_LOGS": "0",
-        "HEAD_NODE_IP": "127.0.0.1",
         "HEAD_NODE": "1",
-        "LLUMNIX_KV_IP": "127.0.0.1",
         "LLUMNIX_KV_PORT": str(args.base_p2p_port),
         "LLUMNIX_TRUE_KV_MIGRATION_ONLY": "1",
         "LLUMNIX_COREX_TRANSPORT": "nccl",
         "PYTHONHASHSEED": "0",
         "VLLM_FORCE_NCCL_COMM": "1",
     })
+    environment.setdefault("HEAD_NODE_IP", "127.0.0.1")
+    environment.setdefault("LLUMNIX_KV_IP", "127.0.0.1")
     command = [
         sys.executable, "-m", "llumnix.entrypoints.vllm.api_server",
         "--host", "127.0.0.1",
@@ -182,14 +191,16 @@ def main() -> None:
         "--model", str(model),
         "--max-model-len", str(args.max_model_len),
         "--max-num-seqs", "1",
-        "--gpu-memory-utilization", "0.96",
+        "--gpu-memory-utilization", str(args.gpu_memory_utilization),
         "--enforce-eager",
         "--trust-remote-code",
         "--tensor-parallel-size", str(args.tensor_parallel_size),
         "--request-output-queue-port", str(queue_port),
-        "--launch-ray-cluster",
+        "--ray-cluster-port", str(args.ray_cluster_port),
         "--log-request-timestamps",
     ]
+    if not args.no_launch_ray_cluster:
+        command.insert(-1, "--launch-ray-cluster")
     with log_path.open("w", encoding="utf-8") as log_file:
         process = subprocess.Popen(
             command, cwd=ROOT, env=environment,
@@ -300,10 +311,11 @@ def main() -> None:
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=10)
-        subprocess.run(
-            ["ray", "stop"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            check=False,
-        )
+        if not args.no_launch_ray_cluster:
+            subprocess.run(
+                ["ray", "stop"], stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, check=False,
+            )
 
 
 if __name__ == "__main__":

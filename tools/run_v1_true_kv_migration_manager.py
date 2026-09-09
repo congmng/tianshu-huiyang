@@ -563,13 +563,31 @@ async def run(args: argparse.Namespace) -> None:
     manager.v1_migrating_requests = set()
     manager.v1_migration_epochs = {}
     manager.v1_migration_retries = {}
+    manager.v1_request_last_migration_time = {}
     manager.request_instance = {args.request_id: "src"}
     manager.request_instances = {args.request_id: {"src"}}
-    await manager._migrate_v1_request(
+    migration_attempts = 0
+    actual_migration = manager._migrate_v1_request
+    if args.inject_first_attempt_failure:
+        async def fail_first_attempt(*migration_args, **migration_kwargs):
+            nonlocal migration_attempts
+            migration_attempts += 1
+            if migration_attempts == 1:
+                raise RuntimeError("injected transient Manager migration failure")
+            return await actual_migration(*migration_args, **migration_kwargs)
+
+        manager._migrate_v1_request = fail_first_attempt
+    await manager._migrate_v1_request_with_retry(
         "src", "dst", args.request_id, args.epoch,
         source_endpoint, target_endpoint, None,
         incremental_precopy=args.incremental_precopy,
     )
+    if args.inject_first_attempt_failure and migration_attempts != 2:
+        raise AssertionError(
+            f"expected two migration attempts, got {migration_attempts}"
+        )
+    if args.inject_first_attempt_failure:
+        print(f"retry_attempts={migration_attempts}", flush=True)
     if args.prompt_embeds:
         snapshot_flags = ray.get(source.migration_snapshot_feature_flags.remote())
         if "prompt_embeds_v1" not in snapshot_flags:
@@ -683,6 +701,8 @@ def main() -> None:
     parser.add_argument("--verify-tokens", type=int, default=4)
     parser.add_argument("--incremental-precopy", action="store_true",
                         help="run one explicit immutable-prefix pre-copy round")
+    parser.add_argument("--inject-first-attempt-failure", action="store_true",
+                        help="inject one transient Manager failure and verify retry")
     parser.add_argument("--tensor-parallel-size", type=int, default=1,
                         help="tensor-parallel size for each migration instance")
     args = parser.parse_args()

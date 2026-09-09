@@ -42,6 +42,7 @@ SOURCE_FINGERPRINT_FILES = (
     "llumnix/launcher.py",
     "llumnix/llumlet/llumlet.py",
     "llumnix/entrypoints/vllm/arg_utils.py",
+    "llumnix/entrypoints/utils.py",
     "llumnix/entrypoints/vllm/client.py",
     "llumnix/entrypoints/vllm/v1_api_server.py",
     "llumnix/instance_info.py",
@@ -168,7 +169,7 @@ def compare_hosts(local: Mapping[str, object], remote: Mapping[str, object],
     """
     mismatches = []
     if mixed_stack:
-        common = ("python", "affinity_hashes", "source_fingerprint")
+        common = ("python", "ray", "affinity_hashes", "source_fingerprint")
     else:
         common = ("python", "vllm", "ray", "torch", "corex_sdk",
                   "cuda_available", "device_name", "affinity_hashes",
@@ -201,7 +202,7 @@ def collect_result(stack: str = "44") -> dict[str, object]:
         # CoreX 4.5 ships a later vLLM V1 without the 0.11 migration fork.
         # It is servable, but must never be advertised as migration-ready.
         migration_protocol_version = 0
-        migration_protocol = "unported-vllm-0.23"
+        migration_protocol = f"unported-vllm-{vllm.__version__}"
     try:
         from llumnix.backends.vllm.corex_p2p_connector import CoreXP2pNcclConnector
         connector_name = CoreXP2pNcclConnector.__name__
